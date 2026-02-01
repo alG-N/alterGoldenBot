@@ -230,7 +230,8 @@ class TrackHandler {
                 .setCustomId(`music_loop:${guildId}`)
                 .setLabel(loopInfo.text)
                 .setEmoji(loopInfo.emoji)
-                .setStyle(loopMode !== 'off' ? ButtonStyle.Success : ButtonStyle.Secondary),
+                .setStyle(loopMode !== 'off' ? ButtonStyle.Success : ButtonStyle.Secondary)
+                .setDisabled(autoPlay), // Disable loop when autoplay is on
             new ButtonBuilder()
                 .setCustomId(`music_shuffle:${guildId}`)
                 .setLabel('Shuffle')

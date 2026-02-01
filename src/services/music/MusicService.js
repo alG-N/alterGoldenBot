@@ -914,6 +914,12 @@ class MusicService {
         if (!queue) return false;
         
         queue.autoPlay = !queue.autoPlay;
+        
+        // When autoplay is enabled, disable loop mode (they conflict)
+        if (queue.autoPlay) {
+            queue.loopMode = 'off';
+        }
+        
         return queue.autoPlay;
     }
 
