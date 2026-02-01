@@ -124,8 +124,8 @@ class VideoDownloadService extends EventEmitter {
                 throw new Error('Downloaded file is empty. The video may be unavailable or protected.');
             }
 
-            // Check file size limit (50MB to avoid upload timeout)
-            const maxSizeMB = videoConfig.MAX_FILE_SIZE_MB || 50;
+            // Check file size limit (100MB - Discord Nitro limit)
+            const maxSizeMB = videoConfig.MAX_FILE_SIZE_MB || 100;
             if (fileSizeMB > maxSizeMB) {
                 fs.unlinkSync(videoPath);
                 throw new Error(`FILE_TOO_LARGE:${fileSizeMB.toFixed(1)}MB`);

@@ -38,12 +38,12 @@ module.exports = {
     // ==========================================
     // LIMITS (flat for easy access)
     // ==========================================
-    MAX_FILE_SIZE_MB: 50,               // 50MB to avoid Discord upload timeout (large files timeout even with Nitro)
+    MAX_FILE_SIZE_MB: 100,              // 100MB - Discord Nitro limit
     MAX_VIDEO_DURATION_SECONDS: 600,    // 10 minutes max
     MAX_CONCURRENT_DOWNLOADS: 3,
     USER_COOLDOWN_SECONDS: 30,
     limits: {
-        maxFileSizeMB: 50,                // 50MB safe upload limit
+        maxFileSizeMB: 100,               // 100MB - Discord Nitro limit
         maxDurationSeconds: 600,          // 10 minutes
         maxConcurrentDownloads: 3,
         userCooldownSeconds: 30

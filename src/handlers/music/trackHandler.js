@@ -201,7 +201,8 @@ class TrackHandler {
             loopMode = 'off',
             isShuffled = false,
             trackUrl = null,
-            userId = ''
+            userId = '',
+            autoPlay = false
         } = options;
 
         const rows = [];
@@ -235,6 +236,7 @@ class TrackHandler {
                 .setLabel('Shuffle')
                 .setEmoji('🔀')
                 .setStyle(isShuffled ? ButtonStyle.Success : ButtonStyle.Secondary)
+                .setDisabled(autoPlay) // Disable shuffle when autoplay is on
         );
         rows.push(controlRow);
 

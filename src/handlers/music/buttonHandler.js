@@ -443,6 +443,11 @@ module.exports = {
 
             console.log(`[Lyrics] Searching for: "${cleanArtist}" - "${cleanTitle}"`);
             
+            // Try LRCLIB first (better coverage for modern songs)
+            const lrclibResult = await this.fetchFromLrclib(cleanArtist, cleanTitle);
+            if (lrclibResult) return lrclibResult;
+
+            // Fallback to lyrics.ovh
             if (cleanArtist) {
                 const response = await fetch(`https://api.lyrics.ovh/v1/${encodeURIComponent(cleanArtist)}/${encodeURIComponent(cleanTitle)}`);
                 
@@ -458,6 +463,12 @@ module.exports = {
                 .replace(/\(.*?\)/g, '')
                 .replace(/\[.*?\]/g, '')
                 .trim();
+            
+            // Try LRCLIB with simplified title
+            if (simplifiedTitle !== cleanTitle) {
+                const lrclibSimplified = await this.fetchFromLrclib(cleanArtist, simplifiedTitle);
+                if (lrclibSimplified) return lrclibSimplified;
+            }
             
             if (cleanArtist && simplifiedTitle !== cleanTitle) {
                 const fallback1 = await fetch(`https://api.lyrics.ovh/v1/${encodeURIComponent(cleanArtist)}/${encodeURIComponent(simplifiedTitle)}`);
@@ -483,6 +494,31 @@ module.exports = {
             return null;
         } catch (error) {
             console.error('Lyrics API error:', error);
+            return null;
+        }
+    },
+
+    async fetchFromLrclib(artist, title) {
+        try {
+            const url = new URL('https://lrclib.net/api/get');
+            url.searchParams.set('track_name', title);
+            if (artist) url.searchParams.set('artist_name', artist);
+            
+            const response = await fetch(url.toString(), {
+                headers: { 'User-Agent': 'FumoBOT/1.0' }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                // Prefer plainLyrics over syncedLyrics
+                if (data.plainLyrics) return data.plainLyrics;
+                if (data.syncedLyrics) {
+                    // Remove timestamps from synced lyrics
+                    return data.syncedLyrics.replace(/\[\d{2}:\d{2}\.\d{2,3}\]/g, '').trim();
+                }
+            }
+            return null;
+        } catch {
             return null;
         }
     },

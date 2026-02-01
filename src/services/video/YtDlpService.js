@@ -99,7 +99,7 @@ class YtDlpService extends EventEmitter {
 
         // Get video info first to check duration and file size
         const maxDuration = videoConfig.MAX_VIDEO_DURATION_SECONDS || 600;
-        const maxFileSizeMB = videoConfig.MAX_FILE_SIZE_MB || 50;
+        const maxFileSizeMB = videoConfig.MAX_FILE_SIZE_MB || 100;
         
         try {
             const videoInfo = await this._getVideoInfo(url);

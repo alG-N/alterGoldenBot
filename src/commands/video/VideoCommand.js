@@ -280,18 +280,19 @@ class VideoCommand extends BaseCommand {
             } else if (isFileTooLarge) {
                 // Extract file size from error message if available
                 const sizeMatch = error.message.match(/FILE_TOO_LARGE:([\d.]+)MB/);
-                const fileSize = sizeMatch ? sizeMatch[1] : 'over 50';
+                const fileSize = sizeMatch ? sizeMatch[1] : 'over 100';
                 errorEmbed = new EmbedBuilder()
                     .setColor(COLORS.ERROR)
                     .setTitle('📦 Video Too Large')
                     .setDescription(
-                        `⚠️ This video is **${fileSize} MB** - max allowed is **50 MB**.\n\n` +
-                        `💡 **Why 50MB?** Large files timeout during upload, even with Nitro.\n\n` +
+                        `⚠️ This video is **${fileSize} MB** - max allowed is **100 MB**.\n\n` +
+                        `📏 **Discord Limits:**\n` +
+                        `• Free: 10 MB • Nitro Basic: 50 MB • Nitro: 500 MB\n\n` +
                         `💡 **Alternatives:**\n` +
                         `• Try lower quality (480p) for smaller file\n` +
                         `• Use a shorter video clip`
                     )
-                    .setFooter({ text: 'Maximum file size: 50MB (to prevent upload timeout)' });
+                    .setFooter({ text: 'Maximum file size: 100MB (Discord Nitro limit)' });
             } else if (isTimeout) {
                 errorEmbed = new EmbedBuilder()
                     .setColor(COLORS.ERROR)

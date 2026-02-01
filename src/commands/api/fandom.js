@@ -116,15 +116,16 @@ class FandomCommand extends BaseCommand {
 
     async _handleSearch(interaction, wiki) {
         const query = interaction.options.getString('query');
-        const results = await fandomService.searchArticles(wiki, query);
+        const result = await fandomService.search(wiki, query);
         
-        if (!results || results.length === 0) {
+        if (!result?.success || !result?.results || result.results.length === 0) {
             return this.safeReply(interaction, { embeds: [this.errorEmbed(`No articles found for **${query}** on ${wiki} wiki.`)], ephemeral: true });
         }
 
+        const results = result.results;
         const embed = new EmbedBuilder()
             .setColor(0x00D6D6)
-            .setTitle(`🔍 Search: "${query}" on ${wiki}`)
+            .setTitle(`🔍 Search: "${query}" on ${result.wiki || wiki}`)
             .setDescription(results.slice(0, 10).map((r, i) => 
                 `**${i + 1}.** [${r.title}](${r.url})`
             ).join('\n'))

@@ -154,6 +154,9 @@ class MusicService {
         const player = lavalinkService.getPlayer(guildId);
         if (!player) return null;
         
+        // Save current track BEFORE clearing (needed for autoplay)
+        const currentTrack = this.getCurrentTrack(guildId);
+        
         // Clear skip votes
         musicCache.endSkipVote(guildId);
         
@@ -180,9 +183,9 @@ class MusicService {
             await player.playTrack({ track: { encoded: nextTrack.track.encoded } });
             return nextTrack;
         } else {
-            // No next track, stop playback
-            musicCache.setCurrentTrack(guildId, null);
-            await player.stopTrack();
+            // No next track - trigger autoplay if enabled, otherwise stop
+            // Pass the current track to handleQueueEnd for autoplay
+            await this.handleQueueEnd(guildId, currentTrack);
             return null;
         }
     }
@@ -571,11 +574,15 @@ class MusicService {
 
     /**
      * Handle queue end - triggers auto-play if enabled
+     * @param {string} guildId 
+     * @param {Object} providedLastTrack - Optional last track (used when called from skip)
      */
-    async handleQueueEnd(guildId) {
-        // Get the last track before clearing
-        const lastTrack = this.getCurrentTrack(guildId);
+    async handleQueueEnd(guildId, providedLastTrack = null) {
+        // Use provided track or get current track
+        const lastTrack = providedLastTrack || this.getCurrentTrack(guildId);
         const queue = musicCache.getQueue(guildId);
+        
+        console.log(`[AutoPlay] handleQueueEnd called - autoPlay: ${queue?.autoPlay}, hasLastTrack: ${!!lastTrack}`);
         
         // Check if auto-play is enabled
         if (queue?.autoPlay && lastTrack) {
@@ -585,23 +592,22 @@ class MusicService {
                 const similarTrack = await this.findSimilarTrack(guildId, lastTrack);
                 
                 if (similarTrack) {
-                    console.log(`[AutoPlay] Found similar track: ${similarTrack.info?.title}`);
-                    
-                    // Add the similar track to queue
-                    musicCache.addTrack(guildId, similarTrack);
+                    console.log(`[AutoPlay] Found similar track: ${similarTrack.info?.title || similarTrack.title}`);
                     
                     // Store in lastPlayedTracks for future similarity
+                    const trackInfo = lastTrack.info || lastTrack;
                     if (!queue.lastPlayedTracks) queue.lastPlayedTracks = [];
-                    queue.lastPlayedTracks.push(lastTrack.info?.title);
+                    queue.lastPlayedTracks.push(trackInfo.title);
                     if (queue.lastPlayedTracks.length > 10) queue.lastPlayedTracks.shift();
                     
-                    // Play the similar track
+                    // Set current track and play directly (don't add to queue to avoid double play)
+                    musicCache.setCurrentTrack(guildId, similarTrack);
                     await this.playTrack(guildId, similarTrack);
                     
                     // Send auto-play notification
                     if (queue?.textChannel) {
                         const autoPlayEmbed = trackHandler.createAutoPlayEmbed?.(similarTrack) ||
-                            trackHandler.createInfoEmbed?.('🎵 Auto-Play', `Now playing: **${similarTrack.info?.title}**`);
+                            trackHandler.createInfoEmbed?.('🎵 Auto-Play', `Now playing: **${similarTrack.info?.title || similarTrack.title}**`);
                         await queue.textChannel.send({ embeds: [autoPlayEmbed] }).catch(() => {});
                     }
                     
@@ -640,13 +646,21 @@ class MusicService {
      * Enhanced with multiple search strategies for variety
      */
     async findSimilarTrack(guildId, lastTrack) {
-        if (!lastTrack?.info) return null;
+        // Handle different track structures - some have .info, some have direct properties
+        const trackInfo = lastTrack?.info || lastTrack;
+        const title = trackInfo?.title;
+        const author = trackInfo?.author;
+        const uri = trackInfo?.uri || trackInfo?.url;
+        
+        if (!title) {
+            console.log('[AutoPlay] No track title available. Track structure:', Object.keys(lastTrack || {}));
+            return null;
+        }
         
         const queue = musicCache.getQueue(guildId);
         const recentTitles = queue?.lastPlayedTracks || [];
         
-        // Build search query from track info
-        const { title, author, uri } = lastTrack.info;
+        console.log(`[AutoPlay] Finding similar to: "${title}" by "${author}"`);
         
         // Clean up title - remove common patterns like "(Official Video)", "[Lyrics]", etc.
         const cleanTitle = title
@@ -679,12 +693,21 @@ class MusicService {
         const shuffledStrategies = strategies.sort(() => Math.random() - 0.5);
         
         // Try multiple results per search to increase chances
-        for (const strategy of shuffledStrategies) {
+        for (const strategy of shuffledStrategies.slice(0, 5)) { // Limit to 5 strategies
             try {
                 console.log(`[AutoPlay] Trying strategy: ${strategy.name} - "${strategy.query}"`);
                 
-                const results = await lavalinkService.searchMultiple?.(strategy.query, 5) || 
-                                await this._searchWithLimit(strategy.query, 5);
+                let results = [];
+                if (typeof lavalinkService.searchMultiple === 'function') {
+                    results = await lavalinkService.searchMultiple(strategy.query, 5);
+                }
+                
+                // Fallback if searchMultiple returns empty or doesn't exist
+                if (!results || results.length === 0) {
+                    results = await this._searchWithLimit(strategy.query, 5);
+                }
+                
+                console.log(`[AutoPlay] Got ${results?.length || 0} results for "${strategy.query}"`);
                 
                 if (results && results.length > 0) {
                     // Filter out duplicates and pick a random valid one
@@ -722,10 +745,32 @@ class MusicService {
             const randomFallback = fallbackQueries[Math.floor(Math.random() * fallbackQueries.length)];
             console.log(`[AutoPlay] Fallback search: "${randomFallback}"`);
             
-            const result = await lavalinkService.search(randomFallback);
-            if (result?.track) return result;
+            const results = await lavalinkService.searchMultiple(randomFallback, 5);
+            if (results && results.length > 0) {
+                // Filter out recently played tracks by title
+                const validTracks = results.filter(track => {
+                    const trackTitle = track.info?.title || '';
+                    const isDuplicate = recentTitles.some(t => 
+                        t.toLowerCase().includes(trackTitle.toLowerCase().substring(0, 20)) ||
+                        trackTitle.toLowerCase().includes(t.toLowerCase().substring(0, 20))
+                    );
+                    return !isDuplicate && trackTitle.toLowerCase() !== title.toLowerCase();
+                });
+                
+                if (validTracks.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * Math.min(validTracks.length, 3));
+                    const selectedTrack = validTracks[randomIndex];
+                    console.log(`[AutoPlay] Fallback selected: ${selectedTrack.info?.title}`);
+                    return selectedTrack;
+                }
+                
+                // If all filtered out, just return first result
+                const selectedTrack = results[0];
+                console.log(`[AutoPlay] Fallback (no filter): ${selectedTrack.info?.title}`);
+                return selectedTrack;
+            }
         } catch (e) {
-            // Ignore
+            console.error('[AutoPlay] Fallback search error:', e.message);
         }
         
         return null;
@@ -842,19 +887,21 @@ class MusicService {
      */
     async _searchWithLimit(query, limit = 5) {
         try {
-            // Try playlist/multiple search first
-            const result = await lavalinkService.search(query);
-            
-            if (result?.tracks && Array.isArray(result.tracks)) {
-                return result.tracks.slice(0, limit);
+            // Use searchMultiple if available
+            const results = await lavalinkService.searchMultiple?.(query, limit);
+            if (results && results.length > 0) {
+                return results;
             }
             
+            // Fallback to single search
+            const result = await lavalinkService.search(query);
             if (result?.track) {
                 return [result];
             }
             
             return [];
         } catch (error) {
+            console.error('[AutoPlay] Search error:', error.message);
             return [];
         }
     }

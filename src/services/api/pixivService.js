@@ -386,18 +386,48 @@ class PixivService {
             const data = await res.json();
             const candidates = data?.candidates || [];
             
-            // Build suggestions - show translation first if available for cleaner look
+            // Build suggestions with proper display
             const suggestions = candidates.map(tag => {
-                const tagName = tag.tag_name || '';
-                const translation = tag.tag_translation || '';
+                const tagName = tag.tag_name || '';           // Usually Japanese: 能代(アズールレーン)
+                const romaji = tag.tag_translation || '';     // Romanized: azurennnonoshiro
                 
-                // If translation exists, show: "Translation • 日本語タグ"
-                if (translation && translation !== tagName) {
+                // Check if tagName contains Japanese/Chinese characters
+                const hasJapanese = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(tagName);
+                const hasJapaneseInRomaji = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(romaji);
+                
+                if (hasJapanese) {
+                    // tagName is Japanese, try to extract readable name
+                    // Format: "Name(Series)" like "能代(アズールレーン)" -> "Noshiro (Azur Lane)"
+                    const englishName = this._extractEnglishName(tagName, romaji);
+                    
+                    if (englishName && englishName !== tagName) {
+                        return {
+                            name: `${englishName} • ${tagName}`,
+                            value: tagName
+                        };
+                    }
+                    // No good translation, just show Japanese
                     return {
-                        name: `${translation} • ${tagName}`,
+                        name: tagName,
                         value: tagName
                     };
+                } else if (hasJapaneseInRomaji) {
+                    // Rare case: romaji field has Japanese
+                    return {
+                        name: `${tagName} • ${romaji}`,
+                        value: tagName
+                    };
+                } else if (romaji && romaji !== tagName) {
+                    // Both are romanized/English, show the more readable one first
+                    const cleanRomaji = this._cleanRomaji(romaji);
+                    if (cleanRomaji !== tagName) {
+                        return {
+                            name: `${tagName} • ${cleanRomaji}`,
+                            value: tagName
+                        };
+                    }
                 }
+                
                 return {
                     name: tagName,
                     value: tagName
@@ -406,6 +436,160 @@ class PixivService {
             
             return suggestions;
         }, []); // Return empty array on circuit open
+    }
+
+    /**
+     * Extract readable English name from Japanese tag
+     */
+    _extractEnglishName(japaneseTag, romaji) {
+        // Common series translations
+        const seriesMap = {
+            'アズールレーン': 'Azur Lane',
+            'アズレン': 'Azur Lane', 
+            'ブルーアーカイブ': 'Blue Archive',
+            'ブルアカ': 'Blue Archive',
+            '原神': 'Genshin Impact',
+            '崩壊スターレイル': 'Honkai: Star Rail',
+            'スターレイル': 'Star Rail',
+            '艦隊これくしょん': 'Kantai Collection',
+            '艦これ': 'KanColle',
+            'ウマ娘': 'Uma Musume',
+            'Fate': 'Fate',
+            'FGO': 'FGO',
+            '東方': 'Touhou',
+            '初音ミク': 'Hatsune Miku',
+            'ボーカロイド': 'Vocaloid',
+            'VOCALOID': 'Vocaloid',
+            'ホロライブ': 'Hololive',
+            'にじさんじ': 'Nijisanji',
+            'バーチャルYouTuber': 'VTuber',
+            'VTuber': 'VTuber',
+            'アイドルマスター': 'Idolmaster',
+            'ラブライブ': 'Love Live',
+            'プリコネ': 'Princess Connect',
+            'アークナイツ': 'Arknights',
+            '明日方舟': 'Arknights',
+            '碧蓝航线': 'Azur Lane',
+            '蔚蓝档案': 'Blue Archive',
+            '少女前线': 'Girls Frontline',
+            'ドールズフロントライン': 'Girls Frontline',
+            '勝利の女神': 'Nikke',
+            'NIKKE': 'Nikke',
+            'ガンダム': 'Gundam',
+            'ポケモン': 'Pokemon',
+            'ワンピース': 'One Piece',
+            'ナルト': 'Naruto',
+            '鬼滅の刃': 'Demon Slayer',
+            '進撃の巨人': 'Attack on Titan',
+            '呪術廻戦': 'Jujutsu Kaisen',
+            'SPY×FAMILY': 'Spy x Family',
+            'チェンソーマン': 'Chainsaw Man',
+            '僕のヒーローアカデミア': 'My Hero Academia',
+            'アニメ': 'Anime',
+        };
+
+        // Character name translations (common ones)
+        const characterMap = {
+            '能代': 'Noshiro',
+            'ザラ': 'Zara',
+            'エーギル': 'Ägir',
+            '武蔵': 'Musashi',
+            '大和': 'Yamato',
+            '島風': 'Shimakaze',
+            '雪風': 'Yukikaze',
+            '赤城': 'Akagi',
+            '加賀': 'Kaga',
+            '愛宕': 'Atago',
+            '高雄': 'Takao',
+            'エンタープライズ': 'Enterprise',
+            'ベルファスト': 'Belfast',
+            'イラストリアス': 'Illustrious',
+            'フォーミダブル': 'Formidable',
+            '神通': 'Jintsuu',
+            '夕張': 'Yuubari',
+            'ラフィー': 'Laffey',
+            'ジャベリン': 'Javelin',
+            '綾波': 'Ayanami',
+            'ユニコーン': 'Unicorn',
+        };
+
+        // Try to parse format: "CharacterName(SeriesName)" or "CharacterName（SeriesName）"
+        const match = japaneseTag.match(/^(.+?)[（(](.+?)[）)]$/);
+        
+        if (match) {
+            const charJp = match[1].trim();
+            const seriesJp = match[2].trim();
+            
+            const charEn = characterMap[charJp] || this._romajiToName(romaji, charJp);
+            const seriesEn = seriesMap[seriesJp] || seriesJp;
+            
+            if (charEn) {
+                return `${charEn} (${seriesEn})`;
+            }
+        }
+
+        // Check if the whole tag is a known series
+        if (seriesMap[japaneseTag]) {
+            return seriesMap[japaneseTag];
+        }
+
+        // Try to convert romaji to readable name
+        if (romaji) {
+            return this._romajiToName(romaji, japaneseTag);
+        }
+
+        return null;
+    }
+
+    /**
+     * Convert pixiv's romaji format to readable name
+     */
+    _romajiToName(romaji, originalJp) {
+        if (!romaji) return null;
+        
+        // Pixiv uses formats like "azurennnonoshiro" for "能代(アズールレーン)"
+        // Try to extract the character name part
+        
+        // Common series prefixes in romaji
+        const seriesPrefixes = [
+            { prefix: 'azurenn', series: 'Azur Lane' },
+            { prefix: 'azuren', series: 'Azur Lane' },
+            { prefix: 'kantaiko', series: 'KanColle' },
+            { prefix: 'kankoree', series: 'KanColle' },
+            { prefix: 'gennshin', series: 'Genshin' },
+            { prefix: 'genshin', series: 'Genshin' },
+            { prefix: 'buru-a-kaibu', series: 'Blue Archive' },
+            { prefix: 'buruaka', series: 'Blue Archive' },
+            { prefix: 'hororaibu', series: 'Hololive' },
+            { prefix: 'umamusume', series: 'Uma Musume' },
+            { prefix: 'fgo', series: 'FGO' },
+            { prefix: 'fate', series: 'Fate' },
+            { prefix: 'touhou', series: 'Touhou' },
+            { prefix: 'toho', series: 'Touhou' },
+        ];
+
+        for (const { prefix, series } of seriesPrefixes) {
+            if (romaji.toLowerCase().startsWith(prefix)) {
+                // Get the character name part after series prefix
+                const charPart = romaji.slice(prefix.length);
+                if (charPart) {
+                    // Capitalize first letter
+                    const capitalizedChar = charPart.charAt(0).toUpperCase() + charPart.slice(1);
+                    return `${capitalizedChar} (${series})`;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Clean up romaji for display
+     */
+    _cleanRomaji(romaji) {
+        if (!romaji) return '';
+        // Just capitalize first letter
+        return romaji.charAt(0).toUpperCase() + romaji.slice(1);
     }
 
     async translateToJapanese(text) {

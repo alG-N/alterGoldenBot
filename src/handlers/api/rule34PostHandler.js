@@ -13,28 +13,28 @@ const RATING_COLORS = {
 
 // Rating emojis
 const RATING_EMOJIS = {
-    safe: '??',
-    questionable: '??',
-    explicit: '??'
+    safe: '🟢',
+    questionable: '🟡',
+    explicit: '🔴'
 };
 
 // Content type emojis
 const CONTENT_EMOJIS = {
-    video: '??',
-    gif: '???',
-    animated: '?',
-    comic: '??',
-    image: '???'
+    video: '🎬',
+    gif: '🎞️',
+    animated: '✨',
+    comic: '📖',
+    image: '🖼️'
 };
 
 // Sort mode display
 const SORT_DISPLAY = {
-    'score:desc': '? Score (High to Low)',
-    'score:asc': '? Score (Low to High)',
-    'id:desc': '?? Newest First',
-    'id:asc': '?? Oldest First',
-    'updated:desc': '?? Recently Updated',
-    'random': '?? Random'
+    'score:desc': '⬆️ Score (High to Low)',
+    'score:asc': '⬇️ Score (Low to High)',
+    'id:desc': '🆕 Newest First',
+    'id:asc': '📅 Oldest First',
+    'updated:desc': '🔄 Recently Updated',
+    'random': '🎲 Random'
 };
 
 /**
@@ -52,8 +52,8 @@ async function createPostEmbed(post, options = {}) {
     } = options;
 
     const ratingColor = RATING_COLORS[post.rating] || RATING_COLORS.default;
-    const ratingEmoji = RATING_EMOJIS[post.rating] || '?';
-    const contentEmoji = CONTENT_EMOJIS[post.contentType] || '???';
+    const ratingEmoji = RATING_EMOJIS[post.rating] || '❓';
+    const contentEmoji = CONTENT_EMOJIS[post.contentType] || '🖼️';
 
     const embed = new EmbedBuilder()
         .setColor(ratingColor)
@@ -65,27 +65,27 @@ async function createPostEmbed(post, options = {}) {
 
     // Rating and basic info
     description += `${ratingEmoji} **Rating:** ${post.rating?.toUpperCase() || 'Unknown'}\n`;
-    description += `? **Score:** ${formatNumber(post.score)}\n`;
-    description += `?? **Dimensions:** ${post.width} � ${post.height}`;
+    description += `⭐ **Score:** ${formatNumber(post.score)}\n`;
+    description += `📐 **Dimensions:** ${post.width} × ${post.height}`;
     
-    if (post.isHighRes) description += ' ??';
+    if (post.isHighRes) description += ' 🔷';
     description += '\n';
 
     // Indicators
     const indicators = [];
-    if (post.isAiGenerated) indicators.push('?? AI');
-    if (post.isAnimated) indicators.push('? Animated');
-    if (post.hasSound) indicators.push('?? Sound');
-    if (post.hasVideo) indicators.push('?? Video');
-    if (post.isHighQuality) indicators.push('?? HQ');
+    if (post.isAiGenerated) indicators.push('🤖 AI');
+    if (post.isAnimated) indicators.push('✨ Animated');
+    if (post.hasSound) indicators.push('🔊 Sound');
+    if (post.hasVideo) indicators.push('🎬 Video');
+    if (post.isHighQuality) indicators.push('💎 HQ');
     
     if (indicators.length > 0) {
-        description += indicators.join(' � ') + '\n';
+        description += indicators.join(' • ') + '\n';
     }
 
     // Owner/uploader
     if (post.owner) {
-        description += `?? **Uploader:** ${post.owner}\n`;
+        description += `👤 **Uploader:** ${post.owner}\n`;
     }
 
     // Source
@@ -93,7 +93,7 @@ async function createPostEmbed(post, options = {}) {
         const sourceDisplay = post.source.length > 50 
             ? post.source.substring(0, 47) + '...' 
             : post.source;
-        description += `?? **Source:** [Link](${post.source.startsWith('http') ? post.source : 'https://' + post.source})\n`;
+        description += `🔗 **Source:** [Link](${post.source.startsWith('http') ? post.source : 'https://' + post.source})\n`;
     }
 
     embed.setDescription(description);
@@ -101,7 +101,7 @@ async function createPostEmbed(post, options = {}) {
     // Tags field (optional, for expanded view)
     if (showTags && post.tags) {
         const formattedTags = rule34Service.formatTagsForDisplay(post.tags, 1000);
-        embed.addFields({ name: '??? Tags', value: formattedTags || 'No tags', inline: false });
+        embed.addFields({ name: '🏷️ Tags', value: formattedTags || 'No tags', inline: false });
     }
 
     // Set image (use sample for large files)
@@ -118,7 +118,7 @@ async function createPostEmbed(post, options = {}) {
     if (searchPage > 1) footerParts.push(`Page ${searchPage}`);
     footerParts.push(`File: .${post.fileExtension}`);
     
-    embed.setFooter({ text: footerParts.join(' � ') });
+    embed.setFooter({ text: footerParts.join(' • ') });
     embed.setTimestamp(post.createdAt ? new Date(post.createdAt) : new Date());
 
     // Create buttons
@@ -140,7 +140,7 @@ function createPostButtons(post, options = {}) {
     navRow.addComponents(
         new ButtonBuilder()
             .setCustomId(`rule34_prev_${userId}`)
-            .setEmoji('??')
+            .setLabel('◀')
             .setStyle(ButtonStyle.Primary)
             .setDisabled(resultIndex === 0 && searchPage === 1),
         new ButtonBuilder()
@@ -150,14 +150,13 @@ function createPostButtons(post, options = {}) {
             .setDisabled(true),
         new ButtonBuilder()
             .setCustomId(`rule34_next_${userId}`)
-            .setEmoji('??')
+            .setLabel('▶')
             .setStyle(ButtonStyle.Primary)
             .setDisabled(resultIndex >= totalResults - 1),
         new ButtonBuilder()
             .setCustomId(`rule34_random_${userId}`)
-            .setEmoji('??')
+            .setLabel('🎲 Random')
             .setStyle(ButtonStyle.Secondary)
-            .setLabel('Random')
     );
     rows.push(navRow);
 
@@ -170,7 +169,6 @@ function createPostButtons(post, options = {}) {
             .setLabel('Full Image')
             .setStyle(ButtonStyle.Link)
             .setURL(post.fileUrl)
-            .setEmoji('??')
     );
     
     // View on site
@@ -179,7 +177,6 @@ function createPostButtons(post, options = {}) {
             .setLabel('View on Site')
             .setStyle(ButtonStyle.Link)
             .setURL(post.pageUrl)
-            .setEmoji('??')
     );
     
     // Favorite button
@@ -187,7 +184,7 @@ function createPostButtons(post, options = {}) {
     actionRow.addComponents(
         new ButtonBuilder()
             .setCustomId(`rule34_fav_${post.id}_${userId}`)
-            .setEmoji(isFavorited ? '??' : '??')
+            .setLabel(isFavorited ? '💔' : '❤️')
             .setStyle(isFavorited ? ButtonStyle.Danger : ButtonStyle.Secondary)
     );
     
@@ -195,7 +192,7 @@ function createPostButtons(post, options = {}) {
     actionRow.addComponents(
         new ButtonBuilder()
             .setCustomId(`rule34_tags_${userId}`)
-            .setEmoji('???')
+            .setLabel('🏷️')
             .setStyle(ButtonStyle.Secondary)
     );
     
@@ -207,7 +204,7 @@ function createPostButtons(post, options = {}) {
     pageRow.addComponents(
         new ButtonBuilder()
             .setCustomId(`rule34_prevpage_${userId}`)
-            .setLabel('? Prev Page')
+            .setLabel('⏮ Prev Page')
             .setStyle(ButtonStyle.Primary)
             .setDisabled(searchPage <= 1),
         new ButtonBuilder()
@@ -217,12 +214,11 @@ function createPostButtons(post, options = {}) {
             .setDisabled(true),
         new ButtonBuilder()
             .setCustomId(`rule34_nextpage_${userId}`)
-            .setLabel('Next Page ?')
+            .setLabel('Next Page ⏭')
             .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
             .setCustomId(`rule34_related_${userId}`)
-            .setEmoji('??')
-            .setLabel('Related')
+            .setLabel('🔗 Related')
             .setStyle(ButtonStyle.Secondary)
     );
     rows.push(pageRow);
@@ -236,18 +232,18 @@ function createPostButtons(post, options = {}) {
 function createVideoEmbed(post, options = {}) {
     const { resultIndex = 0, totalResults = 1, userId = '' } = options;
     
-    const ratingEmoji = RATING_EMOJIS[post.rating] || '?';
+    const ratingEmoji = RATING_EMOJIS[post.rating] || '❓';
     
     const embed = new EmbedBuilder()
         .setColor(RATING_COLORS[post.rating] || RATING_COLORS.default)
-        .setTitle(`?? Video Post #${post.id}`)
+        .setTitle(`🎬 Video Post #${post.id}`)
         .setURL(post.pageUrl)
         .setDescription(
             `${ratingEmoji} **Rating:** ${post.rating?.toUpperCase()}\n` +
-            `? **Score:** ${formatNumber(post.score)}\n` +
-            `?? **Dimensions:** ${post.width} � ${post.height}\n` +
-            `${post.hasSound ? '?? Has Sound' : '?? No Sound'}\n\n` +
-            `?? **Videos cannot be embedded directly.**\n` +
+            `⭐ **Score:** ${formatNumber(post.score)}\n` +
+            `📐 **Dimensions:** ${post.width} × ${post.height}\n` +
+            `${post.hasSound ? '🔊 Has Sound' : '🔇 No Sound'}\n\n` +
+            `📹 **Videos cannot be embedded directly.**\n` +
             `Click the button below to watch.`
         );
     
@@ -255,17 +251,16 @@ function createVideoEmbed(post, options = {}) {
         embed.setImage(post.previewUrl);
     }
     
-    embed.setFooter({ text: `Result ${resultIndex + 1}/${totalResults} � File: .${post.fileExtension}` });
+    embed.setFooter({ text: `Result ${resultIndex + 1}/${totalResults} • File: .${post.fileExtension}` });
 
     // Create buttons with video-specific options
     const rows = createPostButtons(post, options);
     
     // Add video button to first action row
     const videoButton = new ButtonBuilder()
-        .setLabel('Watch Video')
+        .setLabel('▶️ Watch Video')
         .setStyle(ButtonStyle.Link)
-        .setURL(post.fileUrl)
-        .setEmoji('??');
+        .setURL(post.fileUrl);
     
     // Insert at the beginning of action row
     if (rows[1]) {
@@ -287,7 +282,7 @@ function createSearchSummaryEmbed(results, query, options = {}) {
     
     const embed = new EmbedBuilder()
         .setColor('#9400D3')
-        .setTitle('?? Rule34 Search Results')
+        .setTitle('🔍 Rule34 Search Results')
         .setDescription(
             `**Query:** \`${query || 'all'}\`\n` +
             `**Results Found:** ${results.posts.length}${results.hasMore ? '+' : ''}\n` +
@@ -296,14 +291,14 @@ function createSearchSummaryEmbed(results, query, options = {}) {
 
     // Active filters
     const activeFilters = [];
-    if (filters.excludeAi) activeFilters.push('?? AI Excluded');
+    if (filters.excludeAi) activeFilters.push('🤖 AI Excluded');
     if (filters.rating) activeFilters.push(`${RATING_EMOJIS[filters.rating]} ${filters.rating} only`);
-    if (filters.minScore > 0) activeFilters.push(`? Score =${filters.minScore}`);
-    if (filters.highQualityOnly) activeFilters.push('?? HQ Only');
-    if (filters.contentType) activeFilters.push(`?? ${filters.contentType} only`);
+    if (filters.minScore > 0) activeFilters.push(`⭐ Score ≥${filters.minScore}`);
+    if (filters.highQualityOnly) activeFilters.push('💎 HQ Only');
+    if (filters.contentType) activeFilters.push(`📁 ${filters.contentType} only`);
     
     if (activeFilters.length > 0) {
-        embed.addFields({ name: '??? Active Filters', value: activeFilters.join(' � '), inline: false });
+        embed.addFields({ name: '⚙️ Active Filters', value: activeFilters.join(' • '), inline: false });
     }
 
     // Stats
@@ -312,12 +307,12 @@ function createSearchSummaryEmbed(results, query, options = {}) {
     const videoCount = results.posts.filter(p => p.hasVideo).length;
     const animatedCount = results.posts.filter(p => p.isAnimated).length;
     
-    if (aiCount > 0) stats.push(`?? ${aiCount} AI`);
-    if (videoCount > 0) stats.push(`?? ${videoCount} Videos`);
-    if (animatedCount > 0) stats.push(`? ${animatedCount} Animated`);
+    if (aiCount > 0) stats.push(`🤖 ${aiCount} AI`);
+    if (videoCount > 0) stats.push(`🎬 ${videoCount} Videos`);
+    if (animatedCount > 0) stats.push(`✨ ${animatedCount} Animated`);
     
     if (stats.length > 0) {
-        embed.addFields({ name: '?? Content Stats', value: stats.join(' � '), inline: false });
+        embed.addFields({ name: '📊 Content Stats', value: stats.join(' • '), inline: false });
     }
 
     return embed;
@@ -329,19 +324,19 @@ function createSearchSummaryEmbed(results, query, options = {}) {
 function createNoResultsEmbed(query, suggestions = []) {
     const embed = new EmbedBuilder()
         .setColor('#FF6B6B')
-        .setTitle('? No Results Found')
+        .setTitle('❌ No Results Found')
         .setDescription(
             `No posts found for: \`${query || 'your search'}\`\n\n` +
             '**Tips:**\n' +
-            '� Check spelling and try alternative tags\n' +
-            '� Use underscores instead of spaces (e.g., `blue_eyes`)\n' +
-            '� Try broader or fewer tags\n' +
-            '� Use the wildcard `*` for partial matches'
+            '• Check spelling and try alternative tags\n' +
+            '• Use underscores instead of spaces (e.g., `blue_eyes`)\n' +
+            '• Try broader or fewer tags\n' +
+            '• Use the wildcard `*` for partial matches'
         );
 
     if (suggestions.length > 0) {
         embed.addFields({
-            name: '?? Did you mean?',
+            name: '💡 Did you mean?',
             value: suggestions.slice(0, 5).map(s => `\`${s}\``).join(', '),
             inline: false
         });
@@ -356,7 +351,7 @@ function createNoResultsEmbed(query, suggestions = []) {
 function createErrorEmbed(error, details = '') {
     return new EmbedBuilder()
         .setColor('#FF0000')
-        .setTitle('? Error')
+        .setTitle('❌ Error')
         .setDescription(
             `An error occurred: ${error.message || 'Unknown error'}\n` +
             (details ? `\n${details}` : '') +
@@ -423,17 +418,17 @@ function createFavoritesEmbed(userId, favorites, page = 0) {
 
     const embed = new EmbedBuilder()
         .setColor('#FF69B4')
-        .setTitle('?? Your Favorites')
+        .setTitle('💖 Your Favorites')
         .setDescription(
             favorites.length > 0
                 ? `You have **${favorites.length}** favorited posts.`
-                : '?? No favorites yet.\n\nClick the ?? button on any post to add it to your favorites!'
+                : '📭 No favorites yet.\n\nClick the ❤️ button on any post to add it to your favorites!'
         );
 
     if (pageFavorites.length > 0) {
         const list = pageFavorites.map((fav, i) => 
             `**${start + i + 1}.** [Post #${fav.id}](https://rule34.xxx/index.php?page=post&s=view&id=${fav.id})` +
-            (fav.score ? ` ?${fav.score}` : '')
+            (fav.score ? ` ⭐${fav.score}` : '')
         ).join('\n');
         
         embed.addFields({ name: `Page ${page + 1}/${totalPages}`, value: list, inline: false });
@@ -626,7 +621,7 @@ function createSettingsComponents(userId) {
 function createRelatedTagsEmbed(originalTag, relatedTags) {
     const embed = new EmbedBuilder()
         .setColor('#5865F2')
-        .setTitle(`?? Tags Related to "${originalTag}"`)
+        .setTitle(`🔗 Tags Related to "${originalTag}"`)
         .setDescription(
             relatedTags.length > 0
                 ? relatedTags.map(({ tag, count }) => 
@@ -644,11 +639,11 @@ function createRelatedTagsEmbed(originalTag, relatedTags) {
 function createHistoryEmbed(userId, history) {
     const embed = new EmbedBuilder()
         .setColor('#9B59B6')
-        .setTitle('?? Your View History')
+        .setTitle('📜 Your View History')
         .setDescription(
             history.length > 0
                 ? `Your last **${history.length}** viewed posts:`
-                : '?? No view history yet.'
+                : '📭 No view history yet.'
         );
 
     if (history.length > 0) {
@@ -661,6 +656,17 @@ function createHistoryEmbed(userId, history) {
     }
 
     return embed;
+}
+
+/**
+ * Create auto-play notification embed
+ */
+function createAutoPlayEmbed(track) {
+    return new EmbedBuilder()
+        .setColor('#5865F2')
+        .setTitle('🔄 Auto-Play')
+        .setDescription(`Now playing: **${track?.info?.title || track?.title || 'Unknown'}**`)
+        .setFooter({ text: 'Auto-play found a similar track' });
 }
 
 /**
@@ -688,6 +694,7 @@ module.exports = {
     createSettingsComponents,
     createRelatedTagsEmbed,
     createHistoryEmbed,
+    createAutoPlayEmbed,
     RATING_COLORS,
     RATING_EMOJIS,
     CONTENT_EMOJIS,

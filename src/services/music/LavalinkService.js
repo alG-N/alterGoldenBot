@@ -241,6 +241,64 @@ class LavalinkService {
     }
 
     /**
+     * Search for multiple tracks (for autoplay)
+     */
+    async searchMultiple(query, limit = 5) {
+        if (!this.shoukaku || !this.isReady) {
+            console.log('[Lavalink] SearchMultiple: Not ready - shoukaku:', !!this.shoukaku, 'isReady:', this.isReady);
+            return [];
+        }
+
+        try {
+            const searchQuery = `${lavalinkConfig.defaultSearchPlatform}:${query}`;
+            const node = [...this.shoukaku.nodes.values()].find(n => n.state === 1);
+
+            if (!node) {
+                const nodeStates = [...this.shoukaku.nodes.values()].map(n => ({ name: n.name, state: n.state }));
+                console.log('[Lavalink] SearchMultiple: No ready node. States:', nodeStates);
+                return [];
+            }
+
+            console.log(`[Lavalink] SearchMultiple: Searching "${searchQuery}" on node ${node.name}`);
+            const result = await node.rest.resolve(searchQuery);
+
+            if (!result || result.loadType === 'error' || result.loadType === 'empty') {
+                console.log('[Lavalink] SearchMultiple: No results, loadType:', result?.loadType);
+                return [];
+            }
+
+            console.log(`[Lavalink] SearchMultiple: loadType=${result.loadType}, tracks found`);
+            let tracks = [];
+            if (result.loadType === 'search' && Array.isArray(result.data)) {
+                tracks = result.data.slice(0, limit);
+            } else if (result.loadType === 'track' && result.data) {
+                tracks = [result.data];
+            } else if (result.loadType === 'playlist' && result.data?.tracks) {
+                tracks = result.data.tracks.slice(0, limit);
+            }
+
+            return tracks.map(track => {
+                const youtubeId = this.extractYouTubeId(track.info?.uri);
+                return {
+                    track: track,
+                    encoded: track.encoded,
+                    info: track.info,
+                    url: track.info?.uri,
+                    title: track.info?.title,
+                    lengthSeconds: Math.floor((track.info?.length || 0) / 1000),
+                    thumbnail: track.info?.artworkUrl || (youtubeId ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg` : null),
+                    author: track.info?.author,
+                    source: track.info?.sourceName || 'Unknown',
+                    identifier: youtubeId || track.info?.identifier
+                };
+            });
+        } catch (error) {
+            console.error('[Lavalink] SearchMultiple error:', error.message);
+            return [];
+        }
+    }
+
+    /**
      * Extract Spotify ID from URL
      */
     extractSpotifyId(url) {
