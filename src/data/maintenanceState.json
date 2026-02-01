@@ -1,0 +1,10 @@
+{
+    "enabled": false,
+    "reason": null,
+    "startTime": null,
+    "estimatedEnd": null,
+    "partialMode": false,
+    "disabledFeatures": [],
+    "allowedUsers": ["1128296349566251068"],
+    "scheduledMaintenance": null
+}

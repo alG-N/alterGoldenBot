@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: altergolden-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-altergolden}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-altergolden_secret}
+      POSTGRES_DB: ${DB_NAME:-altergolden_db}
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-altergolden} -d ${DB_NAME:-altergolden_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: altergolden-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# Note: Using existing services from your Docker setup:
+# - lavalinklocalserver (Lavalink music)
+# - cobaltlocalserver (Video downloads)
+# - invidiouscompa (YouTube)
+# - ytdlplocalserver (yt-dlp)
+# - yt-cipher (YouTube cipher)
