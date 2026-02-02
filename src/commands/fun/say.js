@@ -106,7 +106,18 @@ class SayCommand extends BaseCommand {
         }
 
         try {
-            const safeMessage = sayService?.sanitizeMessage?.(message) || message;
+            // Sanitize message - always sanitize even if service unavailable
+            let safeMessage;
+            if (sayService?.sanitizeMessage) {
+                safeMessage = sayService.sanitizeMessage(message);
+            } else {
+                // Fallback sanitization: prevent @everyone/@here pings and other exploits
+                safeMessage = message
+                    .replace(/@(everyone|here)/gi, '@\u200b$1')  // Zero-width space to break ping
+                    .replace(/<@&\d+>/g, '[role]')               // Remove role pings
+                    .replace(/```/g, '\`\`\`');                  // Escape code blocks
+            }
+            
             const creditText = showCredit 
                 ? `\n\n*— Requested by <@${interaction.user.id}>*`
                 : '';

@@ -58,10 +58,21 @@ async function checkVoiceChannel(interaction) {
 }
 
 async function checkSameVoiceChannel(interaction, botChannelId) {
+    // First check: User must be in a voice channel
+    if (!interaction.member?.voice?.channel) {
+        await interaction.reply({
+            flags: MessageFlags.Ephemeral,
+            content: "❌ You must be in a voice channel to use these controls.",
+        });
+        return false;
+    }
+
+    // If bot is not in a channel, allow (for initial join)
     if (!botChannelId) {
         return true;
     }
 
+    // Second check: User must be in the SAME voice channel as the bot
     if (!validators.isInSameVoiceChannel(interaction.member, botChannelId)) {
         await interaction.reply({
             flags: MessageFlags.Ephemeral,

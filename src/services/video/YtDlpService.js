@@ -112,18 +112,32 @@ class YtDlpService extends EventEmitter {
                     throw new Error(`DURATION_TOO_LONG:${durationStr} (max: ${maxStr})`);
                 }
                 
-                // Estimate file size (rough estimate: ~1MB per minute at 720p, ~2MB at 1080p)
-                const quality = options.quality || '720';
-                const bitrateMultiplier = quality === '1080' ? 2.5 : (quality === '480' ? 0.5 : 1.2);
-                const estimatedSizeMB = (videoInfo.duration / 60) * bitrateMultiplier * 8; // Rough estimate
-                
-                if (estimatedSizeMB > maxFileSizeMB * 1.5) { // 1.5x buffer for estimate inaccuracy
-                    console.log(`⚠️ Estimated size ${estimatedSizeMB.toFixed(1)}MB may exceed ${maxFileSizeMB}MB limit`);
+                // Check actual filesize from yt-dlp (if available)
+                if (videoInfo.filesize) {
+                    const fileSizeMB = videoInfo.filesize / (1024 * 1024);
+                    if (fileSizeMB > maxFileSizeMB) {
+                        console.log(`🚫 File size ${fileSizeMB.toFixed(1)}MB exceeds ${maxFileSizeMB}MB limit (pre-download check)`);
+                        throw new Error(`FILE_TOO_LARGE:${fileSizeMB.toFixed(1)}MB`);
+                    }
+                    console.log(`📊 Pre-download size check: ${fileSizeMB.toFixed(1)}MB (limit: ${maxFileSizeMB}MB) ✓`);
+                } else {
+                    // Estimate file size if exact size not available
+                    const quality = options.quality || '720';
+                    const bitrateMultiplier = quality === '1080' ? 2.5 : (quality === '480' ? 0.5 : 1.2);
+                    const estimatedSizeMB = (videoInfo.duration / 60) * bitrateMultiplier * 8;
+                    
+                    // Block if estimated size is significantly over limit (2x to account for estimation error)
+                    if (estimatedSizeMB > maxFileSizeMB * 2) {
+                        console.log(`🚫 Estimated size ${estimatedSizeMB.toFixed(1)}MB exceeds ${maxFileSizeMB * 2}MB safety limit`);
+                        throw new Error(`FILE_TOO_LARGE:~${estimatedSizeMB.toFixed(0)}MB (estimated)`);
+                    } else if (estimatedSizeMB > maxFileSizeMB) {
+                        console.log(`⚠️ Estimated size ${estimatedSizeMB.toFixed(1)}MB may exceed ${maxFileSizeMB}MB limit, proceeding with caution...`);
+                    }
                 }
             }
         } catch (infoError) {
             // If it's our custom error, rethrow it
-            if (infoError.message.startsWith('DURATION_TOO_LONG')) {
+            if (infoError.message.startsWith('DURATION_TOO_LONG') || infoError.message.startsWith('FILE_TOO_LARGE')) {
                 throw infoError;
             }
             // Otherwise continue with download attempt

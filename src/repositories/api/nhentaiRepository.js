@@ -157,17 +157,27 @@ class NHentaiRepository {
 
     /**
      * Search favourites by title
+     * @param {string} userId - User ID
+     * @param {string} query - Search query
+     * @param {number} limit - Max results
+     * @returns {Promise<Array>} Matching favourites
      */
     async searchFavourites(userId, query, limit = 10) {
         await this._initialize();
         try {
+            // Escape special LIKE pattern characters to prevent pattern injection
+            const escapedQuery = query
+                .replace(/\\/g, '\\\\')  // Escape backslashes first
+                .replace(/%/g, '\\%')      // Escape percent
+                .replace(/_/g, '\\_');     // Escape underscore
+            
             const rows = await postgres.getMany(
                 `SELECT gallery_id, gallery_title, num_pages, tags, created_at 
                  FROM nhentai_favourites 
                  WHERE user_id = $1 AND (gallery_title ILIKE $2 OR tags ILIKE $2)
                  ORDER BY created_at DESC
                  LIMIT $3`,
-                [userId, `%${query}%`, limit]
+                [userId, `%${escapedQuery}%`, limit]
             );
             return rows || [];
         } catch (error) {

@@ -186,6 +186,30 @@ class VideoCommand extends BaseCommand {
                 }
 
                 downloadedFilePath = result.path;
+                
+                // Validate file size before upload (Discord limits)
+                const maxFileSizeMB = videoConfig?.MAX_FILE_SIZE_MB || videoConfig?.limits?.maxFileSizeMB || 100;
+                if (result.size && result.size > maxFileSizeMB) {
+                    // Clean up oversized file
+                    if (fs.existsSync(downloadedFilePath)) {
+                        try { fs.unlinkSync(downloadedFilePath); } catch (e) {}
+                    }
+                    
+                    const sizeErrorEmbed = new EmbedBuilder()
+                        .setColor(COLORS.ERROR)
+                        .setTitle('📁 File Too Large')
+                        .setDescription(
+                            `The downloaded video is **${result.size.toFixed(2)} MB**, which exceeds the **${maxFileSizeMB} MB** limit.\n\n` +
+                            `**Suggestions:**\n` +
+                            `• Try a lower quality setting (480p)\n` +
+                            `• Download a shorter clip\n` +
+                            `• Use the original link directly`
+                        )
+                        .setFooter({ text: 'Discord file size limit' });
+                    
+                    activeDownloads.delete(userId);
+                    return interaction.editReply({ embeds: [sizeErrorEmbed], components: [] });
+                }
 
                 // Show uploading stage
                 try {

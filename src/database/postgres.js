@@ -5,6 +5,50 @@
  */
 
 const { Pool } = require('pg');
+const logger = require('../core/Logger');
+
+// Whitelist of allowed tables to prevent SQL injection
+const ALLOWED_TABLES = [
+    'guild_settings',
+    'moderation_logs',
+    'user_data',
+    'guild_user_data',
+    'afk_users',
+    'snipes',
+    'playlists',
+    'bot_stats',
+    'command_analytics',
+    'nhentai_favourites',
+    'anime_watchlist',
+    'anime_history',
+    'anime_favourites',
+    'anime_notifications'
+];
+
+// Regex for valid SQL identifiers (alphanumeric and underscore only)
+const VALID_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+/**
+ * Validate table name against whitelist
+ * @param {string} table - Table name to validate
+ * @throws {Error} If table is not in whitelist
+ */
+function validateTable(table) {
+    if (!ALLOWED_TABLES.includes(table)) {
+        throw new Error(`Invalid table name: ${table}. Table not in whitelist.`);
+    }
+}
+
+/**
+ * Validate column/identifier name format
+ * @param {string} identifier - Column or identifier name
+ * @throws {Error} If identifier format is invalid
+ */
+function validateIdentifier(identifier) {
+    if (!VALID_IDENTIFIER.test(identifier)) {
+        throw new Error(`Invalid identifier: ${identifier}. Only alphanumeric and underscore allowed.`);
+    }
+}
 
 class PostgresDatabase {
     constructor() {
@@ -14,6 +58,7 @@ class PostgresDatabase {
 
     /**
      * Initialize the database connection pool
+     * Optimized for production with connection limits and timeouts
      */
     async initialize() {
         if (this.pool) return;
@@ -24,9 +69,19 @@ class PostgresDatabase {
             user: process.env.DB_USER || 'altergolden',
             password: process.env.DB_PASSWORD || 'altergolden_secret',
             database: process.env.DB_NAME || 'altergolden_db',
-            max: 20, // Maximum connections in pool
-            idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 5000,
+            
+            // Connection pool settings (optimized for production)
+            max: parseInt(process.env.DB_POOL_MAX) || 15,           // Max connections
+            min: parseInt(process.env.DB_POOL_MIN) || 2,            // Min connections
+            idleTimeoutMillis: 30000,                                // Close idle connections after 30s
+            connectionTimeoutMillis: 10000,                          // Connection timeout 10s
+            
+            // Query timeout to prevent long-running queries from blocking pool
+            statement_timeout: parseInt(process.env.DB_QUERY_TIMEOUT) || 30000,  // 30s query timeout
+            query_timeout: parseInt(process.env.DB_QUERY_TIMEOUT) || 30000,
+            
+            // Connection health
+            allowExitOnIdle: false,                                  // Keep pool alive
         };
 
         this.pool = new Pool(config);
@@ -37,15 +92,15 @@ class PostgresDatabase {
             await client.query('SELECT NOW()');
             client.release();
             this.isConnected = true;
-            console.log('✅ [PostgreSQL] Connected to database');
+            logger.success('PostgreSQL', 'Connected to database');
         } catch (error) {
-            console.error('❌ [PostgreSQL] Connection failed:', error.message);
+            logger.error('PostgreSQL', `Connection failed: ${error.message}`);
             throw error;
         }
 
         // Handle pool errors
         this.pool.on('error', (err) => {
-            console.error('❌ [PostgreSQL] Pool error:', err.message);
+            logger.error('PostgreSQL', `Pool error: ${err.message}`);
         });
     }
 
@@ -67,12 +122,12 @@ class PostgresDatabase {
             
             // Log slow queries
             if (duration > 1000) {
-                console.warn(`[PostgreSQL] Slow query (${duration}ms):`, text.substring(0, 100));
+                logger.warn('PostgreSQL', `Slow query (${duration}ms): ${text.substring(0, 100)}`);
             }
             
             return result;
         } catch (error) {
-            console.error('[PostgreSQL] Query error:', error.message);
+            logger.error('PostgreSQL', `Query error: ${error.message}`);
             throw error;
         }
     }
@@ -101,13 +156,21 @@ class PostgresDatabase {
 
     /**
      * Execute an insert and return the inserted row
-     * @param {string} table - Table name
+     * @param {string} table - Table name (must be in whitelist)
      * @param {Object} data - Data to insert
      * @returns {Promise<Object>} Inserted row
+     * @throws {Error} If table or column names are invalid
      */
     async insert(table, data) {
+        // Validate table name against whitelist
+        validateTable(table);
+        
         const keys = Object.keys(data);
         const values = Object.values(data);
+        
+        // Validate all column names
+        keys.forEach(key => validateIdentifier(key));
+        
         const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
         
         const text = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`;
@@ -117,16 +180,24 @@ class PostgresDatabase {
 
     /**
      * Execute an update
-     * @param {string} table - Table name
+     * @param {string} table - Table name (must be in whitelist)
      * @param {Object} data - Data to update
      * @param {Object} where - Where conditions
      * @returns {Promise<Object>} Updated row
+     * @throws {Error} If table or column names are invalid
      */
     async update(table, data, where) {
+        // Validate table name against whitelist
+        validateTable(table);
+        
         const setKeys = Object.keys(data);
         const setValues = Object.values(data);
         const whereKeys = Object.keys(where);
         const whereValues = Object.values(where);
+        
+        // Validate all column names
+        setKeys.forEach(key => validateIdentifier(key));
+        whereKeys.forEach(key => validateIdentifier(key));
         
         const setClause = setKeys.map((k, i) => `${k} = $${i + 1}`).join(', ');
         const whereClause = whereKeys.map((k, i) => `${k} = $${setKeys.length + i + 1}`).join(' AND ');
@@ -138,14 +209,23 @@ class PostgresDatabase {
 
     /**
      * Upsert (insert or update)
-     * @param {string} table - Table name
+     * @param {string} table - Table name (must be in whitelist)
      * @param {Object} data - Data to upsert
      * @param {string} conflictKey - Column for conflict detection
      * @returns {Promise<Object>} Upserted row
+     * @throws {Error} If table or column names are invalid
      */
     async upsert(table, data, conflictKey) {
+        // Validate table name against whitelist
+        validateTable(table);
+        
         const keys = Object.keys(data);
         const values = Object.values(data);
+        
+        // Validate all column names including conflict key
+        keys.forEach(key => validateIdentifier(key));
+        validateIdentifier(conflictKey);
+        
         const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
         const updateClause = keys
             .filter(k => k !== conflictKey)
@@ -166,13 +246,21 @@ class PostgresDatabase {
 
     /**
      * Delete rows
-     * @param {string} table - Table name
+     * @param {string} table - Table name (must be in whitelist)
      * @param {Object} where - Where conditions
      * @returns {Promise<number>} Number of deleted rows
+     * @throws {Error} If table or column names are invalid
      */
     async delete(table, where) {
+        // Validate table name against whitelist
+        validateTable(table);
+        
         const whereKeys = Object.keys(where);
         const whereValues = Object.values(where);
+        
+        // Validate all column names
+        whereKeys.forEach(key => validateIdentifier(key));
+        
         const whereClause = whereKeys.map((k, i) => `${k} = $${i + 1}`).join(' AND ');
         
         const text = `DELETE FROM ${table} WHERE ${whereClause}`;
@@ -208,7 +296,7 @@ class PostgresDatabase {
             await this.pool.end();
             this.pool = null;
             this.isConnected = false;
-            console.log('✅ [PostgreSQL] Connection pool closed');
+            logger.info('PostgreSQL', 'Connection pool closed');
         }
     }
 

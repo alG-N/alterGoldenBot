@@ -72,6 +72,12 @@ async function bootstrap(client, options = {}) {
         results.timings.services = await initWithTiming('Services', async () => {
             const { SnipeService } = require('../services');
             await SnipeService.initialize(client);
+            
+            // Register music shutdown handler
+            const { registerShutdownHandler } = require('./shutdown');
+            const MusicService = require('../services/music/MusicService');
+            registerShutdownHandler('MusicService', () => MusicService.shutdownAll(), 10);
+            
             return { initialized: true };
         });
         

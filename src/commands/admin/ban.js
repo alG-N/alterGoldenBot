@@ -195,7 +195,8 @@ class BanCommand extends BaseCommand {
 
     async _listBans(interaction) {
         try {
-            const bans = await interaction.guild.bans.fetch();
+            // Limit fetch to prevent rate limiting on servers with many bans
+            const bans = await interaction.guild.bans.fetch({ limit: 100 });
 
             if (bans.size === 0) {
                 return this.infoReply(interaction, 'No users are currently banned from this server.');
@@ -209,7 +210,7 @@ class BanCommand extends BaseCommand {
                 .setColor(COLORS.INFO)
                 .setTitle(`🔨 Ban List - ${interaction.guild.name}`)
                 .setDescription(banList)
-                .setFooter({ text: `Total: ${bans.size} banned user(s)${bans.size > 25 ? ' | Showing first 25' : ''}` })
+                .setFooter({ text: `Showing ${Math.min(bans.size, 25)} of ${bans.size}${bans.size >= 100 ? '+ (limited)' : ''} banned user(s)` })
                 .setTimestamp();
 
             await this.safeReply(interaction, { embeds: [embed] });

@@ -1,6 +1,8 @@
 ﻿const axios = require('axios');
 const { Buffer } = require('buffer');
 const config = require('../../config/services');
+const { withRetry } = require('../../utils/common/apiUtils');
+const logger = require('../../core/Logger');
 
 class RedditService {
     constructor() {
@@ -8,6 +10,12 @@ class RedditService {
         this.secret = config.reddit.secretKey;
         this.accessToken = null;
         this.tokenExpiry = 0;
+        
+        // Configurable timeouts from config
+        this.timeout = config.reddit.timeout || 10000;
+        this.authTimeout = config.reddit.authTimeout || 5000;
+        this.searchTimeout = config.reddit.searchTimeout || 2000;
+        this.maxRetries = config.reddit.maxRetries || 2;
     }
 
     async getAccessToken() {
@@ -17,7 +25,8 @@ class RedditService {
 
         const auth = Buffer.from(`${this.clientId}:${this.secret}`).toString('base64');
 
-        try {
+        // Use retry logic for authentication
+        return withRetry(async () => {
             const response = await axios.post(
                 'https://www.reddit.com/api/v1/access_token',
                 'grant_type=client_credentials',
@@ -26,17 +35,21 @@ class RedditService {
                         'Authorization': `Basic ${auth}`,
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
-                    timeout: 5000
+                    timeout: this.authTimeout
                 }
             );
 
             this.accessToken = response.data.access_token;
-            this.tokenExpiry = Date.now() + (response.data.expires_in * 1000) - 60000; // Refresh 1 min early
+            this.tokenExpiry = Date.now() + (response.data.expires_in * 1000) - 60000;
             return this.accessToken;
-        } catch (error) {
-            console.error('Error getting Reddit access token:', error.response?.data || error.message);
+        }, {
+            name: 'Reddit Auth',
+            maxRetries: this.maxRetries,
+            retryDelay: 500
+        }).catch(error => {
+            logger.error('Reddit', `Authentication failed: ${error.response?.data || error.message}`);
             throw new Error('Failed to authenticate with Reddit');
-        }
+        });
     }
 
     async searchSubreddits(query, limit = 10) {
@@ -44,8 +57,8 @@ class RedditService {
             const res = await axios.get(
                 `https://www.reddit.com/subreddits/search.json?q=${encodeURIComponent(query)}&limit=${limit}`,
                 {
-                    headers: { 'User-Agent': 'DiscordBot/1.0' },
-                    timeout: 2000 // Short timeout for autocomplete
+                    headers: { 'User-Agent': config.reddit.userAgent || 'DiscordBot/1.0' },
+                    timeout: this.searchTimeout
                 }
             );
 
@@ -55,7 +68,7 @@ class RedditService {
                 displayName: c.data.display_name_prefixed
             }));
         } catch (error) {
-            console.log('Subreddit search timeout/error:', error.message);
+            logger.debug('Reddit', `Subreddit search timeout/error: ${error.message}`);
             return [];
         }
     }
@@ -63,15 +76,17 @@ class RedditService {
     async fetchSubredditPosts(subreddit, sortBy = 'top', limit = 5) {
         const token = await this.getAccessToken();
 
-        try {
+        // Use retry logic for fetching posts
+        return withRetry(async () => {
             // First verify subreddit exists
             const aboutResponse = await axios.get(
                 `https://oauth.reddit.com/r/${subreddit}/about`,
                 {
                     headers: {
                         'Authorization': `Bearer ${token}`,
-                        'User-Agent': 'DiscordBot/1.0'
-                    }
+                        'User-Agent': config.reddit.userAgent || 'DiscordBot/1.0'
+                    },
+                    timeout: this.timeout
                 }
             );
 
@@ -96,10 +111,10 @@ class RedditService {
                 {
                     headers: {
                         'Authorization': `Bearer ${token}`,
-                        'User-Agent': 'DiscordBot/1.0'
+                        'User-Agent': config.reddit.userAgent || 'DiscordBot/1.0'
                     },
                     params,
-                    timeout: 10000
+                    timeout: this.timeout
                 }
             );
 
@@ -110,14 +125,17 @@ class RedditService {
             return {
                 posts: response.data.data.children.map(child => this._parsePost(child.data))
             };
-
-        } catch (error) {
+        }, {
+            name: 'Reddit Fetch',
+            maxRetries: this.maxRetries,
+            retryDelay: 1000
+        }).catch(error => {
             if (error.response?.status === 404) {
                 return { error: 'not_found' };
             }
-            console.error(`Error fetching from /r/${subreddit}:`, error.message);
+            logger.error('Reddit', `Error fetching from /r/${subreddit}: ${error.message}`);
             return { error: 'fetch_failed' };
-        }
+        });
     }
 
     async searchSimilarSubreddits(subreddit) {
@@ -176,7 +194,7 @@ class RedditService {
                 posts: response.data.data.children.map(child => this._parsePost(child.data))
             };
         } catch (error) {
-            console.error('Error fetching trending posts:', error.message);
+            logger.error('Reddit', `Error fetching trending posts: ${error.message}`);
             return { error: 'fetch_failed' };
         }
     }
@@ -209,7 +227,7 @@ class RedditService {
                 posts: response.data.data.children.map(child => this._parsePost(child.data))
             };
         } catch (error) {
-            console.error('Error fetching r/all posts:', error.message);
+            logger.error('Reddit', `Error fetching r/all posts: ${error.message}`);
             return { error: 'fetch_failed' };
         }
     }

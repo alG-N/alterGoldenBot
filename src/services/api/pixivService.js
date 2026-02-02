@@ -2,6 +2,9 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
+// Logger for consistent logging
+const logger = require('../../core/Logger');
+
 // Import circuit breaker for API protection
 let withCircuitBreaker, recordFailure, recordSuccess;
 try {
@@ -9,9 +12,18 @@ try {
     withCircuitBreaker = circuitBreaker.withCircuitBreaker;
     recordFailure = circuitBreaker.recordFailure;
     recordSuccess = circuitBreaker.recordSuccess;
+    logger.debug('Pixiv', 'Circuit breaker loaded successfully');
 } catch (e) {
-    // Fallback if circuit breaker not available
-    withCircuitBreaker = async (name, fn) => fn();
+    // Fallback if circuit breaker not available - use retry utility instead
+    logger.warn('Pixiv', 'Circuit breaker not available, using fallback');
+    const { withRetry } = require('../../utils/common/apiUtils');
+    withCircuitBreaker = async (name, fn, options = {}) => {
+        return withRetry(fn, { 
+            name: `Pixiv ${name}`, 
+            maxRetries: 2, 
+            retryDelay: 1000 
+        });
+    };
     recordFailure = () => {};
     recordSuccess = () => {};
 }
@@ -23,8 +35,9 @@ class PixivService {
             refreshToken: process.env.PIXIV_REFRESH_TOKEN,
             expiresAt: 0
         };
-        this.clientId = 'MOBrBDS8blbauoSck0ZfDbtuzpyT';
-        this.clientSecret = 'lsACyCD94FhDUtGTXi3QzcFE2uU1hqtDaKeqrdwj';
+        // Pixiv API credentials (from environment or public app defaults)
+        this.clientId = process.env.PIXIV_CLIENT_ID || 'MOBrBDS8blbauoSck0ZfDbtuzpyT';
+        this.clientSecret = process.env.PIXIV_CLIENT_SECRET || 'lsACyCD94FhDUtGTXi3QzcFE2uU1hqtDaKeqrdwj';
         this.baseHeaders = {
             'User-Agent': 'PixivAndroidApp/5.0.234 (Android 11; Pixel 5)',
             'App-OS': 'android',
@@ -70,7 +83,7 @@ class PixivService {
 
                 return data.access_token;
             } catch (error) {
-                console.error('[Pixiv Auth Error]', error);
+                logger.error('Pixiv', `Auth error: ${error.message}`);
                 throw error;
             }
         }, { timeout: 15000, fallback: () => { throw new Error('Pixiv authentication service unavailable'); } });
@@ -699,7 +712,7 @@ class PixivService {
         const url = new URL('https://app-api.pixiv.net/v1/illust/detail');
         url.searchParams.append('illust_id', artworkId);
 
-        console.log(`[Pixiv] Fetching artwork ID: ${artworkId}`);
+        logger.debug('Pixiv', `Fetching artwork ID: ${artworkId}`);
 
         const response = await fetch(url, {
             headers: {
@@ -710,7 +723,7 @@ class PixivService {
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error(`[Pixiv API Error] ${response.status}: ${errorText}`);
+            logger.error('Pixiv', `API Error ${response.status}: ${errorText}`);
             throw new Error(`Artwork not found or API error: ${response.status}`);
         }
 
@@ -721,7 +734,7 @@ class PixivService {
         }
 
         const illust = data.illust;
-        console.log(`[Pixiv] Found artwork: "${illust.title}" | R18: ${illust.x_restrict > 0} | AI: ${illust.illust_ai_type === 2}`);
+        logger.debug('Pixiv', `Found artwork: "${illust.title}" | R18: ${illust.x_restrict > 0} | AI: ${illust.illust_ai_type === 2}`);
         
         return illust;
     }

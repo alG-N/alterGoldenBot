@@ -219,8 +219,9 @@ class AlterGoldenBot {
                 
             } catch (error) {
                 // Ignore "Unknown interaction" errors (interaction expired/already handled)
+                // This is normal for long-running commands or user clicking buttons after timeout
                 if (error.code === 10062) {
-                    logger.warn('Interaction', `Interaction expired for ${interaction.commandName || interaction.customId || 'unknown'}`);
+                    logger.debug('Interaction', `Interaction expired for ${interaction.commandName || interaction.customId || 'unknown'}`);
                     return;
                 }
                 

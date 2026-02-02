@@ -10,10 +10,12 @@ const GuildSettingsService = require('../guild/GuildSettingsService');
 // Map<guildId, Array<{message, deletedAt}>>
 const deletedMessages = new Map();
 
-// Memory limits to prevent memory leaks
-const MAX_GUILDS_CACHED = 1000;
-const MAX_MESSAGES_PER_GUILD = 50;
-const MESSAGE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+// Memory limits to prevent memory leaks (optimized for production)
+const MAX_GUILDS_CACHED = 500;           // Reduced from 1000
+const MAX_MESSAGES_PER_GUILD = 25;       // Reduced from 50
+const MAX_CONTENT_LENGTH = 2000;         // Max chars per message content
+const MAX_ATTACHMENTS_PER_MESSAGE = 5;   // Limit attachments stored
+const MESSAGE_EXPIRY_MS = 12 * 60 * 60 * 1000; // 12 hours (reduced from 24)
 
 let isInitialized = false;
 let cleanupIntervalId = null;
@@ -133,38 +135,46 @@ async function trackDeletedMessage(message) {
 
     const guildCache = deletedMessages.get(guildId);
 
-    // Store attachment info
+    // Store attachment info (limited to prevent memory bloat)
     const attachments = [];
     if (message.attachments.size > 0) {
+        let count = 0;
         for (const [, attachment] of message.attachments) {
+            if (count >= MAX_ATTACHMENTS_PER_MESSAGE) break;
             attachments.push({
                 url: attachment.url,
                 proxyUrl: attachment.proxyURL,
-                name: attachment.name,
+                name: attachment.name?.substring(0, 100) || 'unknown',
                 type: attachment.contentType,
                 size: attachment.size
             });
+            count++;
         }
     }
 
-    // Create tracked message object
+    // Truncate content to prevent memory issues
+    const truncatedContent = message.content 
+        ? message.content.substring(0, MAX_CONTENT_LENGTH)
+        : '';
+
+    // Create tracked message object (memory-optimized)
     const trackedMessage = {
         id: message.id,
-        content: message.content || '',
+        content: truncatedContent,
         author: {
             id: message.author?.id || 'Unknown',
             tag: message.author?.tag || 'Unknown User',
-            displayName: message.member?.displayName || message.author?.username || 'Unknown',
-            avatarURL: message.author?.displayAvatarURL?.({ dynamic: true }) || null
+            displayName: (message.member?.displayName || message.author?.username || 'Unknown').substring(0, 50),
+            avatarURL: message.author?.displayAvatarURL?.({ dynamic: true, size: 64 }) || null
         },
         channel: {
             id: message.channel.id,
-            name: message.channel.name
+            name: message.channel.name?.substring(0, 50) || 'unknown'
         },
         attachments,
-        embeds: message.embeds.length > 0 ? message.embeds.map(e => ({
-            title: e.title,
-            description: e.description,
+        embeds: message.embeds.length > 0 ? message.embeds.slice(0, 3).map(e => ({
+            title: e.title?.substring(0, 100),
+            description: e.description?.substring(0, 200),
             url: e.url
         })) : [],
         createdAt: message.createdTimestamp,

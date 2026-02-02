@@ -4,15 +4,18 @@
  * @module config/owner
  */
 
-// Owner IDs with full bot access
-const OWNER_IDS = [
-    '1128296349566251068',  // Primary Owner
-    '1362450043939979378',  // Secondary Admin
-    '1448912158367813662'   // Tertiary Admin
-];
+// Owner IDs with full bot access (from environment or defaults)
+// Set OWNER_IDS in .env as comma-separated values: OWNER_IDS=123,456,789
+const OWNER_IDS = process.env.OWNER_IDS 
+    ? process.env.OWNER_IDS.split(',').map(id => id.trim()).filter(Boolean)
+    : [
+        '1128296349566251068',  // Primary Owner (fallback)
+        '1362450043939979378',  // Secondary Admin (fallback)
+        '1448912158367813662'   // Tertiary Admin (fallback)
+    ];
 
-// Primary Developer ID
-const DEVELOPER_ID = '1128296349566251068';
+// Primary Developer ID (from environment or default)
+const DEVELOPER_ID = process.env.DEVELOPER_ID || '1128296349566251068';
 
 // Logging Channels
 const GUILD_LOG_CHANNEL_ID = '1366324387967533057';

@@ -6,6 +6,7 @@
 
 const { Events } = require('discord.js');
 const { BaseEvent } = require('./BaseEvent');
+const logger = require('../core/Logger');
 
 class VoiceStateUpdateEvent extends BaseEvent {
     constructor() {
@@ -16,12 +17,28 @@ class VoiceStateUpdateEvent extends BaseEvent {
     }
 
     async execute(client, oldState, newState) {
-        // Only handle when someone leaves a voice channel
-        if (!oldState.channel) return;
+        // Handle when someone leaves a voice channel
+        if (oldState.channel) {
+            await this._checkEmptyChannel(client, oldState);
+        }
         
-        // Get the bot's voice connection in this guild
-        const guildId = oldState.guild.id;
-        const botMember = oldState.guild.members.cache.get(client.user.id);
+        // Handle when someone moves between channels (they left old channel)
+        if (oldState.channel && newState.channel && oldState.channel.id !== newState.channel.id) {
+            await this._checkEmptyChannel(client, oldState);
+        }
+    }
+
+    async _checkEmptyChannel(client, state) {
+        const guildId = state.guild.id;
+        
+        // Refresh the bot member to get current voice state
+        let botMember;
+        try {
+            botMember = await state.guild.members.fetch(client.user.id);
+        } catch (e) {
+            // Bot might have been kicked, ignore
+            return;
+        }
         
         // Check if bot is in a voice channel
         if (!botMember?.voice?.channel) return;
@@ -29,14 +46,22 @@ class VoiceStateUpdateEvent extends BaseEvent {
         const botChannel = botMember.voice.channel;
         
         // Only care if someone left the same channel as bot
-        if (oldState.channel.id !== botChannel.id) return;
+        if (state.channel.id !== botChannel.id) return;
+        
+        // Refresh channel members to get accurate count
+        let freshChannel;
+        try {
+            freshChannel = await client.channels.fetch(botChannel.id);
+        } catch (e) {
+            return;
+        }
         
         // Count non-bot members in the channel
-        const nonBotMembers = botChannel.members.filter(m => !m.user.bot).size;
+        const nonBotMembers = freshChannel.members.filter(m => !m.user.bot).size;
         
         // If no humans left, disconnect
         if (nonBotMembers === 0) {
-            console.log(`[Voice] No users in ${botChannel.name}, disconnecting...`);
+            logger.info('Voice', `No users in ${botChannel.name}, disconnecting...`);
             await this._handleDisconnect(guildId, botChannel.name);
         }
     }
@@ -44,20 +69,20 @@ class VoiceStateUpdateEvent extends BaseEvent {
     async _handleDisconnect(guildId, channelName) {
         try {
             // Try to use music service to properly disconnect
-            const musicService = require('../../modules/music/Service/MusicService');
+            const musicService = require('../services/music/MusicService');
             
-            // Stop playback and disconnect
-            await musicService.stop(guildId);
+            // Stop playback and cleanup (includes disconnect)
+            await musicService.cleanup(guildId);
             
-            console.log(`[Voice] ✅ Disconnected from ${channelName} (no users)`);
+            logger.debug(`[Voice] Disconnected from ${channelName} (no users)`);
         } catch (error) {
             // Fallback: force disconnect via Lavalink
             try {
-                const lavalinkService = require('../../modules/music/service/LavalinkService');
+                const lavalinkService = require('../services/music/LavalinkService');
                 lavalinkService.destroyPlayer(guildId);
-                console.log(`[Voice] ✅ Force disconnected from ${channelName}`);
+                logger.debug(`[Voice] Force disconnected from ${channelName}`);
             } catch (e) {
-                console.error(`[Voice] Failed to disconnect:`, e.message);
+                logger.warn(`[Voice] Failed to disconnect: ${e.message}`);
             }
         }
     }

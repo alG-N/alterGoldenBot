@@ -273,6 +273,9 @@ function checkVoicePermissions(voiceChannel) {
 // URL VALIDATION (for Video module)
 // ============================================================================
 
+// Import shared SSRF protection
+const { isBlockedHost } = require('./urlValidator');
+
 /**
  * Validate URL for video downloads
  * @param {string} url - URL to validate
@@ -288,15 +291,19 @@ function validateVideoUrl(url) {
     try {
         const parsedUrl = new URL(url);
 
-        // Block internal URLs
-        const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', '192.168.', '10.', '172.'];
-        if (blockedHosts.some(host => parsedUrl.hostname.includes(host))) {
-            return { valid: false, error: 'Internal URLs are not allowed.' };
-        }
-
         // Block non-http protocols
         if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
             return { valid: false, error: 'Only HTTP/HTTPS URLs are supported.' };
+        }
+
+        // SSRF Protection: Use shared blocked host checker
+        if (isBlockedHost(parsedUrl.hostname)) {
+            return { valid: false, error: 'This URL is not allowed for security reasons.' };
+        }
+        
+        // Block URLs with credentials
+        if (parsedUrl.username || parsedUrl.password) {
+            return { valid: false, error: 'URLs with credentials are not allowed.' };
         }
 
     } catch (error) {

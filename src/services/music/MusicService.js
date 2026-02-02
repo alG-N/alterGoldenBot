@@ -6,11 +6,64 @@
 const musicCache = require('../../repositories/music/MusicCache');
 const lavalinkService = require('./LavalinkService');
 const trackHandler = require('../../handlers/music/trackHandler');
+const logger = require('../../core/Logger');
 const { INACTIVITY_TIMEOUT, VC_CHECK_INTERVAL, TRACK_TRANSITION_DELAY } = require('../../config/features/music');
+
+/**
+ * Simple mutex implementation for guild-level locking
+ * Prevents race conditions in track transitions
+ */
+class GuildMutex {
+    constructor() {
+        this.locks = new Map();
+    }
+
+    /**
+     * Acquire lock for a guild
+     * @param {string} guildId 
+     * @param {number} timeout - Max wait time in ms (default 5000)
+     * @returns {Promise<boolean>} True if lock acquired
+     */
+    async acquire(guildId, timeout = 5000) {
+        const startTime = Date.now();
+        
+        while (this.locks.get(guildId)) {
+            if (Date.now() - startTime > timeout) {
+                console.warn(`[MusicMutex] Lock timeout for guild ${guildId}`);
+                return false;
+            }
+            await new Promise(r => setTimeout(r, 50));
+        }
+        
+        this.locks.set(guildId, true);
+        return true;
+    }
+
+    /**
+     * Release lock for a guild
+     * @param {string} guildId 
+     */
+    release(guildId) {
+        this.locks.delete(guildId);
+    }
+
+    /**
+     * Check if guild is locked
+     * @param {string} guildId 
+     * @returns {boolean}
+     */
+    isLocked(guildId) {
+        return this.locks.get(guildId) === true;
+    }
+}
+
+// Singleton mutex for track transitions
+const transitionMutex = new GuildMutex();
 
 class MusicService {
     constructor() {
         this.boundGuilds = new Set();
+        this.transitionMutex = transitionMutex;
     }
 
     /**
@@ -400,10 +453,12 @@ class MusicService {
             if (data?.reason === 'replaced') return; // Skip was pressed
             if (data?.reason === 'stopped') return;
             
-            const queue = musicCache.getQueue(guildId);
-            // Prevent multiple handlers from running
-            if (queue?.isTransitioning) return;
-            if (queue) queue.isTransitioning = true;
+            // Use mutex to prevent race conditions
+            const lockAcquired = await this.transitionMutex.acquire(guildId, 3000);
+            if (!lockAcquired) {
+                console.warn(`[MusicService] Could not acquire lock for end handler in guild ${guildId}`);
+                return;
+            }
             
             try {
                 await new Promise(resolve => setTimeout(resolve, TRACK_TRANSITION_DELAY));
@@ -423,29 +478,36 @@ class MusicService {
             } catch (error) {
                 console.error(`[MusicService] Error in end handler:`, error.message);
             } finally {
-                if (queue) queue.isTransitioning = false;
+                this.transitionMutex.release(guildId);
             }
         });
         
         player.on('exception', async (data) => {
             console.error(`[MusicService] Track exception:`, data?.message || data?.exception?.message || 'Unknown error');
-            const queue = musicCache.getQueue(guildId);
-            if (queue?.isTransitioning) return;
-            if (queue) queue.isTransitioning = true;
+            
+            // Use mutex to prevent race conditions
+            const lockAcquired = await this.transitionMutex.acquire(guildId, 3000);
+            if (!lockAcquired) {
+                console.warn(`[MusicService] Could not acquire lock for exception handler in guild ${guildId}`);
+                return;
+            }
             
             try {
                 await this.playNext(guildId);
             } catch (error) {
                 console.error(`[MusicService] Error handling exception:`, error.message);
             } finally {
-                if (queue) queue.isTransitioning = false;
+                this.transitionMutex.release(guildId);
             }
         });
         
         player.on('stuck', async () => {
-            const queue = musicCache.getQueue(guildId);
-            if (queue?.isTransitioning) return;
-            if (queue) queue.isTransitioning = true;
+            // Use mutex to prevent race conditions
+            const lockAcquired = await this.transitionMutex.acquire(guildId, 3000);
+            if (!lockAcquired) {
+                console.warn(`[MusicService] Could not acquire lock for stuck handler in guild ${guildId}`);
+                return;
+            }
             
             try {
                 console.warn(`[MusicService] Track stuck in guild ${guildId}, skipping...`);
@@ -453,7 +515,7 @@ class MusicService {
             } catch (error) {
                 console.error(`[MusicService] Error in stuck handler:`, error.message);
             } finally {
-                if (queue) queue.isTransitioning = false;
+                this.transitionMutex.release(guildId);
             }
         });
         
@@ -644,8 +706,20 @@ class MusicService {
     /**
      * Find a similar track based on the last played track
      * Enhanced with multiple search strategies for variety
+     * Rate-limited to prevent API flooding
      */
     async findSimilarTrack(guildId, lastTrack) {
+        // Rate limiting: check if we searched too recently
+        const queue = musicCache.getQueue(guildId);
+        const now = Date.now();
+        const MIN_SEARCH_INTERVAL = 3000; // 3 seconds between autoplay searches
+        
+        if (queue?.lastAutoplaySearch && (now - queue.lastAutoplaySearch) < MIN_SEARCH_INTERVAL) {
+            console.log('[AutoPlay] Rate limited, skipping search');
+            return null;
+        }
+        if (queue) queue.lastAutoplaySearch = now;
+        
         // Handle different track structures - some have .info, some have direct properties
         const trackInfo = lastTrack?.info || lastTrack;
         const title = trackInfo?.title;
@@ -657,7 +731,6 @@ class MusicService {
             return null;
         }
         
-        const queue = musicCache.getQueue(guildId);
         const recentTitles = queue?.lastPlayedTracks || [];
         
         console.log(`[AutoPlay] Finding similar to: "${title}" by "${author}"`);
@@ -1263,6 +1336,40 @@ class MusicService {
      */
     getStats() {
         return musicCache.getStats();
+    }
+
+    /**
+     * Shutdown all music players gracefully
+     * Called during process exit
+     */
+    async shutdownAll() {
+        const guildIds = musicCache.getAllActiveGuildIds?.() || [];
+        
+        logger.info('Music', `Shutting down ${guildIds.length} active players...`);
+        
+        for (const guildId of guildIds) {
+            try {
+                await this.cleanup(guildId);
+            } catch (error) {
+                logger.warn('Music', `Failed to cleanup guild ${guildId}: ${error.message}`);
+            }
+        }
+        
+        // Shutdown cache cleanup intervals
+        try {
+            musicCache.shutdown?.();
+        } catch (error) {
+            logger.warn('Music', `Cache shutdown error: ${error.message}`);
+        }
+        
+        // Disconnect from Lavalink nodes
+        try {
+            await lavalinkService.disconnect?.();
+        } catch (error) {
+            logger.warn('Music', `Lavalink disconnect error: ${error.message}`);
+        }
+        
+        logger.info('Music', 'Music service shutdown complete');
     }
 }
 

@@ -10,8 +10,9 @@ const trackHandler = require('./trackHandler');
 const { checkVoiceChannelSync, checkVoicePermissionsSync } = require('../../middleware/voiceChannelCheck');
 const { music } = require('../../config');
 
-// Constants
-const CONFIRMATION_TIMEOUT = 60000; // 60 seconds to confirm long track
+// Import voting constants from config
+const { minVotesRequired: MIN_VOTES_REQUIRED = 5 } = music.voting || {};
+const CONFIRMATION_TIMEOUT = music.timeouts?.confirmation || 60000; // Use config with fallback
 
 // Store pending long track confirmations (cleared after timeout)
 const pendingLongTracks = new Map();

@@ -96,6 +96,12 @@ class VideoDownloadService extends EventEmitter {
             try {
                 videoPath = await cobaltService.downloadVideo(url, this.tempDir, { quality: videoQuality });
             } catch (cobaltError) {
+                // Don't fallback for size/duration errors - these will be the same for yt-dlp
+                if (cobaltError.message.startsWith('FILE_TOO_LARGE') || 
+                    cobaltError.message.startsWith('DURATION_TOO_LONG')) {
+                    throw cobaltError;
+                }
+                
                 console.log(`⚠️ Cobalt failed: ${cobaltError.message}, trying yt-dlp fallback...`);
                 this.emit('stage', { stage: 'fallback', message: 'Cobalt failed, trying yt-dlp...', method: 'yt-dlp' });
                 

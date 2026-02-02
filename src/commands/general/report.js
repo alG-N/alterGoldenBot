@@ -14,6 +14,7 @@ const {
 } = require('discord.js');
 const { BaseCommand, CommandCategory } = require('../BaseCommand');
 const { COLORS } = require('../../constants');
+const logger = require('../../core/Logger');
 
 class ReportCommand extends BaseCommand {
     constructor() {
@@ -116,7 +117,7 @@ class ReportCommand extends BaseCommand {
                     sentToChannel = true;
                 }
             } catch (error) {
-                console.error('[Report] Failed to send to channel:', error.message);
+                logger.error('Report', `Failed to send to channel: ${error.message}`);
             }
         }
 

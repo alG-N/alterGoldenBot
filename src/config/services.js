@@ -21,14 +21,18 @@ module.exports = {
         userAgent: 'alterGolden/2.0 (Discord Bot)',
         baseUrl: 'https://oauth.reddit.com',
         authUrl: 'https://www.reddit.com/api/v1/access_token',
-        rateLimit: 60  // requests per minute
+        rateLimit: 60,  // requests per minute
+        timeout: parseInt(process.env.REDDIT_TIMEOUT) || 10000,
+        authTimeout: parseInt(process.env.REDDIT_AUTH_TIMEOUT) || 5000,
+        searchTimeout: parseInt(process.env.REDDIT_SEARCH_TIMEOUT) || 2000,
+        maxRetries: parseInt(process.env.REDDIT_MAX_RETRIES) || 2
     },
     
     // Pixiv API
     pixiv: {
         refreshToken: process.env.PIXIV_REFRESH_TOKEN || '',
-        clientId: 'MOBrBDS8blbauoSck0ZfDbtuzpyT',
-        clientSecret: 'lsACyCD94FhDUtGTXi3QzcFE2uU1hqtDaKeqrdwj',
+        clientId: process.env.PIXIV_CLIENT_ID || 'MOBrBDS8blbauoSck0ZfDbtuzpyT',
+        clientSecret: process.env.PIXIV_CLIENT_SECRET || 'lsACyCD94FhDUtGTXi3QzcFE2uU1hqtDaKeqrdwj',
         baseUrl: 'https://app-api.pixiv.net',
         authUrl: 'https://oauth.secure.pixiv.net/auth/token',
         imageProxy: 'https://i.pximg.net',

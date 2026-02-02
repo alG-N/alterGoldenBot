@@ -9,6 +9,7 @@ const trackHandler = require('./trackHandler');
 const playHandler = require('./playHandler');
 const { checkSameVoiceChannel } = require('../../middleware/voiceChannelCheck');
 const { music } = require('../../config');
+const logger = require('../../core/Logger');
 const { SKIP_VOTE_TIMEOUT = 15000, MIN_VOTES_REQUIRED = 5 } = music.voting || {};
 
 /**
@@ -83,7 +84,7 @@ module.exports = {
             case 'music_confirm':
                 return await this.handleButtonConfirm(interaction, guildId, parts[2], parts[3]);
             default:
-                console.log(`Unknown music button: ${action}`);
+                logger.warn('Button', `Unknown music button: ${action}`);
         }
     },
 
@@ -113,9 +114,9 @@ module.exports = {
         } catch (error) {
             // Handle expired interaction (10062) or deleted message (10008)
             if (error.code === 10062 || error.code === 10008) {
-                console.log('[Button] Interaction expired or message deleted, ignoring...');
+                logger.debug('Button', 'Interaction expired or message deleted, ignoring...');
             } else {
-                console.error('Pause button error:', error);
+                logger.error('Button', `Pause button error: ${error.message}`);
             }
         }
     },
@@ -145,7 +146,7 @@ module.exports = {
                 }
             }
         } catch (error) {
-            console.error('Stop button error:', error);
+            logger.error('Button', `Stop button error: ${error.message}`);
             // Try ephemeral reply as fallback
             try {
                 if (!interaction.replied && !interaction.deferred) {
@@ -191,7 +192,7 @@ module.exports = {
                 }
             }
         } catch (error) {
-            console.error('Skip button error:', error);
+            logger.error('Button', `Skip button error: ${error.message}`);
         }
     },
 
@@ -221,9 +222,9 @@ module.exports = {
         } catch (error) {
             // Handle expired interaction (10062) or deleted message (10008)
             if (error.code === 10062 || error.code === 10008) {
-                console.log('[Button] Interaction expired or message deleted, ignoring...');
+                logger.debug('Button', 'Interaction expired or message deleted, ignoring...');
             } else {
-                console.error('Loop button error:', error);
+                logger.error('Button', `Loop button error: ${error.message}`);
             }
         }
     },
@@ -254,9 +255,9 @@ module.exports = {
         } catch (error) {
             // Handle expired interaction (10062) or deleted message (10008)
             if (error.code === 10062 || error.code === 10008) {
-                console.log('[Button] Interaction expired or message deleted, ignoring...');
+                logger.debug('Button', 'Interaction expired or message deleted, ignoring...');
             } else {
-                console.error('Shuffle button error:', error);
+                logger.error('Button', `Shuffle button error: ${error.message}`);
             }
         }
     },
@@ -287,9 +288,9 @@ module.exports = {
         } catch (error) {
             // Handle expired interaction (10062) or deleted message (10008)
             if (error.code === 10062 || error.code === 10008) {
-                console.log('[Button] Interaction expired or message deleted, ignoring...');
+                logger.debug('Button', 'Interaction expired or message deleted, ignoring...');
             } else {
-                console.error('Autoplay button error:', error);
+                logger.error('Button', `Autoplay button error: ${error.message}`);
             }
         }
     },
@@ -320,9 +321,9 @@ module.exports = {
         } catch (error) {
             // Handle expired interaction (10062) or deleted message (10008)
             if (error.code === 10062 || error.code === 10008) {
-                console.log('[Button] Interaction expired or message deleted, ignoring...');
+                logger.debug('Button', 'Interaction expired or message deleted, ignoring...');
             } else {
-                console.error('Volume button error:', error);
+                logger.error('Button', `Volume button error: ${error.message}`);
             }
         }
     },
@@ -376,9 +377,9 @@ module.exports = {
         } catch (error) {
             // Handle expired interaction (10062) or deleted message (10008)
             if (error.code === 10062 || error.code === 10008) {
-                console.log('[Button] Interaction expired or message deleted, ignoring...');
+                logger.debug('Button', 'Interaction expired or message deleted, ignoring...');
             } else {
-                console.error('Favorite button error:', error);
+                logger.error('Button', `Favorite button error: ${error.message}`);
             }
         }
     },
@@ -404,7 +405,7 @@ module.exports = {
             const embed = trackHandler.createLyricsEmbed(currentTrack, lyrics);
             await interaction.editReply({ embeds: [embed] });
         } catch (error) {
-            console.error('Lyrics fetch error:', error);
+            logger.error('Button', `Lyrics fetch error: ${error.message}`);
             await interaction.editReply({
                 embeds: [trackHandler.createErrorEmbed('Failed to fetch lyrics. Please try again.')]
             });
@@ -441,7 +442,7 @@ module.exports = {
                 ?.replace(/Official$/i, '')
                 ?.trim() || '';
 
-            console.log(`[Lyrics] Searching for: "${cleanArtist}" - "${cleanTitle}"`);
+            logger.debug('Lyrics', `Searching for: "${cleanArtist}" - "${cleanTitle}"`);
             
             // Try LRCLIB first (better coverage for modern songs)
             const lrclibResult = await this.fetchFromLrclib(cleanArtist, cleanTitle);
@@ -493,7 +494,7 @@ module.exports = {
 
             return null;
         } catch (error) {
-            console.error('Lyrics API error:', error);
+            logger.error('Lyrics', `Lyrics API error: ${error.message}`);
             return null;
         }
     },
@@ -587,7 +588,7 @@ module.exports = {
                 try {
                     musicService.endSkipVote(guildId);
                 } catch (error) {
-                    console.error('Error in skip vote timeout:', error);
+                    logger.error('Button', `Skip vote timeout error: ${error.message}`);
                 }
             }, SKIP_VOTE_TIMEOUT);
         }
@@ -661,7 +662,7 @@ module.exports = {
                     });
             }
         } catch (error) {
-            console.error('Confirm button error:', error);
+            logger.error('Button', `Confirm button error: ${error.message}`);
         }
     }
 };

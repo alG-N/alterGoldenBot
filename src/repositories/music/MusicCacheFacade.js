@@ -15,6 +15,7 @@ const queueCache = require('./QueueCache');
 const userMusicCache = require('./UserMusicCache');
 const voteCache = require('./VoteCache');
 const guildMusicCache = require('./GuildMusicCache');
+const logger = require('../../core/Logger');
 
 /**
  * Facade for backward compatibility
@@ -313,6 +314,14 @@ class MusicCacheFacade {
         };
     }
 
+    /**
+     * Get all active guild IDs with music queues
+     * @returns {string[]} Array of guild IDs
+     */
+    getAllActiveGuildIds() {
+        return queueCache.getActiveGuildIds();
+    }
+
     // ========== SHUTDOWN ==========
 
     shutdown() {
@@ -321,7 +330,7 @@ class MusicCacheFacade {
         userMusicCache.shutdown();
         voteCache.shutdown();
         guildMusicCache.shutdown();
-        console.log('[MusicCacheFacade] All caches shutdown');
+        logger.debug('MusicCache', 'All caches shutdown');
     }
 }
 

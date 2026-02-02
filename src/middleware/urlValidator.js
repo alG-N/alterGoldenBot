@@ -1,6 +1,64 @@
 ﻿const videoEmbedBuilder = require('../utils/video/videoEmbedBuilder');
 
 /**
+ * SSRF Protection - Blocked hostname patterns
+ * Covers IPv4, IPv6, private ranges, localhost, and cloud metadata endpoints
+ */
+const BLOCKED_HOST_PATTERNS = [
+    // Localhost variations
+    /^localhost$/i,
+    /^localhost\..*/i,
+    /^.*\.localhost$/i,
+    
+    // IPv4 loopback
+    /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,
+    
+    // IPv4 private ranges (RFC 1918)
+    /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,
+    /^192\.168\.\d{1,3}\.\d{1,3}$/,
+    /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/,
+    
+    // Link-local (APIPA)
+    /^169\.254\.\d{1,3}\.\d{1,3}$/,
+    
+    // IPv4 zeros
+    /^0\.0\.0\.0$/,
+    /^0+\.0+\.0+\.0+$/,
+    
+    // IPv6 localhost
+    /^\[?::1\]?$/,
+    /^\[?0:0:0:0:0:0:0:1\]?$/,
+    
+    // IPv6 mapped IPv4 (::ffff:127.0.0.1)
+    /^\[?::ffff:127\./i,
+    /^\[?::ffff:10\./i,
+    /^\[?::ffff:192\.168\./i,
+    /^\[?::ffff:172\.(1[6-9]|2\d|3[0-1])\./i,
+    
+    // AWS/Cloud metadata endpoints
+    /^169\.254\.169\.254$/,
+    /^metadata\.google\.internal$/i,
+    /^metadata\.goog$/i,
+    
+    // Kubernetes internal
+    /^kubernetes\.default/i,
+    /^\.internal$/i,
+];
+
+/**
+ * Check if hostname matches any blocked pattern
+ * @param {string} hostname - Hostname to check
+ * @returns {boolean} True if blocked
+ */
+function isBlockedHost(hostname) {
+    if (!hostname) return true;
+    
+    const normalizedHost = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    
+    return BLOCKED_HOST_PATTERNS.some(pattern => pattern.test(normalizedHost));
+}
+
+/**
  * Validate a video URL
  * @param {Interaction} interaction 
  * @param {string} url 
@@ -19,19 +77,26 @@ async function validateUrl(interaction, url) {
     try {
         const parsedUrl = new URL(url);
         
-        // Block obviously malicious URLs
-        const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', '192.168.', '10.', '172.'];
-        if (blockedHosts.some(host => parsedUrl.hostname.includes(host))) {
+        // Block dangerous protocols
+        if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
             await interaction.editReply({ 
-                embeds: [videoEmbedBuilder.buildInvalidUrlEmbed('Internal URLs are not allowed.')] 
+                embeds: [videoEmbedBuilder.buildInvalidUrlEmbed('Only HTTP/HTTPS URLs are supported.')] 
             });
             return false;
         }
         
-        // Block file:// and other dangerous protocols
-        if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        // SSRF Protection: Check against blocked patterns
+        if (isBlockedHost(parsedUrl.hostname)) {
             await interaction.editReply({ 
-                embeds: [videoEmbedBuilder.buildInvalidUrlEmbed('Only HTTP/HTTPS URLs are supported.')] 
+                embeds: [videoEmbedBuilder.buildInvalidUrlEmbed('This URL is not allowed for security reasons.')] 
+            });
+            return false;
+        }
+        
+        // Block URLs with credentials
+        if (parsedUrl.username || parsedUrl.password) {
+            await interaction.editReply({ 
+                embeds: [videoEmbedBuilder.buildInvalidUrlEmbed('URLs with credentials are not allowed.')] 
             });
             return false;
         }
@@ -47,5 +112,7 @@ async function validateUrl(interaction, url) {
 }
 
 module.exports = {
-    validateUrl
+    validateUrl,
+    isBlockedHost,
+    BLOCKED_HOST_PATTERNS
 };

@@ -185,7 +185,7 @@ class CobaltService extends EventEmitter {
         });
     }
 
-    _downloadFile(url, outputPath) {
+    _downloadFile(url, outputPath, maxFileSizeMB = null) {
         return new Promise((resolve, reject) => {
             let redirectCount = 0;
             const maxRedirects = 10;
@@ -194,6 +194,7 @@ class CobaltService extends EventEmitter {
             let lastProgressUpdate = 0;
             const progressUpdateInterval = 500; // Update every 500ms
             const startTime = Date.now();
+            const sizeLimit = maxFileSizeMB || videoConfig.MAX_FILE_SIZE_MB || 100;
 
             const download = (downloadUrl) => {
                 if (redirectCount >= maxRedirects) {
@@ -234,6 +235,18 @@ class CobaltService extends EventEmitter {
 
                     // Get content length for progress tracking
                     totalBytes = parseInt(response.headers['content-length'], 10) || 0;
+                    
+                    // PRE-DOWNLOAD SIZE CHECK: Abort if file is too large BEFORE downloading
+                    if (totalBytes > 0) {
+                        const fileSizeMB = totalBytes / (1024 * 1024);
+                        if (fileSizeMB > sizeLimit) {
+                            console.log(`🚫 File size ${fileSizeMB.toFixed(1)}MB exceeds ${sizeLimit}MB limit (pre-download check)`);
+                            req.destroy();
+                            reject(new Error(`FILE_TOO_LARGE:${fileSizeMB.toFixed(1)}MB`));
+                            return;
+                        }
+                        console.log(`📊 Pre-download size check: ${fileSizeMB.toFixed(1)}MB (limit: ${sizeLimit}MB) ✓`);
+                    }
 
                     const file = fs.createWriteStream(outputPath);
                     
