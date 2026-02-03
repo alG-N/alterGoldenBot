@@ -1,0 +1,73 @@
+{
+  "compilerOptions": {
+    // Target modern Node.js
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    
+    // Allow JS files to coexist during migration
+    "allowJs": true,
+    "checkJs": false,
+    
+    // Output settings
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": true,
+    
+    // Strict type checking (enable gradually)
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    
+    // Additional checks - relaxed for migration phase
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": false,
+    
+    // Module resolution (already set above with NodeNext)
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    
+    // Path aliases (for cleaner imports)
+    "baseUrl": "./src",
+    "paths": {
+      "@core/*": ["core/*"],
+      "@errors/*": ["errors/*"],
+      "@services/*": ["services/*"],
+      "@commands/*": ["commands/*"],
+      "@handlers/*": ["handlers/*"],
+      "@utils/*": ["utils/*"],
+      "@config/*": ["config/*"],
+      "@cache/*": ["cache/*"],
+      "@database/*": ["database/*"]
+    },
+    
+    // Skip lib check for faster builds
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "tests",
+    "migrations"
+  ],
+  "ts-node": {
+    "transpileOnly": true,
+    "files": true
+  }
+}

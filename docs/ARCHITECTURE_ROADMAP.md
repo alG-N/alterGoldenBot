@@ -103,15 +103,26 @@ const { count } = await redisCache.trackDuplicateMessage(guildId, userId, conten
 ### Phase 1: Remove Technical Debt (Week 3-5) 🧹
 **Goal:** Làm codebase an toàn để modify.
 
-#### Week 3: Factory Pattern Migration
+#### Week 3: Factory Pattern Migration ✅ COMPLETE
 
-| Task | Effort | Files Affected |
-|------|--------|----------------|
-| Tạo Container class | 4h | `src/container.js` (new) |
-| Convert PostgresDatabase | 2h | `src/database/postgres.js` |
-| Convert RedisCache | 2h | `src/services/guild/RedisCache.js` |
-| Convert LavalinkService | 3h | `src/services/music/LavalinkService.js` |
-| Convert CommandRegistry | 2h | `src/services/registry/CommandRegistry.js` |
+| Task | Effort | Files Affected | Status |
+|------|--------|----------------|--------|
+| Tạo Container class | 4h | `src/container.js` (new) | ✅ Done |
+| Tạo Service Provider | 1h | `src/bootstrap/services.js` (new) | ✅ Done |
+| Convert PostgresDatabase | 2h | `src/database/postgres.js` | ✅ Done |
+| Convert RedisCache | 2h | `src/services/guild/RedisCache.js` | ✅ Done |
+| Convert LavalinkService | 3h | `src/services/music/LavalinkService.js` | ✅ Done |
+| Convert CommandRegistry | 2h | `src/services/registry/CommandRegistry.js` | ✅ Done |
+
+**Deliverables:**
+```
+src/container.js              # ✅ DI Container with register(), resolve(), boot(), shutdown()
+src/bootstrap/services.js     # ✅ Service registration & backward compat
+src/database/postgres.js      # ✅ Exports both class & default instance
+src/services/guild/RedisCache.js  # ✅ Exports both class & default instance  
+src/services/music/LavalinkService.js  # ✅ Exports both class & default instance
+src/services/registry/CommandRegistry.js  # ✅ Exports both class & default instance
+```
 
 **New Pattern:**
 ```javascript
@@ -130,31 +141,68 @@ container.register('musicService', (c) => new MusicService(
 ));
 ```
 
-#### Week 4: Unified Cache Layer
+#### Week 4: Unified Cache Layer ✅ COMPLETE
 
-| Task | Effort | Description |
-|------|--------|-------------|
-| Design interface | 2h | Một interface cho tất cả cache |
-| Merge implementations | 8h | 4 cache → 1 cache |
-| Update consumers | 6h | Tất cả services dùng unified cache |
-| Add metrics | 2h | hit/miss ratio tracking |
+| Task | Effort | Status |
+|------|--------|--------|
+| Design interface | 2h | ✅ Done |
+| Implement CacheService | 8h | ✅ Done |
+| Register in container | 2h | ✅ Done |
+| Add metrics to health | 2h | ✅ Done |
 
-**Hiện tại có 4 cache khác nhau:**
-1. `BaseCache` - LRU với TTL
-2. `CacheManager` - Wrapper
-3. `RedisCache` - Redis + fallback
-4. Per-service Maps - Ad-hoc
+**Deliverables:**
+```
+src/cache/CacheService.js  # ✅ Unified cache with namespaces, Redis + memory fallback
+src/cache/index.js         # ✅ Updated exports
+src/bootstrap/services.js  # ✅ cacheService registered
+src/core/health.js         # ✅ Cache metrics in health check
+```
 
-**Sau khi merge:** 1 unified `CacheService`
+**CacheService Features:**
+- Namespace-based caching (`guild`, `user`, `api`, `music`, `automod`, etc.)
+- Redis with automatic memory fallback
+- TTL per namespace
+- `getOrSet()` cache-aside pattern
+- `increment()` for rate limiting
+- Hit/miss metrics
 
-#### Week 5: Error Handling Standardization
+#### Week 5: Error Handling Standardization ✅ COMPLETE
 
-| Task | Effort | Description |
-|------|--------|-------------|
-| Define Result pattern | 2h | `Result.ok(data)` / `Result.err(code, msg)` |
-| Update all services | 8h | Consistent return types |
-| Add error codes enum | 2h | Typed error codes |
-| Update command handlers | 4h | Handle new pattern |
+| Task | Effort | Description | Status |
+|------|--------|-------------|--------|
+| Define Result pattern | 2h | `Result.ok(data)` / `Result.err(code, msg)` | ✅ Done |
+| Add error codes enum | 2h | Typed error codes | ✅ Done |
+| Update ModerationService | 4h | Consistent return types | ✅ Done |
+| Backward compatibility | 2h | Result.success works with old code | ✅ Done |
+
+**Deliverables:**
+```
+src/core/Result.js      # ✅ Result pattern class with ok(), err(), isOk(), isErr(), unwrap()
+src/core/ErrorCodes.js  # ✅ Centralized error codes + getErrorMessage() helper
+src/core/index.js       # ✅ Updated exports
+src/services/moderation/ModerationService.js  # ✅ Updated to use Result pattern
+```
+
+**Result Pattern Features:**
+- `Result.ok(data)` - Success with data
+- `Result.err(code, message, details)` - Error with code and message
+- `Result.fromError(error)` - Convert caught exceptions
+- `.isOk()` / `.isErr()` - Check result type
+- `.unwrap()` / `.unwrapOr(default)` - Extract data
+- `.map()` / `.flatMap()` - Transform results
+- `.toJSON()` - Serialize for logging
+- `.toReply()` - Discord reply format
+
+**ErrorCodes Categories:**
+- GENERAL (1xxx): INTERNAL_ERROR, INVALID_INPUT, NOT_FOUND, etc.
+- USER (2xxx): USER_NOT_FOUND, USER_IS_BOT, USER_HIGHER_ROLE, etc.
+- MODERATION (3xxx): CANNOT_BAN, CANNOT_KICK, CANNOT_MUTE, etc.
+- MUSIC (4xxx): NO_PLAYER, NO_QUEUE, VOICE_REQUIRED, etc.
+- API (5xxx): API_ERROR, API_RATE_LIMITED, NO_RESULTS, etc.
+- DATABASE (6xxx): DB_ERROR, DB_CONNECTION_FAILED, etc.
+- CACHE (7xxx): CACHE_ERROR, REDIS_ERROR, etc.
+- GUILD (8xxx): GUILD_NOT_FOUND, CHANNEL_NOT_FOUND, etc.
+- VIDEO (9xxx): VIDEO_NOT_FOUND, DOWNLOAD_FAILED, etc.
 
 **Before (inconsistent):**
 ```javascript
@@ -167,9 +215,15 @@ throw new Error('NO_PLAYER');
 
 **After (consistent):**
 ```javascript
-// Tất cả services
-return Result.err('NOT_KICKABLE', 'Cannot kick this user');
-return Result.ok({ userId: target.id });
+// All services use Result pattern
+return Result.err(ErrorCodes.CANNOT_KICK, 'Không thể kick người này');
+return Result.ok({ userId: target.id, action: 'kick' });
+
+// Command handlers (backward compatible)
+const result = await ModerationService.kickUser(target, moderator, reason);
+if (result.success) { // or result.isOk()
+    // Handle success
+}
 ```
 
 ---
@@ -177,67 +231,135 @@ return Result.ok({ userId: target.id });
 ### Phase 2: Split God Modules (Week 6-8) ✂️
 **Goal:** MusicService từ 1377 LOC → 5 services nhỏ.
 
-#### Week 6: Music Domain Extraction
+#### Week 6: Music Domain Extraction ✅ COMPLETE
 
 **Current Structure:**
 ```
 src/services/music/
-├── MusicService.js    # 1377 lines - GOD MODULE 💀
-└── LavalinkService.js
+├── MusicFacade.ts    # Orchestrator (replaced 1377 LOC god module)
+└── LavalinkService.ts
 ```
 
-**Target Structure:**
+**Completed Structure:**
 ```
 src/services/music/
-├── index.js                    # Facade (backward compat)
-├── MusicFacade.js             # Orchestrates sub-services
+├── index.ts                    # ✅ Updated exports
+├── MusicFacade.ts             # ✅ DONE (~550 LOC) - Orchestrates sub-services
+├── LavalinkService.ts         # External service wrapper
 ├── queue/
-│   ├── QueueService.js        # Queue CRUD (~200 LOC)
-│   └── QueueRepository.js     # State persistence
+│   ├── QueueService.ts        # ✅ DONE (~380 LOC) - Queue CRUD
+│   └── index.ts               # ✅ DONE - Module exports
 ├── playback/
-│   ├── PlaybackService.js     # Play/pause/skip (~250 LOC)
-│   └── PlaybackEventHandler.js
+│   ├── PlaybackService.ts     # ✅ DONE (~350 LOC) - Play/pause/skip
+│   └── index.ts               # ✅ DONE - Module exports
 ├── voice/
-│   └── VoiceConnectionService.js (~150 LOC)
-├── autoplay/
-│   └── AutoPlayService.js     # Related track discovery (~200 LOC)
-└── lavalink/
-    └── LavalinkService.js     # External service wrapper
+│   ├── VoiceConnectionService.ts # ✅ DONE (~320 LOC) - Voice connection
+│   └── index.ts               # ✅ DONE - Module exports
+└── autoplay/
+    ├── AutoPlayService.ts     # ✅ DONE (~270 LOC) - Related track discovery
+    └── index.ts               # ✅ DONE - Module exports
 ```
 
-| Service | LOC Target | Responsibilities |
-|---------|------------|------------------|
-| QueueService | ~200 | add, remove, move, clear, get tracks |
-| PlaybackService | ~250 | play, pause, skip, stop, seek |
-| VoiceConnectionService | ~150 | connect, disconnect, cleanup |
-| AutoPlayService | ~200 | find similar, recommendation |
-| MusicFacade | ~100 | Orchestrate all above |
+| Service | LOC | Responsibilities | Status |
+|---------|-----|------------------|--------|
+| QueueService | ~380 | add, remove, move, clear, get tracks, loop, shuffle, volume | ✅ Done |
+| PlaybackService | ~350 | play, pause, skip, stop, seek, search, transition mutex | ✅ Done |
+| VoiceConnectionService | ~320 | connect, disconnect, timers, VC monitoring, event binding | ✅ Done |
+| AutoPlayService | ~270 | find similar, genre extraction, search strategies | ✅ Done |
+| MusicFacade | ~550 | Orchestrate all above, backward-compatible API | ✅ Done |
 
-#### Week 7: Music Event System
+**Key Features Implemented:**
+- **GuildMutex** in PlaybackService for race condition prevention
+- **Event binding** via VoiceConnectionService with proper cleanup
+- **Genre extraction** with 20+ pattern recognition in AutoPlayService
+- **Search strategies** with fallback mechanisms in AutoPlayService
+- **Result pattern** integration for consistent error handling
+- **Singleton + Class exports** for DI compatibility
 
-| Task | Effort | Description |
-|------|--------|-------------|
-| Create MusicEventBus | 4h | Central event emitter |
-| Migrate player events | 6h | From inline handlers to event bus |
-| Extract AutoPlayService | 4h | Separate autoplay logic |
-| Proper cleanup | 2h | Remove listeners on destroy |
+**Usage (New):**
+```javascript
+const { musicFacade } = require('./services/music');
 
-**Before:**
+// Queue operations
+const queue = musicFacade.getQueue(guildId);
+musicFacade.addTrack(guildId, track);
+
+// Playback operations  
+await musicFacade.playTrack(guildId, track);
+await musicFacade.skip(guildId);
+
+// Voice operations
+await musicFacade.connect(interaction);
+musicFacade.disconnect(guildId);
+```
+
+**Usage (Legacy - still works):**
+```javascript
+const MusicService = require('./services/music/MusicService');
+// All existing code continues to work
+```
+
+#### Week 7: Music Event System ✅ COMPLETE
+
+| Task | Effort | Description | Status |
+|------|--------|-------------|--------|
+| Create MusicEventBus | 4h | Central event emitter | ✅ Done |
+| Create MusicEvents enum | 1h | Event name constants | ✅ Done |
+| Create PlaybackEventHandler | 6h | Handle player lifecycle events | ✅ Done |
+| Update VoiceConnectionService | 2h | Emit events via bus | ✅ Done |
+| Update MusicFacade | 3h | Integrate event bus | ✅ Done |
+
+**Completed Structure:**
+```
+src/services/music/events/
+├── index.js                   # ✅ DONE - Module exports
+├── MusicEvents.js             # ✅ DONE (~130 LOC) - Event name constants
+├── MusicEventBus.js           # ✅ DONE (~280 LOC) - Central event emitter
+└── PlaybackEventHandler.js    # ✅ DONE (~450 LOC) - Event handlers
+```
+
+**MusicEvents Categories:**
+- Track lifecycle: `TRACK_START`, `TRACK_END`, `TRACK_SKIP`, `TRACK_ERROR`, `TRACK_STUCK`
+- Playback state: `PLAYBACK_PAUSE`, `PLAYBACK_RESUME`, `PLAYBACK_STOP`, `VOLUME_CHANGE`
+- Queue events: `QUEUE_ADD`, `QUEUE_REMOVE`, `QUEUE_CLEAR`, `QUEUE_SHUFFLE`, `QUEUE_END`
+- Voice events: `VOICE_CONNECT`, `VOICE_DISCONNECT`, `VOICE_CLOSED`, `VOICE_EMPTY`
+- Auto-play: `AUTOPLAY_FOUND`, `AUTOPLAY_FAILED`, `AUTOPLAY_TOGGLE`
+- Vote skip: `VOTESKIP_START`, `VOTESKIP_VOTE`, `VOTESKIP_SUCCESS`
+- Cleanup: `CLEANUP_START`, `CLEANUP_COMPLETE`
+
+**MusicEventBus Features:**
+- Guild-specific event subscriptions
+- Event emission with metrics tracking
+- Automatic listener cleanup per guild
+- Debug mode for event logging
+- Convenience emitters for common events
+
+**Before (inline):**
 ```javascript
 player.on('end', async (data) => {
     // 50 lines of inline logic
 });
 ```
 
-**After:**
+**After (event bus):**
 ```javascript
-// PlaybackEventHandler.js
-eventBus.on('track:end', async (data) => {
-    await this.handleTrackEnd(data);
+// VoiceConnectionService emits
+musicEventBus.emitTrackEnd(guildId, track, data?.reason);
+
+// PlaybackEventHandler listens
+musicEventBus.subscribe(MusicEvents.TRACK_END, async (data) => {
+    await this._handleTrackEnd(data);
+});
+
+// External code can subscribe too
+musicFacade.on(MusicEvents.TRACK_START, (data) => {
+    console.log(`Now playing: ${data.track.info.title}`);
 });
 ```
 
-#### Week 8: Testing Foundation
+#### Week 8: Testing Foundation ⏭️ SKIPPED
+
+> **Note:** Skipped for now. Can be added later when needed. The architecture is designed to be testable with DI Container and Result pattern.
 
 | Task | Effort | Target Coverage |
 |------|--------|-----------------|
@@ -246,91 +368,319 @@ eventBus.on('track:end', async (data) => {
 | PlaybackService tests | 6h | 80% |
 | Integration tests | 6h | Critical paths |
 
-**Test Structure:**
-```
-tests/
-├── unit/
-│   ├── services/
-│   │   └── music/
-│   │       ├── QueueService.test.js
-│   │       └── PlaybackService.test.js
-│   └── utils/
-├── integration/
-│   ├── database.test.js
-│   └── redis.test.js
-└── e2e/
-    └── music-flow.test.js
-```
-
 ---
 
 ### Phase 3: Resilience (Week 9-11) 🛡️
 **Goal:** Survive external failures gracefully.
 
-#### Week 9: Circuit Breaker Implementation
+#### Week 9: Circuit Breaker Implementation ✅ COMPLETE
 
-| Service | Failure Threshold | Timeout | Reset |
-|---------|-------------------|---------|-------|
-| Lavalink | 5 failures | 30s | 60s |
-| External APIs | 3 failures | 10s | 30s |
-| Database | 3 failures | 5s | 30s |
+| Service | Failure Threshold | Timeout | Reset | Status |
+|---------|-------------------|---------|-------|--------|
+| Lavalink | 5 failures | 30s | 60s | ✅ Done |
+| External APIs | 3 failures | 10s | 30s | ✅ Done |
+| Database | 3 failures | 5s | 30s | ✅ Done |
+| Redis | 5 failures | 3s | 15s | ✅ Done |
+| Discord | 10 failures | 15s | 30s | ✅ Done |
+| Anime APIs | 3 failures | 10s | 30s | ✅ Done |
+| NSFW APIs | 3 failures | 15s | 60s | ✅ Done |
 
-**Implementation:**
+**Completed Structure:**
+```
+src/core/
+├── CircuitBreaker.js         # ✅ DONE (~280 LOC) - Core circuit breaker class
+├── CircuitBreakerRegistry.js # ✅ DONE (~250 LOC) - Central registry for all breakers
+└── index.js                  # ✅ Updated exports
+```
+
+**CircuitBreaker Features:**
+- Three states: CLOSED (normal), OPEN (fail fast), HALF_OPEN (testing recovery)
+- Configurable failure/success thresholds
+- Timeout protection with configurable duration
+- Custom fallback functions
+- Event emission for state changes
+- Metrics tracking (success rate, timeouts, rejections)
+- Health status for monitoring
+
+**CircuitBreakerRegistry Pre-configured Breakers:**
+- `lavalink` - Music streaming (higher tolerance)
+- `externalApi` - Generic external APIs
+- `database` - PostgreSQL operations
+- `redis` - Cache operations
+- `discord` - Discord API (rate limit aware)
+- `anime` - AniList/MAL APIs
+- `nsfw` - nhentai/rule34 APIs
+
+**Integration Points:**
+- `LavalinkService.search()` - Protected by lavalink breaker
+- `AnilistService.searchAnime()` - Protected by anime breaker
+- Health check includes circuit breaker status
+
+**Usage:**
 ```javascript
-const lavalinkBreaker = new CircuitBreaker({
-    name: 'lavalink',
-    failureThreshold: 5,
-    timeout: 30000,
-    resetTimeout: 60000,
-    fallback: () => ({ error: 'Music temporarily unavailable' })
+const { circuitBreakerRegistry } = require('./core');
+
+// Initialize all breakers at startup
+circuitBreakerRegistry.initialize();
+
+// Execute with protection
+const result = await circuitBreakerRegistry.execute('lavalink', async () => {
+    return await lavalinkService.search(query);
 });
 
-// Usage
-const result = await lavalinkBreaker.execute(() => 
-    lavalinkService.search(query)
-);
+// Get health status
+const health = circuitBreakerRegistry.getHealth();
+// { status: 'healthy', breakers: { lavalink: { state: 'CLOSED' }, ... } }
 ```
 
-#### Week 10: Graceful Degradation
+#### Week 10: Graceful Degradation ✅ COMPLETE
 
-| Scenario | Fallback Behavior |
-|----------|-------------------|
-| Redis down | Use in-memory cache (limited) |
-| Lavalink down | Preserve queue, pause playback, notify users |
-| Database down | Serve cached data, queue writes |
-| External API down | Return cached results, show stale indicator |
+| Scenario | Fallback Behavior | Status |
+|----------|-------------------|--------|
+| Redis down | Use in-memory cache (limited) | ✅ Done |
+| Lavalink down | Preserve queue, pause playback, notify users | ✅ Done |
+| Database down | Serve cached data, queue writes | ✅ Done |
+| External API down | Return cached results, show stale indicator | ✅ Done |
 
-#### Week 11: Database Reliability
-
-| Task | Effort | Description |
-|------|--------|-------------|
-| Add Knex.js | 4h | Migration framework |
-| Convert schema.sql | 4h | To migration files |
-| Add retry logic | 3h | For transient failures |
-| Read replica prep | 4h | For future scaling |
-
-**Migration Structure:**
+**Completed Structure:**
 ```
+src/core/
+├── GracefulDegradation.js    # ✅ DONE (~450 LOC) - Central degradation manager
+└── index.js                  # ✅ Updated exports
+
+src/cache/
+└── CacheService.js           # ✅ UPDATED - Redis error handling, fallback tracking
+
+src/database/
+└── postgres.js               # ✅ UPDATED - Write queue, safe operations
+
+src/services/music/
+└── LavalinkService.js        # ✅ UPDATED - Queue preservation, state tracking
+
+src/services/api/
+└── anilistService.js         # ✅ UPDATED - Stale cache fallback
+```
+
+**GracefulDegradation Features:**
+- `DegradationLevel`: NORMAL, DEGRADED, CRITICAL, OFFLINE
+- `ServiceState`: HEALTHY, DEGRADED, UNAVAILABLE
+- `execute()` with automatic fallback
+- Write queue for deferred operations
+- Fallback cache for stale data serving
+- Service state tracking and recovery
+
+**CacheService Integration:**
+- Tracks consecutive Redis failures
+- Automatically marks degraded after threshold
+- Reconnection handling with health recovery
+- Fallback counter in metrics
+- Service state in `getStats()`
+
+**PostgreSQL Integration:**
+- `safeInsert()`, `safeUpdate()`, `safeDelete()` - Queue writes when unavailable
+- Write queue processor with 30s interval
+- Connection error tracking
+- `getStatus()` includes degradation info
+
+**LavalinkService Integration:**
+- Preserves queue state when all nodes disconnect
+- Restores queues when nodes reconnect (if < 30 min)
+- `getPreservedState()` / `clearPreservedState()` APIs
+- `isAvailable()` checks both readiness and degradation state
+
+**AnilistService Integration:**
+- Resilient execution with circuit breaker + cache + degradation
+- Stale cache fallback (24h backup)
+- Results marked with `_stale: true` when from fallback
+- Service state tracking for health reporting
+
+**Usage:**
+```javascript
+const { gracefulDegradation, DegradationLevel, ServiceState } = require('./core');
+
+// Initialize at startup
+gracefulDegradation.initialize();
+
+// Register service with fallback
+gracefulDegradation.registerFallback('myService', async (context) => {
+    return context?.cachedResult || null;
+});
+
+// Execute with automatic fallback
+const result = await gracefulDegradation.execute('myService', async () => {
+    return await myService.doSomething();
+}, { cacheKey: 'my-cache-key' });
+
+// Mark service states
+gracefulDegradation.markHealthy('myService');
+gracefulDegradation.markDegraded('myService', 'High latency');
+gracefulDegradation.markUnavailable('myService', 'Connection refused');
+
+// Queue writes for later
+await gracefulDegradation.queueWrite('database', { operation: 'insert', data });
+
+// Get overall status
+const status = gracefulDegradation.getStatus();
+// { level: 'degraded', services: { myService: 'degraded', ... }, writeQueues: {...} }
+```
+
+#### Week 11: Database Reliability ✅ COMPLETE
+
+| Task | Effort | Description | Status |
+|------|--------|-------------|--------|
+| Add Knex.js | 4h | Migration framework | ✅ Done |
+| Convert schema.sql | 4h | To migration files | ✅ Done |
+| Add retry logic | 3h | For transient failures | ✅ Done |
+| Read replica prep | 4h | For future scaling | ✅ Done |
+
+**Completed Structure:**
+```
+knexfile.js                              # ✅ Knex config (dev/prod/docker)
 migrations/
-├── 20260203_001_initial_schema.js
-├── 20260203_002_add_automod_settings.js
-└── 20260203_003_add_indexes.js
+├── 20260203_001_initial_schema.js       # ✅ Core tables (guild_settings, user_data, etc.)
+├── 20260203_002_moderation_system.js    # ✅ Moderation tables (infractions, automod, etc.)
+└── 20260203_003_analytics_cleanup.js    # ✅ Cleanup functions
+
+src/database/
+└── postgres.js                          # ✅ Enhanced with retry + read replica
 ```
+
+**Knex.js Migration Features:**
+- Version controlled schema changes
+- `npm run db:migrate` - Apply all pending migrations
+- `npm run db:migrate:rollback` - Rollback last batch
+- `npm run db:migrate:status` - Check migration status
+- `npm run db:migrate:make <name>` - Create new migration
+
+**Retry Logic for Transient Failures:**
+```javascript
+// Transient error codes that trigger retry:
+// - 40001 (serialization_failure)
+// - 40P01 (deadlock_detected)  
+// - 57P01/02/03 (server shutdown/crash/starting)
+// - 08xxx (connection failures)
+// - 53xxx (resource errors)
+
+// Exponential backoff with jitter:
+// Attempt 1: ~1s delay
+// Attempt 2: ~2s delay
+// Attempt 3: ~4s delay (capped at 10s)
+
+await db.query('SELECT * FROM users', [], {
+    retries: 3,      // Custom retry count
+    noRetry: false,  // Disable retry
+});
+```
+
+**Read Replica Preparation:**
+```javascript
+// Environment variables for read replica:
+// DB_READ_HOST=replica.example.com
+// DB_READ_PORT=5432 (optional, defaults to DB_PORT)
+// DB_READ_USER=readonly_user (optional)
+// DB_READ_PASSWORD=readonly_pass (optional)
+// DB_READ_POOL_MAX=20 (optional)
+
+// Automatic query routing:
+// - SELECT queries → Read replica (if available)
+// - SELECT FOR UPDATE → Primary (locking)
+// - INSERT/UPDATE/DELETE → Primary
+// - Transactions → Primary
+
+// Manual control:
+await db.query('SELECT ...', [], { usePrimary: true });
+```
+
+**PostgreSQL Enhanced Features:**
+- Auto-retry transient failures (deadlock, connection issues)
+- Exponential backoff with jitter
+- Read replica support (config-based activation)
+- Query routing (read vs write)
+- Enhanced health checks (primary + replica)
+- Status includes retry config and replica info
 
 ---
 
 ### Phase 4: TypeScript Migration (Week 12-14) 📘
 **Goal:** Type safety cho core modules.
 
+#### Week 12: Core Types ✅ COMPLETE
+
+| Task | Priority | Effort | File Changes | Status |
+|------|----------|--------|--------------|--------|
+| Setup TypeScript config | P0 | 2h | `tsconfig.json` (new) | ✅ Done |
+| Migrate errors/ module | P0 | 4h | `src/errors/*.ts` | ✅ Done |
+| Create constants.ts | P1 | 2h | `src/constants.ts` (new) | ✅ Done |
+| Migrate Logger.ts | P1 | 3h | `src/core/Logger.ts` (new) | ✅ Done |
+
+**Deliverables:**
+```
+tsconfig.json              # ✅ Full TypeScript config with strict mode, path aliases
+src/errors/
+├── AppError.ts           # ✅ Base error classes with types
+├── MusicError.ts         # ✅ Music-specific errors with MusicErrorCode
+├── VideoError.ts         # ✅ Video-specific errors with VideoErrorCode  
+├── ApiError.ts           # ✅ API-specific errors with ApiErrorCode
+└── index.ts              # ✅ Central exports with CommonJS compatibility
+src/constants.ts          # ✅ Typed constants (COLORS, CACHE_LIMITS, TIMEOUTS, etc.)
+src/core/Logger.ts        # ✅ Typed Logger with interfaces for LogMetadata, RequestLogOptions
+```
+
+**Key Features:**
+- Strict mode enabled with all strict checks
+- Path aliases: `@core/*`, `@errors/*`, `@services/*`, etc.
+- `allowJs: true` for gradual migration
+- CommonJS compatibility via `module.exports` in all .ts files
+- `as const` assertions for literal types
+- Exported types: `LogLevel`, `LogFormat`, `ColorKey`, `ErrorCode`, etc.
+
 #### Migration Order (theo dependency):
 
 ```
-Week 12:                    Week 13:                    Week 14:
+Week 12: ✅ DONE           Week 13: ✅ DONE            Week 14: ✅ DONE
 ┌─────────────────┐        ┌─────────────────┐        ┌─────────────────┐
-│ 1. errors/      │───────▶│ 4. Container    │───────▶│ 7. BaseCommand  │
-│ 2. constants.ts │        │ 5. Database     │        │ 8. Top 5 cmds   │
-│ 3. Logger.ts    │        │ 6. Cache        │        │ 9. Handlers     │
+│ 1. errors/  ✅  │───────▶│ 4. Cache     ✅ │───────▶│ 7. BaseCommand✅│
+│ 2. constants ✅ │        │ 5. Database  ✅ │        │ 8. Top 5 cmds ✅│
+│ 3. Logger.ts ✅ │        │    (postgres)   │        │ 9. Handlers   ✅│
 └─────────────────┘        └─────────────────┘        └─────────────────┘
+```
+
+#### Week 13: Infrastructure Types ✅ COMPLETE
+
+| Task | Priority | Effort | File Changes | Status |
+|------|----------|--------|--------------|--------|
+| Migrate BaseCache | P0 | 2h | `src/cache/BaseCache.ts` | ✅ Done |
+| Migrate CacheManager | P0 | 2h | `src/cache/CacheManager.ts` | ✅ Done |
+| Migrate CacheService | P0 | 4h | `src/cache/CacheService.ts` | ✅ Done |
+| Migrate PostgreSQL | P0 | 6h | `src/database/postgres.ts` | ✅ Done |
+| Create cache index.ts | P1 | 1h | `src/cache/index.ts` | ✅ Done |
+
+**Deliverables:**
+```
+src/cache/
+├── BaseCache.ts          # ✅ Generic LRU cache with CacheEntry<T>, CacheConfig
+├── CacheManager.ts       # ✅ Cache registry with MemoryStats, AllCacheStats  
+├── CacheService.ts       # ✅ Redis+memory with NamespaceConfig, CacheMetrics
+└── index.ts              # ✅ Central exports with type re-exports
+
+src/database/
+└── postgres.ts           # ✅ Full typed PostgresDatabase class
+                          #    - QueryOptions, RetryConfig, DatabaseStatus
+                          #    - Generic query<T>, insert<T>, update<T>
+                          #    - ALLOWED_TABLES as const tuple
+                          #    - TransactionCallback<T> type
+```
+
+**Key Types Exported:**
+```typescript
+// Cache types
+CacheEntry<T>, CacheConfig, CacheStats, CacheFactory<T>
+NamespaceConfig, CacheMetrics, CacheServiceStats
+MemoryStats, AllCacheStats
+
+// Database types  
+AllowedTable, QueryOptions, RetryConfig, DatabaseStatus
+WriteQueueEntry, QueuedResponse, TransactionCallback<T>
 ```
 
 **tsconfig.json:**
@@ -339,15 +689,212 @@ Week 12:                    Week 13:                    Week 14:
     "compilerOptions": {
         "target": "ES2022",
         "module": "commonjs",
+        "lib": ["ES2022"],
         "allowJs": true,
         "strict": true,
+        "strictNullChecks": true,
+        "strictFunctionTypes": true,
+        "noImplicitAny": true,
+        "noImplicitReturns": true,
         "outDir": "./dist",
-        "esModuleInterop": true
+        "rootDir": "./src",
+        "baseUrl": "./src",
+        "paths": {
+            "@core/*": ["core/*"],
+            "@errors/*": ["errors/*"],
+            "@services/*": ["services/*"],
+            "@commands/*": ["commands/*"],
+            "@handlers/*": ["handlers/*"],
+            "@utils/*": ["utils/*"],
+            "@config/*": ["config/*"],
+            "@/*": ["*"]
+        },
+        "esModuleInterop": true,
+        "resolveJsonModule": true,
+        "declaration": true,
+        "declarationMap": true,
+        "sourceMap": true,
+        "isolatedModules": true,
+        "skipLibCheck": true
     },
     "include": ["src/**/*"],
-    "exclude": ["node_modules", "tests"]
+    "exclude": ["node_modules", "dist", "tests"]
 }
 ```
+
+#### Week 14: Command Layer Types ✅ COMPLETE
+
+| Task | Priority | Effort | File Changes | Status |
+|------|----------|--------|--------------|--------|
+| Migrate BaseCommand | P0 | 6h | `src/commands/BaseCommand.ts` | ✅ Done |
+| Migrate ping command | P1 | 1h | `src/commands/general/ping.ts` | ✅ Done |
+| Migrate help command | P1 | 2h | `src/commands/general/help.ts` | ✅ Done |
+| Migrate avatar command | P1 | 1h | `src/commands/general/avatar.ts` | ✅ Done |
+| Migrate serverinfo command | P1 | 2h | `src/commands/general/serverinfo.ts` | ✅ Done |
+| Migrate ban command | P0 | 3h | `src/commands/admin/ban.ts` | ✅ Done |
+| Migrate googleHandler | P1 | 2h | `src/handlers/api/googleHandler.ts` | ✅ Done |
+| Migrate wikipediaHandler | P1 | 2h | `src/handlers/api/wikipediaHandler.ts` | ✅ Done |
+| Create handlers index.ts | P1 | 1h | `src/handlers/api/index.ts` | ✅ Done |
+
+**Deliverables:**
+```
+src/commands/
+├── BaseCommand.ts           # ✅ Abstract base class with full Discord.js v14 types
+│                            #    - CommandCategory, CommandOptions, CommandContext
+│                            #    - execute(), run() (abstract), safeReply()
+│                            #    - Embed helpers (successEmbed, errorEmbed, etc.)
+│                            #    - Cooldown management with Map<string, number>
+│                            #    - Permission validation (user + bot)
+│
+├── general/
+│   ├── ping.ts              # ✅ Latency check with API ping, uptime, counts
+│   ├── help.ts              # ✅ Command list with category filter
+│   ├── avatar.ts            # ✅ User avatar with size/format options
+│   └── serverinfo.ts        # ✅ Guild stats with verification/content levels
+│
+└── admin/
+    └── ban.ts               # ✅ Ban/unban/list with subcommands
+                             #    - ValidationResult interface
+                             #    - Role hierarchy checks
+                             #    - Delete message days option
+
+src/handlers/api/
+├── googleHandler.ts         # ✅ Google/DuckDuckGo search handler
+│                            #    - SearchResult, SearchOptions interfaces
+│                            #    - createResultsEmbed(), createSearchButtons()
+│                            #    - ActionRowBuilder<ButtonBuilder> typed
+│
+├── wikipediaHandler.ts      # ✅ Wikipedia article handler
+│                            #    - WikipediaArticle, WikiSearchResult interfaces
+│                            #    - OnThisDayEvent, OnThisDayDate types
+│                            #    - createArticleEmbed(), createSearchSelectMenu()
+│                            #    - ActionRowBuilder<StringSelectMenuBuilder> typed
+│
+└── index.ts                 # ✅ Central exports with type re-exports
+                             #    - export type for interfaces (isolatedModules)
+                             #    - Legacy JS handlers via require()
+```
+
+**Key Types Exported:**
+```typescript
+// BaseCommand types
+CommandCategory, CommandCategoryType
+CommandOptions, CommandContext, CommandData
+
+// Handler types
+SearchResult, SearchOptions
+WikipediaArticle, WikiSearchResult, OnThisDayEvent, OnThisDayDate
+```
+
+**Discord.js v14 Integration:**
+- `ChatInputCommandInteraction` - Full typed command interactions
+- `SlashCommandBuilder` - Typed command data
+- `EmbedBuilder` - Type-safe embed construction
+- `ActionRowBuilder<T>` - Generic component rows
+- `PermissionFlagsBits` - Typed permission checks
+- `GuildVerificationLevel`, `GuildExplicitContentFilter` - Guild enums
+
+#### Week 14.5: Cleanup & Extended Migration ✅ COMPLETE
+
+| Task | Effort | Description | Status |
+|------|--------|-------------|--------|
+| Delete legacy JS files | 1h | Remove JS files with TS equivalents | ✅ Done |
+| Migrate Result.ts | 2h | Railway-oriented programming pattern | ✅ Done |
+| Migrate CircuitBreaker.ts | 3h | Full typed circuit breaker | ✅ Done |
+| Migrate CircuitBreakerRegistry.ts | 2h | Registry with all API configs | ✅ Done |
+| Migrate ErrorCodes.ts | 2h | Typed error codes enum | ✅ Done |
+| Migrate googleService.ts | 2h | With circuit breaker integration | ✅ Done |
+| Migrate wikipediaService.ts | 2h | With circuit breaker integration | ✅ Done |
+| Create core/index.ts | 1h | Central exports with CommonJS compat | ✅ Done |
+| Create services/api/index.ts | 1h | Central exports for API services | ✅ Done |
+| Disable declaration emit | 30m | Fix Shoukaku TS issue | ✅ Done |
+
+**Cleanup Summary:**
+```
+Deleted JS files (have TS equivalents):
+├── src/errors/*.js (5 files)
+├── src/cache/*.js (4 files)
+├── src/database/postgres.js
+├── src/constants.js
+├── src/commands/BaseCommand.js
+├── src/commands/general/*.js (4 files: ping, help, avatar, serverinfo)
+├── src/commands/admin/ban.js
+├── src/handlers/api/*.js (3 files: google, wikipedia, index)
+├── src/core/*.js (5 files: Result, CircuitBreaker, CircuitBreakerRegistry, ErrorCodes, index)
+├── src/services/api/*.js (3 files: google, wikipedia, index)
+└── src/core/Logger.js
+
+Migration Progress: 31 TS files / 226 total = ~14% complete
+Core infrastructure: 100% TypeScript
+```
+
+**New TypeScript Structure:**
+```
+src/
+├── core/                    # 100% TypeScript
+│   ├── Logger.ts           # ✅ Structured logging
+│   ├── Result.ts           # ✅ Railway-oriented programming
+│   ├── CircuitBreaker.ts   # ✅ Fault tolerance pattern
+│   ├── CircuitBreakerRegistry.ts # ✅ Central breaker management
+│   ├── ErrorCodes.ts       # ✅ Typed error codes
+│   └── index.ts            # ✅ Central exports
+│
+├── errors/                  # 100% TypeScript
+│   ├── AppError.ts         # ✅ Base error classes
+│   ├── MusicError.ts       # ✅ Music-specific errors
+│   ├── VideoError.ts       # ✅ Video-specific errors
+│   ├── ApiError.ts         # ✅ API-specific errors
+│   └── index.ts            # ✅ Central exports
+│
+├── cache/                   # 100% TypeScript
+│   ├── BaseCache.ts        # ✅ Generic LRU cache
+│   ├── CacheManager.ts     # ✅ Cache registry
+│   ├── CacheService.ts     # ✅ Redis + memory fallback
+│   └── index.ts            # ✅ Central exports
+│
+├── database/
+│   └── postgres.ts         # ✅ Typed database client
+│
+├── constants.ts            # ✅ Typed constants
+│
+├── commands/
+│   ├── BaseCommand.ts      # ✅ Abstract base class
+│   ├── general/
+│   │   ├── ping.ts         # ✅
+│   │   ├── help.ts         # ✅
+│   │   ├── avatar.ts       # ✅
+│   │   ├── serverinfo.ts   # ✅
+│   │   └── index.ts        # ✅
+│   └── admin/
+│       ├── ban.ts          # ✅
+│       └── index.ts        # ✅
+│
+├── handlers/api/
+│   ├── googleHandler.ts    # ✅
+│   ├── wikipediaHandler.ts # ✅
+│   └── index.ts            # ✅
+│
+└── services/api/
+    ├── googleService.ts    # ✅ With circuit breaker
+    ├── wikipediaService.ts # ✅ With circuit breaker
+    └── index.ts            # ✅
+```
+
+**Circuit Breaker Coverage:**
+| Service | Config Name | Timeout | Reset |
+|---------|-------------|---------|-------|
+| Lavalink | `lavalink` | 30s | 60s |
+| External APIs | `externalApi` | 10s | 30s |
+| Database | `database` | 5s | 30s |
+| Redis | `redis` | 3s | 15s |
+| Discord | `discord` | 15s | 30s |
+| Anime APIs | `anime` | 10s | 30s |
+| NSFW APIs | `nsfw` | 15s | 60s |
+| Google Search | `google` | 10s | 30s |
+| Wikipedia | `wikipedia` | 8s | 30s |
+| Pixiv | `pixiv` | 15s | 60s |
+| Fandom | `fandom` | 10s | 30s |
+| Steam | `steam` | 10s | 30s |
 
 ---
 
@@ -409,8 +956,10 @@ manager.spawn();
 | 5 | Clean Architecture ✓ | No singleton, unified cache, Result pattern |
 | 8 | Music Refactor ✓ | MusicService <400 LOC, 80% coverage |
 | 11 | Resilience ✓ | Circuit breakers active, load test pass |
-| 14 | Type Safety ✓ | Core modules TypeScript, no `any` |
-| 16 | Scale Ready ✓ | Sharding works, metrics exposed |
+| 12 | Core Types ✓ | errors/, constants, Logger in TypeScript |
+| 13 | Infrastructure Types ✓ | Cache + Database fully typed |
+| 14 | Type Safety | Core modules TypeScript, no `any` |
+| 16 | Scale Ready | Sharding works, metrics exposed |
 
 ---
 

@@ -1,0 +1,684 @@
+/**
+ * Lavalink Service
+ * Low-level Lavalink connection management using Shoukaku
+ * @module services/music/LavalinkService
+ */
+
+import { Shoukaku, Connectors } from 'shoukaku';
+import type { Client } from 'discord.js';
+import * as lavalinkConfig from '../../config/features/lavalink.js';
+import circuitBreakerRegistry from '../../core/CircuitBreakerRegistry.js';
+import gracefulDegradation from '../../core/GracefulDegradation.js';
+import type { MusicTrack } from './events/MusicEvents.js';
+// TYPES
+interface NodeConfig {
+    name: string;
+    url: string;
+    auth: string;
+    secure?: boolean;
+}
+
+interface SearchResult {
+    track: unknown;
+    encoded: string;
+    url: string;
+    title: string;
+    lengthSeconds: number;
+    thumbnail: string | null;
+    author: string;
+    requestedBy: unknown;
+    source: string;
+    viewCount: number | null;
+    identifier: string | null;
+    searchedByLink: boolean;
+    originalQuery: string | null;
+}
+
+interface PlaylistResult {
+    playlistName: string;
+    tracks: SearchResult[];
+}
+
+interface PreservedState {
+    timestamp: number;
+    track: unknown;
+    position: number;
+    paused: boolean;
+    volume: number;
+}
+
+interface NodeStatus {
+    ready: boolean;
+    activeConnections: number;
+    error?: string;
+    nodes?: Array<{
+        name: string;
+        state: number;
+        stats: unknown;
+    }>;
+    players?: Array<{
+        guildId: string;
+        paused: boolean;
+        track: unknown;
+    }>;
+}
+
+interface CircuitBreaker {
+    execute<T>(fn: () => Promise<T>): Promise<T>;
+}
+
+interface ShoukakuNode {
+    name: string;
+    state: number;
+    stats: unknown;
+    rest: {
+        resolve(query: string): Promise<{
+            loadType: string;
+            data?: unknown;
+            tracks?: unknown[];
+        } | null>;
+    };
+}
+
+interface ShoukakuPlayer {
+    guildId: string;
+    paused: boolean;
+    track: unknown;
+    position: number;
+    volume: number;
+    connection: {
+        disconnect(): Promise<void>;
+        channelId?: string;
+    };
+    playTrack(options: { track: { encoded: string } }): Promise<void>;
+    stopTrack(): Promise<void>;
+    setPaused(paused: boolean): Promise<void>;
+    seekTo(position: number): Promise<void>;
+    setGlobalVolume(volume: number): Promise<void>;
+    on(event: string, listener: (...args: unknown[]) => void): void;
+    removeAllListeners(): void;
+}
+// LAVALINK SERVICE CLASS
+class LavalinkService {
+    public shoukaku: Shoukaku | null = null;
+    private client: Client | null = null;
+    public isReady: boolean = false;
+    private readyNodes: Set<string> = new Set();
+    private circuitBreaker: CircuitBreaker | null | undefined = null;
+    
+    /** Preserved queue states when Lavalink goes down */
+    private preservedQueues: Map<string, PreservedState> = new Map();
+
+    /**
+     * Pre-initialize Shoukaku with Discord client
+     */
+    preInitialize(client: Client): Shoukaku | null {
+        if (this.shoukaku) {
+            return this.shoukaku;
+        }
+
+        this.client = client;
+
+        // Initialize circuit breaker and graceful degradation
+        circuitBreakerRegistry.initialize();
+        this.circuitBreaker = circuitBreakerRegistry.get('lavalink');
+        
+        // Register with graceful degradation
+        gracefulDegradation.initialize();
+        gracefulDegradation.registerFallback('lavalink', async () => ({
+            error: 'LAVALINK_UNAVAILABLE',
+            message: '🔇 Music service is temporarily unavailable. Your queue has been preserved.',
+            preserved: true
+        }));
+
+        const configNodes = lavalinkConfig.nodes as NodeConfig[];
+        const nodes = configNodes.map((node: NodeConfig) => ({
+            name: node.name,
+            url: node.url,
+            auth: node.auth,
+            secure: node.secure || false
+        }));
+
+        try {
+            const connector = new Connectors.DiscordJS(client);
+            this.shoukaku = new Shoukaku(connector, nodes, (lavalinkConfig as Record<string, unknown>).shoukakuOptions as Shoukaku['options'] | undefined);
+            this.setupEventHandlers();
+        } catch (error) {
+            const err = error as Error;
+            console.error('[Lavalink] ❌ Initialization error:', err.message);
+            throw error;
+        }
+
+        return this.shoukaku;
+    }
+
+    /**
+     * Finalize connection - nodes will emit 'ready' when connected
+     */
+    finalize(): void {
+        // Connection finalized - nodes will emit 'ready' when connected
+    }
+
+    /**
+     * Setup Shoukaku event handlers
+     */
+    private setupEventHandlers(): void {
+        if (!this.shoukaku) return;
+
+        // Shoukaku v4.x 'ready' event signature: (name, lavalinkResume, libraryResume)
+        this.shoukaku.on('ready', (name: string) => {
+            console.log(`[Lavalink] ✅ Node "${name}" ready`);
+            this.readyNodes.add(name);
+            this.isReady = true;
+            
+            // Mark Lavalink as healthy
+            gracefulDegradation.markHealthy('lavalink');
+            
+            // Try to restore preserved queues
+            this._restorePreservedQueues();
+        });
+
+        this.shoukaku.on('error', (name: string, error: Error) => {
+            console.error(`[Lavalink] ❌ Node "${name}" error:`, error.message);
+            gracefulDegradation.markDegraded('lavalink', error.message);
+        });
+
+        this.shoukaku.on('close', (name: string, code: number) => {
+            console.log(`[Lavalink] Node "${name}" closed (${code})`);
+            this.readyNodes.delete(name);
+            if (this.readyNodes.size === 0) {
+                this.isReady = false;
+                gracefulDegradation.markUnavailable('lavalink', 'All nodes disconnected');
+                
+                // Preserve all active queues
+                this._preserveAllQueues();
+            }
+        });
+
+        this.shoukaku.on('disconnect', (name: string) => {
+            this.readyNodes.delete(name);
+            if (this.readyNodes.size === 0) {
+                this.isReady = false;
+                gracefulDegradation.markUnavailable('lavalink', 'All nodes disconnected');
+            }
+        });
+
+        this.shoukaku.on('reconnecting', (name: string, reconnectsLeft: number) => {
+            console.log(`[Lavalink] 🔄 Reconnecting "${name}" (${reconnectsLeft} left)`);
+        });
+
+        this.shoukaku.on('debug', () => {});
+    }
+
+    /**
+     * Get Shoukaku manager
+     */
+    getManager(): Shoukaku | null {
+        return this.shoukaku;
+    }
+
+    /**
+     * Get player for guild
+     */
+    getPlayer(guildId: string): ShoukakuPlayer | null {
+        return (this.shoukaku?.players as unknown as Map<string, ShoukakuPlayer>)?.get(guildId) || null;
+    }
+
+    /**
+     * Create player for guild
+     */
+    async createPlayer(guildId: string, voiceChannelId: string, textChannelId: string): Promise<ShoukakuPlayer> {
+        if (!this.shoukaku) {
+            throw new Error('Shoukaku not initialized');
+        }
+
+        if (!this.isReady) {
+            throw new Error('Lavalink not ready');
+        }
+
+        // Shoukaku node states: 0 = CONNECTING, 1 = CONNECTED, 2 = DISCONNECTING, 3 = DISCONNECTED
+        const node = [...(this.shoukaku.nodes as Map<string, ShoukakuNode>).values()].find(n => n.state === 1);
+        if (!node) throw new Error('No available nodes');
+
+        try {
+            const player = await this.shoukaku.joinVoiceChannel({
+                guildId: guildId,
+                channelId: voiceChannelId,
+                shardId: this.client?.guilds.cache.get(guildId)?.shardId || 0,
+                deaf: (lavalinkConfig as { playerOptions?: { selfDeafen?: boolean } }).playerOptions?.selfDeafen || true
+            }) as unknown as ShoukakuPlayer;
+
+            // Shoukaku setGlobalVolume: 100 = 100% volume (no distortion)
+            const configVolume = (lavalinkConfig as { playerOptions?: { volume?: number } }).playerOptions?.volume || 100;
+            await player.setGlobalVolume(configVolume);
+
+            return player;
+
+        } catch (error) {
+            const err = error as Error;
+            console.error(`[Lavalink] ❌ Failed to create player:`, err.message);
+            throw error;
+        }
+    }
+
+    /**
+     * Destroy player for guild
+     */
+    destroyPlayer(guildId: string): void {
+        const player = this.getPlayer(guildId);
+        if (player) {
+            this.shoukaku?.leaveVoiceChannel(guildId);
+        }
+    }
+
+    /**
+     * Search for tracks with circuit breaker protection
+     */
+    async search(query: string, requester?: unknown): Promise<SearchResult> {
+        // Use circuit breaker for search operations
+        return this.circuitBreaker!.execute(async () => {
+            return this._searchInternal(query, requester);
+        });
+    }
+
+    /**
+     * Internal search implementation
+     */
+    private async _searchInternal(query: string, requester?: unknown): Promise<SearchResult> {
+        if (!this.shoukaku) {
+            console.error('[Lavalink] Cannot search: Shoukaku not initialized');
+            throw new Error('Shoukaku not initialized');
+        }
+
+        if (!this.isReady) {
+            console.error('[Lavalink] Cannot search: Lavalink not ready');
+            throw new Error('Lavalink not ready');
+        }
+
+        let searchQuery = query;
+        if (/^https?:\/\//.test(query)) {
+            try {
+                const url = new URL(query);
+                url.searchParams.delete('si');
+                url.searchParams.delete('feature');
+                searchQuery = url.toString();
+            } catch {
+                // Use original query on parse failure
+            }
+        } else if (this.isSpotifyUrl(query)) {
+            // Spotify URLs are handled directly by Lavalink plugins
+            searchQuery = query;
+        } else {
+            searchQuery = `${(lavalinkConfig as { defaultSearchPlatform?: string }).defaultSearchPlatform}:${query}`;
+        }
+
+        // Shoukaku node states: 0 = CONNECTING, 1 = CONNECTED, 2 = DISCONNECTING, 3 = DISCONNECTED
+        const node = [...(this.shoukaku.nodes as Map<string, ShoukakuNode>).values()].find(n => n.state === 1);
+
+        if (!node) {
+            console.error('[Lavalink] No available nodes');
+            throw new Error('No available nodes');
+        }
+
+        try {
+            let result = await node.rest.resolve(searchQuery);
+
+            if (!result || result.loadType === 'error' || result.loadType === 'empty') {
+                const fallbackQuery = /^https?:\/\//.test(query) 
+                    ? query 
+                    : `${(lavalinkConfig as { fallbackSearchPlatform?: string }).fallbackSearchPlatform}:${query}`;
+                
+                result = await node.rest.resolve(fallbackQuery);
+
+                if (!result || result.loadType === 'error' || result.loadType === 'empty') {
+                    throw new Error('NO_RESULTS');
+                }
+            }
+
+            let track: { encoded?: string; info?: { uri?: string; title?: string; length?: number; artworkUrl?: string; author?: string; sourceName?: string; identifier?: string; viewCount?: number }; pluginInfo?: { viewCount?: number; playCount?: number } } | undefined;
+            if (result.loadType === 'track') {
+                track = result.data as typeof track;
+            } else if (result.loadType === 'search') {
+                track = (result.data as typeof track[])?.[0];
+            } else if (result.loadType === 'playlist') {
+                track = ((result.data as { tracks?: typeof track[] })?.tracks)?.[0];
+            } else {
+                const data = result.data as { tracks?: typeof track[] } | typeof track[];
+                track = (data as { tracks?: typeof track[] })?.tracks?.[0] || (data as typeof track[])?.[0] || (result.tracks as typeof track[])?.[0];
+            }
+
+            if (!track || !track.info) {
+                throw new Error('NO_RESULTS');
+            }
+
+            const youtubeId = this.extractYouTubeId(track.info.uri);
+            
+            // Try multiple thumbnail options with fallbacks
+            let thumbnail: string | null = track.info.artworkUrl || null;
+            if (!thumbnail && youtubeId) {
+                // Try hqdefault first (more reliable), then maxresdefault
+                thumbnail = `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;
+            }
+
+            const viewCount = track.pluginInfo?.viewCount || 
+                            track.pluginInfo?.playCount || 
+                            track.info?.viewCount ||
+                            null;
+            
+            // Determine if this was a direct link search
+            const isLinkSearch = /^https?:\/\//.test(query) || this.isSpotifyUrl(query);
+
+            return {
+                track: track,
+                encoded: track.encoded || '',
+                url: track.info.uri || '',
+                title: track.info.title || '',
+                lengthSeconds: Math.floor((track.info.length || 0) / 1000),
+                thumbnail: thumbnail,
+                author: track.info.author || '',
+                requestedBy: requester,
+                source: track.info.sourceName || 'Unknown',
+                viewCount: viewCount,
+                identifier: youtubeId || track.info.identifier || null,
+                searchedByLink: isLinkSearch,
+                originalQuery: isLinkSearch ? null : query
+            };
+
+        } catch (error) {
+            const err = error as Error;
+            console.error('[Lavalink] Search error:', err.message);
+            throw new Error(err.message === 'NO_RESULTS' ? 'NO_RESULTS' : 'SEARCH_FAILED');
+        }
+    }
+
+    /**
+     * Extract YouTube ID from URL
+     */
+    extractYouTubeId(url?: string): string | null {
+        if (!url) return null;
+        const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
+        return match ? match[1] : null;
+    }
+
+    /**
+     * Check if URL is a Spotify URL
+     */
+    isSpotifyUrl(url?: string): boolean {
+        if (!url) return false;
+        return /^https?:\/\/(open\.)?spotify\.com\/(track|album|playlist|artist)\//.test(url);
+    }
+
+    /**
+     * Search for multiple tracks (for autoplay)
+     */
+    async searchMultiple(query: string, limit: number = 5): Promise<MusicTrack[]> {
+        if (!this.shoukaku || !this.isReady) {
+            console.log('[Lavalink] SearchMultiple: Not ready - shoukaku:', !!this.shoukaku, 'isReady:', this.isReady);
+            return [];
+        }
+
+        try {
+            const searchQuery = `${(lavalinkConfig as { defaultSearchPlatform?: string }).defaultSearchPlatform}:${query}`;
+            const node = [...(this.shoukaku.nodes as Map<string, ShoukakuNode>).values()].find(n => n.state === 1);
+
+            if (!node) {
+                const nodeStates = [...(this.shoukaku.nodes as Map<string, ShoukakuNode>).values()].map(n => ({ name: n.name, state: n.state }));
+                console.log('[Lavalink] SearchMultiple: No ready node. States:', nodeStates);
+                return [];
+            }
+
+            console.log(`[Lavalink] SearchMultiple: Searching "${searchQuery}" on node ${node.name}`);
+            const result = await node.rest.resolve(searchQuery);
+
+            if (!result || result.loadType === 'error' || result.loadType === 'empty') {
+                console.log('[Lavalink] SearchMultiple: No results, loadType:', result?.loadType);
+                return [];
+            }
+
+            console.log(`[Lavalink] SearchMultiple: loadType=${result.loadType}, tracks found`);
+            let tracks: Array<{ encoded?: string; info?: { uri?: string; title?: string; length?: number; artworkUrl?: string; author?: string; sourceName?: string; identifier?: string } }> = [];
+            if (result.loadType === 'search' && Array.isArray(result.data)) {
+                tracks = (result.data as typeof tracks).slice(0, limit);
+            } else if (result.loadType === 'track' && result.data) {
+                tracks = [result.data as typeof tracks[0]];
+            } else if (result.loadType === 'playlist' && (result.data as { tracks?: typeof tracks })?.tracks) {
+                tracks = ((result.data as { tracks: typeof tracks }).tracks).slice(0, limit);
+            }
+
+            return tracks.map(track => {
+                const youtubeId = this.extractYouTubeId(track.info?.uri);
+                return {
+                    track: track,
+                    encoded: track.encoded,
+                    info: track.info,
+                    url: track.info?.uri,
+                    title: track.info?.title,
+                    lengthSeconds: Math.floor((track.info?.length || 0) / 1000),
+                    thumbnail: track.info?.artworkUrl || (youtubeId ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg` : null),
+                    author: track.info?.author,
+                    source: track.info?.sourceName || 'Unknown',
+                    identifier: youtubeId || track.info?.identifier
+                };
+            });
+        } catch (error) {
+            const err = error as Error;
+            console.error('[Lavalink] SearchMultiple error:', err.message);
+            return [];
+        }
+    }
+
+    /**
+     * Extract Spotify ID from URL
+     */
+    extractSpotifyId(url?: string): { type: string; id: string } | null {
+        if (!url) return null;
+        const match = url.match(/spotify\.com\/(track|album|playlist|artist)\/([a-zA-Z0-9]+)/);
+        return match ? { type: match[1], id: match[2] } : null;
+    }
+
+    /**
+     * Search for playlist
+     */
+    async searchPlaylist(query: string, requester?: unknown): Promise<PlaylistResult> {
+        if (!this.shoukaku) {
+            throw new Error('Shoukaku not initialized');
+        }
+
+        if (!this.isReady) {
+            throw new Error('Lavalink not ready');
+        }
+
+        let searchQuery = query;
+        if (!/^https?:\/\//.test(query)) {
+            searchQuery = `${(lavalinkConfig as { defaultSearchPlatform?: string }).defaultSearchPlatform}:${query}`;
+        }
+
+        // Shoukaku node states: 0 = CONNECTING, 1 = CONNECTED, 2 = DISCONNECTING, 3 = DISCONNECTED
+        const node = [...(this.shoukaku.nodes as Map<string, ShoukakuNode>).values()].find(n => n.state === 1);
+
+        if (!node) {
+            throw new Error('No available nodes');
+        }
+
+        try {
+            let result = await node.rest.resolve(searchQuery);
+
+            if (!result || result.loadType === 'error' || result.loadType === 'empty') {
+                result = await node.rest.resolve(query);
+
+                if (!result || result.loadType === 'error' || result.loadType === 'empty') {
+                    throw new Error('NO_RESULTS');
+                }
+            }
+
+            if (result.loadType === 'playlist') {
+                const playlistData = result.data as { info: { name: string }; tracks: Array<{ encoded?: string; info?: { uri?: string; title?: string; length?: number; artworkUrl?: string; author?: string; sourceName?: string; identifier?: string; viewCount?: number }; pluginInfo?: { viewCount?: number; playCount?: number } }> };
+                const tracks = playlistData.tracks.map(track => {
+                    const youtubeId = this.extractYouTubeId(track.info?.uri);
+                    
+                    // Try multiple thumbnail options with fallbacks
+                    let thumbnail: string | null = track.info?.artworkUrl || null;
+                    if (!thumbnail && youtubeId) {
+                        thumbnail = `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;
+                    }
+
+                    const viewCount = track.pluginInfo?.viewCount || 
+                                    track.pluginInfo?.playCount || 
+                                    track.info?.viewCount ||
+                                    null;
+
+                    return {
+                        track: track,
+                        encoded: track.encoded || '',
+                        url: track.info?.uri || '',
+                        title: track.info?.title || '',
+                        lengthSeconds: Math.floor((track.info?.length || 0) / 1000),
+                        thumbnail: thumbnail,
+                        author: track.info?.author || '',
+                        requestedBy: requester,
+                        source: track.info?.sourceName || 'Unknown',
+                        viewCount: viewCount,
+                        identifier: youtubeId || track.info?.identifier || null,
+                        searchedByLink: true,
+                        originalQuery: null
+                    };
+                });
+
+                return {
+                    playlistName: playlistData.info.name,
+                    tracks: tracks
+                };
+            }
+
+            throw new Error('NOT_A_PLAYLIST');
+
+        } catch (error) {
+            const err = error as Error;
+            console.error('[Lavalink] Playlist search error:', err.message);
+            throw error;
+        }
+    }
+
+    /**
+     * Get node status
+     */
+    getNodeStatus(): NodeStatus {
+        if (!this.shoukaku) {
+            return { ready: false, activeConnections: 0, error: 'Not initialized' };
+        }
+
+        const nodes = Array.from((this.shoukaku.nodes as Map<string, ShoukakuNode>).values()).map(node => ({
+            name: node.name,
+            state: node.state,
+            stats: node.stats
+        }));
+
+        return {
+            ready: this.isReady,
+            activeConnections: (this.shoukaku.players as unknown as Map<string, ShoukakuPlayer>).size,
+            nodes: nodes,
+            players: Array.from((this.shoukaku.players as unknown as Map<string, ShoukakuPlayer>).values()).map(p => ({
+                guildId: p.guildId,
+                paused: p.paused,
+                track: p.track
+            }))
+        };
+    }
+
+    /**
+     * Shutdown (used by container)
+     */
+    async shutdown(): Promise<void> {
+        if (this.shoukaku) {
+            // Disconnect all players
+            for (const [, player] of (this.shoukaku.players as unknown as Map<string, ShoukakuPlayer>)) {
+                try {
+                    await player.connection.disconnect();
+                } catch {
+                    // Ignore cleanup errors
+                }
+            }
+            console.log('[Lavalink] Shutdown complete');
+        }
+    }
+
+    /**
+     * Preserve all active queues when Lavalink goes down
+     */
+    private _preserveAllQueues(): void {
+        if (!this.shoukaku) return;
+        
+        for (const [guildId, player] of (this.shoukaku.players as unknown as Map<string, ShoukakuPlayer>)) {
+            try {
+                // Preserve current state
+                this.preservedQueues.set(guildId, {
+                    timestamp: Date.now(),
+                    track: player.track,
+                    position: player.position,
+                    paused: player.paused,
+                    volume: player.volume,
+                    // Note: Queue itself is managed by QueueService, not LavalinkService
+                });
+                
+                console.log(`[Lavalink] 📦 Preserved state for guild ${guildId}`);
+            } catch (error) {
+                const err = error as Error;
+                console.error(`[Lavalink] Failed to preserve queue for ${guildId}:`, err.message);
+            }
+        }
+        
+        console.log(`[Lavalink] 📦 Preserved ${this.preservedQueues.size} guild states`);
+    }
+
+    /**
+     * Restore preserved queues when Lavalink comes back
+     */
+    private async _restorePreservedQueues(): Promise<void> {
+        if (this.preservedQueues.size === 0) return;
+        
+        const staleThreshold = 30 * 60 * 1000; // 30 minutes
+        const now = Date.now();
+        
+        for (const [guildId, state] of this.preservedQueues) {
+            // Skip stale queues
+            if (now - state.timestamp > staleThreshold) {
+                console.log(`[Lavalink] ⏰ Skipping stale queue for guild ${guildId}`);
+                this.preservedQueues.delete(guildId);
+                continue;
+            }
+            
+            // Emit event for QueueService to handle restoration
+            // The actual restoration will be handled by the music event system
+            console.log(`[Lavalink] 🔄 Queue restoration available for guild ${guildId}`);
+        }
+    }
+
+    /**
+     * Get preserved queue state for a guild
+     */
+    getPreservedState(guildId: string): PreservedState | null {
+        return this.preservedQueues.get(guildId) || null;
+    }
+
+    /**
+     * Clear preserved state for a guild
+     */
+    clearPreservedState(guildId: string): void {
+        this.preservedQueues.delete(guildId);
+    }
+
+    /**
+     * Check if Lavalink is available with graceful degradation
+     */
+    isAvailable(): boolean {
+        const isServiceAvailable = gracefulDegradation.isAvailable('lavalink');
+        return this.isReady && isServiceAvailable;
+    }
+}
+
+// Create default instance for backward compatibility
+const lavalinkService = new LavalinkService();
+
+export { LavalinkService };
+export type { SearchResult, PlaylistResult, PreservedState, NodeStatus };
+export default lavalinkService;

@@ -1,0 +1,369 @@
+/**
+ * alterGolden Discord Bot
+ * Main Entry Point
+ * 
+ * Professional utility bot with music, video download, API commands and moderation
+ * 
+ * Architecture:
+ * - src/core/        - Core client & logging
+ * - src/shared/      - Shared utilities, errors, cache, middleware
+ * - src/config/      - Centralized configuration
+ * - src/infrastructure/ - Database abstraction layer
+ * - src/modules/     - Feature modules (music, video, api, fun)
+ * - src/commands/    - Slash commands (presentation layer)
+ * - src/events/      - Discord event handlers
+ * - src/services/    - Application services
+ * 
+ * @author alterGolden Team
+ * @version 4.0.0
+ */
+
+import 'dotenv/config';
+import { REST, Routes, Events, Client, Interaction, ChatInputCommandInteraction, AutocompleteInteraction, ButtonInteraction, ModalSubmitInteraction, StringSelectMenuInteraction } from 'discord.js';
+import http from 'http';
+
+// Core utilities (from src/core)
+import { 
+    createClient, 
+    logger, 
+    initializeShutdownHandlers, 
+    initializeErrorHandlers,
+    sentry,
+    health
+} from './core/index.js';
+
+// Services
+import { commandRegistry as commandReg, eventRegistry as eventReg, snipeService as SnipeService, redisCache } from './services/index.js';
+
+// Configuration
+import { bot, music } from './config/index.js';
+
+// Database (PostgreSQL)
+import { initializeDatabase } from './database/admin.js';
+import postgres from './database/postgres.js';
+// Types
+interface Command {
+    data?: { name: string };
+    deferReply?: boolean;
+    ephemeral?: boolean;
+    run?: (interaction: ChatInputCommandInteraction) => Promise<void>;
+    execute?: (interaction: ChatInputCommandInteraction) => Promise<void>;
+    autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
+    handleButton?: (interaction: ButtonInteraction) => Promise<void>;
+    handleModal?: (interaction: ModalSubmitInteraction) => Promise<void>;
+    handleSelectMenu?: (interaction: StringSelectMenuInteraction) => Promise<void>;
+}
+
+interface ClientWithCommands extends Client {
+    commands?: Map<string, Command>;
+}
+// APPLICATION INITIALIZATION
+class AlterGoldenBot {
+    public client: ClientWithCommands;
+    private rest: REST;
+    private healthServer: http.Server | null = null;
+
+    constructor() {
+        this.client = createClient() as ClientWithCommands;
+        this.rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN!);
+    }
+
+    /**
+     * Initialize and start the bot
+     */
+    async start(): Promise<void> {
+        try {
+            logger.info('Startup', 'Initializing alterGolden v4.0...');
+
+            // Initialize Sentry error tracking first
+            sentry.initialize({
+                release: '4.0.0',
+                tags: { bot: 'alterGolden' }
+            });
+
+            // Start health check server
+            this.startHealthServer();
+
+            // Initialize database (PostgreSQL)
+            await initializeDatabase();
+
+            // Initialize Redis cache (optional, falls back to in-memory)
+            await this.initializeCache();
+
+            // Load commands
+            this.loadCommands();
+
+            // Load events
+            this.loadEvents();
+
+            // Setup interaction listener
+            this.setupInteractionListener();
+
+            // Initialize error handlers
+            initializeErrorHandlers(this.client);
+
+            // Initialize shutdown handlers (NEW: graceful shutdown)
+            initializeShutdownHandlers(this.client);
+
+            // Initialize Lavalink BEFORE login
+            if (music.enabled) {
+                this.initializeLavalink();
+            }
+
+            // Connect to Discord
+            await this.connect();
+
+            // After ready setup
+            this.client.once(Events.ClientReady, async () => {
+                // Initialize logger with client
+                logger.initialize(this.client);
+                
+                // Register health checks now that services are ready
+                this.registerHealthChecks();
+                health.setStatus('healthy');
+                
+                // Initialize Snipe Service
+                SnipeService.initialize(this.client);
+                logger.info('Services', 'SnipeService initialized');
+
+                // Deploy commands if enabled
+                if (bot.autoDeploy) {
+                    await this.deployCommands();
+                }
+                
+                logger.info('Ready', `🚀 alterGolden is fully operational!`);
+            });
+
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            logger.critical('Startup', `Failed to start: ${message}`);
+            sentry.captureException(error instanceof Error ? error : new Error(String(error)), { extra: { phase: 'startup' } });
+            console.error(error);
+            process.exit(1);
+        }
+    }
+
+    /**
+     * Start health check HTTP server
+     */
+    private startHealthServer(): void {
+        const port = parseInt(process.env.HEALTH_PORT || '3000');
+        this.healthServer = health.startHealthServer(port);
+    }
+
+    /**
+     * Register health checks for all services
+     */
+    private registerHealthChecks(): void {
+        // Handle ESM default export for LavalinkService
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const lavalinkModule = music.enabled ? require('./services/music/LavalinkService') : null;
+        const lavalinkService = lavalinkModule?.default || lavalinkModule;
+        
+        health.registerDefaultChecks({
+            client: this.client,
+            database: postgres,
+            redis: redisCache as any,
+            lavalink: lavalinkService
+        });
+    }
+
+    /**
+     * Initialize Redis cache (optional)
+     */
+    private async initializeCache(): Promise<void> {
+        try {
+            const connected = await redisCache.initialize();
+            if (connected) {
+                logger.info('Cache', 'Redis cache connected');
+            } else {
+                logger.info('Cache', 'Using in-memory cache (Redis not available)');
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            logger.warn('Cache', `Redis initialization failed: ${message}`);
+        }
+    }
+
+    /**
+     * Load all commands
+     */
+    private loadCommands(): void {
+        // Load commands from feature modules AND presentation layer
+        commandReg.loadCommands({ useLegacy: false, useModules: true });
+        
+        // Attach to client for easy access
+        this.client.commands = commandReg.commands;
+        
+        logger.info('Commands', `Loaded ${commandReg.size} commands`);
+    }
+
+    /**
+     * Load all events
+     */
+    private loadEvents(): void {
+        // Load events (no legacy mode)
+        eventReg.loadEvents({ useLegacy: false });
+        
+        // Register with client
+        eventReg.registerWithClient(this.client);
+        
+        logger.info('Events', `Loaded ${eventReg.size} events`);
+    }
+
+    /**
+     * Setup the main interaction listener
+     */
+    private setupInteractionListener(): void {
+        this.client.on(Events.InteractionCreate, async (interaction: Interaction) => {
+            try {
+                // Handle slash commands
+                if (interaction.isChatInputCommand()) {
+                    const command = commandReg.get(interaction.commandName) as Command | undefined;
+                    
+                    if (!command) {
+                        logger.warn('Interaction', `Unknown command: ${interaction.commandName}`);
+                        return;
+                    }
+
+                    // Auto-defer if command has deferReply enabled
+                    if (command.deferReply && !interaction.replied && !interaction.deferred) {
+                        await interaction.deferReply({ ephemeral: command.ephemeral ?? false });
+                    }
+
+                    // Execute command
+                    if (command.run) {
+                        await command.run(interaction);
+                    } else if (command.execute) {
+                        await command.execute(interaction);
+                    }
+                }
+                
+                // Handle autocomplete
+                else if (interaction.isAutocomplete()) {
+                    const command = commandReg.get(interaction.commandName) as Command | undefined;
+                    
+                    if (command?.autocomplete) {
+                        await command.autocomplete(interaction);
+                    }
+                }
+                
+                // Handle buttons
+                else if (interaction.isButton()) {
+                    // Button handling logic
+                    const [commandName] = interaction.customId.split('_');
+                    const command = commandReg.get(commandName) as Command | undefined;
+                    
+                    if (command?.handleButton) {
+                        await command.handleButton(interaction);
+                    }
+                }
+                
+                // Handle modals
+                else if (interaction.isModalSubmit()) {
+                    const [commandName] = interaction.customId.split('_');
+                    const command = (commandReg.getModalHandler(commandName) || 
+                                   commandReg.get(commandName)) as Command | undefined;
+                    
+                    if (command?.handleModal) {
+                        await command.handleModal(interaction);
+                    }
+                }
+                
+                // Handle select menus
+                else if (interaction.isStringSelectMenu()) {
+                    const [commandName] = interaction.customId.split('_');
+                    const command = commandReg.get(commandName) as Command | undefined;
+                    
+                    if (command?.handleSelectMenu) {
+                        await command.handleSelectMenu(interaction);
+                    }
+                }
+                
+            } catch (error) {
+                // Ignore "Unknown interaction" errors (interaction expired/already handled)
+                // This is normal for long-running commands or user clicking buttons after timeout
+                const err = error as { code?: number };
+                if (err.code === 10062) {
+                    const id = interaction.isChatInputCommand() ? interaction.commandName : 
+                               'customId' in interaction ? interaction.customId : 'unknown';
+                    logger.debug('Interaction', `Interaction expired for ${id}`);
+                    return;
+                }
+                
+                const message = error instanceof Error ? error.message : String(error);
+                logger.error('Interaction', `Error handling interaction: ${message}`);
+                console.error(error);
+                
+                // Try to respond with error
+                try {
+                    const errorMsg = { content: '❌ An error occurred.', ephemeral: true };
+                    if ('replied' in interaction && 'deferred' in interaction) {
+                        if (interaction.replied || interaction.deferred) {
+                            await interaction.followUp(errorMsg);
+                        } else {
+                            await interaction.reply(errorMsg);
+                        }
+                    }
+                } catch {
+                    // Ignore - interaction likely expired
+                }
+            }
+        });
+    }
+
+    /**
+     * Initialize Lavalink music service
+     */
+    private initializeLavalink(): void {
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const lavalinkService = require('./services/music/LavalinkService').default;
+            lavalinkService.preInitialize(this.client);
+            lavalinkService.finalize();
+            logger.info('Lavalink', 'Music service pre-initialized');
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            logger.warn('Lavalink', `Music service failed: ${message}`);
+        }
+    }
+
+    /**
+     * Deploy commands to Discord
+     */
+    private async deployCommands(): Promise<void> {
+        try {
+            const commands = commandReg.toJSON();
+            
+            logger.info('Deploy', `Deploying ${commands.length} commands...`);
+            
+            await this.rest.put(
+                Routes.applicationCommands(bot.clientId),
+                { body: commands }
+            );
+            
+            logger.info('Deploy', `Successfully deployed ${commands.length} commands!`);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            logger.error('Deploy', `Failed to deploy commands: ${message}`);
+        }
+    }
+
+    /**
+     * Connect to Discord
+     */
+    private async connect(): Promise<void> {
+        logger.info('Startup', 'Connecting to Discord...');
+        await this.client.login(process.env.BOT_TOKEN);
+    }
+}
+// ENTRY POINT
+const bot_instance = new AlterGoldenBot();
+bot_instance.start().catch(error => {
+    console.error('Fatal error:', error);
+    process.exit(1);
+});
+
+// Export for external access
+export { bot_instance as bot };
+export default { bot: bot_instance };

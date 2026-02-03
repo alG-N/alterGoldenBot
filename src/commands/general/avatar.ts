@@ -1,0 +1,164 @@
+/**
+ * Avatar Command - Presentation Layer
+ * Display user avatars
+ * @module commands/general/avatar
+ */
+
+import { 
+    SlashCommandBuilder, 
+    EmbedBuilder, 
+    ChatInputCommandInteraction,
+    User,
+    ImageExtension 
+} from 'discord.js';
+import { BaseCommand, CommandCategory, CommandData } from '../BaseCommand';
+import { COLORS } from '../../constants';
+
+/**
+ * Supported image formats
+ */
+type ImageFormat = 'auto' | 'png' | 'jpg' | 'webp' | 'gif';
+
+class AvatarCommand extends BaseCommand {
+    constructor() {
+        super({
+            category: CommandCategory.GENERAL,
+            cooldown: 3,
+            deferReply: false
+        });
+    }
+
+    get data(): CommandData {
+        return new SlashCommandBuilder()
+            .setName('avatar')
+            .setDescription("Display a user's avatar")
+            .addUserOption(option =>
+                option.setName('user')
+                    .setDescription('The user to get the avatar of')
+                    .setRequired(false)
+            )
+            .addIntegerOption(option =>
+                option.setName('size')
+                    .setDescription('Avatar size')
+                    .addChoices(
+                        { name: '128', value: 128 },
+                        { name: '256', value: 256 },
+                        { name: '512', value: 512 },
+                        { name: '1024', value: 1024 },
+                        { name: '2048', value: 2048 },
+                        { name: '4096', value: 4096 }
+                    )
+                    .setRequired(false)
+            )
+            .addStringOption(option =>
+                option.setName('format')
+                    .setDescription('Image format')
+                    .addChoices(
+                        { name: 'Auto (Animated if available)', value: 'auto' },
+                        { name: 'PNG', value: 'png' },
+                        { name: 'JPG', value: 'jpg' },
+                        { name: 'WebP', value: 'webp' },
+                        { name: 'GIF', value: 'gif' }
+                    )
+                    .setRequired(false)
+            );
+    }
+
+    async run(interaction: ChatInputCommandInteraction): Promise<void> {
+        const targetUser = interaction.options.getUser('user') || interaction.user;
+        const size = (interaction.options.getInteger('size') || 1024) as 128 | 256 | 512 | 1024 | 2048 | 4096;
+        const format = (interaction.options.getString('format') || 'auto') as ImageFormat;
+
+        // Fetch full user to get banner if available
+        let fetchedUser: User;
+        try {
+            fetchedUser = await interaction.client.users.fetch(targetUser.id, { force: true });
+        } catch {
+            fetchedUser = targetUser;
+        }
+
+        // Build avatar URL
+        let avatarURL: string;
+        if (format === 'auto') {
+            avatarURL = targetUser.displayAvatarURL({ size, forceStatic: false });
+        } else {
+            avatarURL = targetUser.displayAvatarURL({ size, extension: format as ImageExtension });
+        }
+
+        // Check if user has server-specific avatar
+        let guildAvatarURL: string | null = null;
+        if (interaction.guild) {
+            const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+            if (member?.avatar) {
+                guildAvatarURL = member.displayAvatarURL({ size, forceStatic: format !== 'auto' });
+            }
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle(`${targetUser.username}'s Avatar`)
+            .setColor(fetchedUser.accentColor || COLORS.PRIMARY)
+            .setImage(avatarURL)
+            .setTimestamp()
+            .setFooter({
+                text: `Requested by ${interaction.user.username}`,
+                iconURL: interaction.user.displayAvatarURL()
+            });
+
+        // Add download links
+        const formats: ImageExtension[] = ['png', 'jpg', 'webp'];
+        if (targetUser.avatar?.startsWith('a_')) {
+            formats.push('gif');
+        }
+
+        const downloadLinks = formats.map(ext => 
+            `[${ext.toUpperCase()}](${targetUser.displayAvatarURL({ size: 4096, extension: ext })})`
+        ).join(' • ');
+
+        embed.setDescription(`**Download:** ${downloadLinks}`);
+
+        // Add fields
+        interface EmbedField {
+            name: string;
+            value: string;
+            inline: boolean;
+        }
+        
+        const fields: EmbedField[] = [
+            { name: 'User', value: `<@${targetUser.id}>`, inline: true },
+            { name: 'ID', value: `\`${targetUser.id}\``, inline: true },
+            { name: 'Size', value: `${size}px`, inline: true }
+        ];
+
+        // Add server avatar if different
+        if (guildAvatarURL && guildAvatarURL !== avatarURL) {
+            fields.push({
+                name: 'Server Avatar',
+                value: `[View](${guildAvatarURL})`,
+                inline: true
+            });
+        }
+
+        // Add banner if exists
+        if (fetchedUser.banner) {
+            const bannerURL = fetchedUser.bannerURL({ size: 4096 });
+            if (bannerURL) {
+                fields.push({
+                    name: 'Banner',
+                    value: `[View](${bannerURL})`,
+                    inline: true
+                });
+            }
+        }
+
+        embed.addFields(fields);
+
+        await interaction.reply({ embeds: [embed] });
+    }
+}
+
+// Export singleton instance
+const avatarCommand = new AvatarCommand();
+export default avatarCommand;
+
+// CommonJS compatibility
+module.exports = avatarCommand;

@@ -11,7 +11,10 @@
     "docker:logs": "docker-compose logs -f",
     "docker:build": "docker-compose build --no-cache",
     "docker:restart": "docker-compose restart",
-    "db:migrate": "node src/database/migrate.js",
+    "db:migrate": "npx knex migrate:latest",
+    "db:migrate:rollback": "npx knex migrate:rollback",
+    "db:migrate:status": "npx knex migrate:status",
+    "db:migrate:make": "npx knex migrate:make",
     "lint": "eslint src/",
     "test": "jest"
   },
@@ -28,6 +31,7 @@
     "ffmpeg-static": "^5.2.0",
     "graphql-request": "^7.1.2",
     "ioredis": "^5.9.2",
+    "knex": "^3.1.0",
     "lavalink-client": "^2.7.0",
     "node-cron": "^3.0.3",
     "node-fetch": "^2.7.0",
@@ -41,6 +45,9 @@
     "ytdl-core": "^4.11.5"
   },
   "devDependencies": {
-    "nodemon": "^3.0.0"
+    "@types/node": "^25.2.0",
+    "nodemon": "^3.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   }
 }
