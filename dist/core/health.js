@@ -50,6 +50,7 @@ exports.startHealthServer = startHealthServer;
 exports.registerDefaultChecks = registerDefaultChecks;
 const http = __importStar(require("http"));
 const Logger_1 = __importDefault(require("./Logger"));
+const metrics_1 = require("./metrics");
 const healthState = {
     status: 'starting',
     startTime: Date.now(),
@@ -158,6 +159,19 @@ function startHealthServer(port = 3000) {
             // Liveness probe - just check if process is alive
             res.writeHead(200);
             res.end(JSON.stringify({ alive: true }));
+        }
+        else if (req.url === '/metrics') {
+            // Prometheus metrics endpoint
+            try {
+                const metrics = await (0, metrics_1.getMetrics)();
+                res.setHeader('Content-Type', (0, metrics_1.getContentType)());
+                res.writeHead(200);
+                res.end(metrics);
+            }
+            catch (error) {
+                res.writeHead(500);
+                res.end(`# Error collecting metrics: ${error.message}`);
+            }
         }
         else {
             res.writeHead(404);

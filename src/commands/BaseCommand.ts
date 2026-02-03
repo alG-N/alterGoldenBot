@@ -24,6 +24,7 @@ import {
 
 import { COLORS, TIMEOUTS, EMOJIS } from '../constants';
 import { AppError, ValidationError, PermissionError } from '../errors';
+import { trackCommand, commandsActive, commandErrorsTotal } from '../core/metrics';
 
 // Helper to get default export from require()
 const getDefault = <T>(mod: { default?: T } | T): T => (mod as { default?: T }).default || mod as T;
@@ -190,6 +191,9 @@ export abstract class BaseCommand {
     async execute(interaction: ChatInputCommandInteraction): Promise<void> {
         const startTime = Date.now();
         const commandName = this.data?.name || 'unknown';
+        
+        // Track active commands
+        commandsActive.inc({ command: commandName });
 
         try {
             // Pre-execution validations
@@ -218,13 +222,27 @@ export abstract class BaseCommand {
             // Set cooldown after successful execution
             this._setCooldown(interaction.user.id);
 
-            // Log slow executions
+            // Track metrics
             const duration = Date.now() - startTime;
+            trackCommand(commandName, this.category, duration, 'success');
+            commandsActive.dec({ command: commandName });
+
+            // Log slow executions
             if (duration > 3000) {
                 logger.warn(commandName, `Slow command execution: ${duration}ms`);
             }
 
         } catch (error) {
+            // Track error metrics
+            const duration = Date.now() - startTime;
+            trackCommand(commandName, this.category, duration, 'error');
+            commandsActive.dec({ command: commandName });
+            commandErrorsTotal.inc({ 
+                command: commandName, 
+                category: this.category,
+                error_type: (error as Error).name || 'Unknown' 
+            });
+            
             await this._handleError(interaction, error as Error, commandName);
         }
     }

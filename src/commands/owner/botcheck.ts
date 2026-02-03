@@ -10,6 +10,7 @@ import { BaseCommand, CommandCategory, type CommandData } from '../BaseCommand.j
 import { COLORS } from '../../constants.js';
 import { isOwner } from '../../config/owner.js';
 import { formatUptime } from '../../utils/common/time.js';
+import shardBridge from '../../services/guild/ShardBridge.js';
 
 // Helper to get service status
 const getServiceStatus = async (name: string, checkFn: () => Promise<boolean> | boolean): Promise<{ name: string; healthy: boolean; error?: string }> => {
@@ -68,10 +69,23 @@ class BotCheckCommand extends BaseCommand {
         const processUpMs = process.uptime() * 1000000; // microseconds
         const processCpuPercent = ((processCpu.user + processCpu.system) / processUpMs * 100).toFixed(1);
         
-        // Bot statistics
-        const guilds = client.guilds.cache.size;
-        const users = client.guilds.cache.reduce((acc, g) => acc + g.memberCount, 0);
-        const channels = client.channels.cache.size;
+        // Bot statistics - use ShardBridge for cross-shard aggregation
+        const shardInfo = shardBridge.getShardInfo();
+        let guilds: number, users: number, channels: number;
+        
+        if (shardInfo.totalShards > 1 && shardInfo.isInitialized) {
+            // Multi-shard: aggregate from all shards
+            const aggregateStats = await shardBridge.getAggregateStats();
+            guilds = aggregateStats.totalGuilds;
+            users = aggregateStats.totalUsers;
+            channels = aggregateStats.totalChannels;
+        } else {
+            // Single shard: use local cache
+            guilds = client.guilds.cache.size;
+            users = client.guilds.cache.reduce((acc, g) => acc + g.memberCount, 0);
+            channels = client.channels.cache.size;
+        }
+        
         const emojis = client.emojis.cache.size;
         
         // Get commands from registry

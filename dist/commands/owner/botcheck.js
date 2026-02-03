@@ -14,6 +14,7 @@ const BaseCommand_js_1 = require("../BaseCommand.js");
 const constants_js_1 = require("../../constants.js");
 const owner_js_1 = require("../../config/owner.js");
 const time_js_1 = require("../../utils/common/time.js");
+const ShardBridge_js_1 = __importDefault(require("../../services/guild/ShardBridge.js"));
 // Helper to get service status
 const getServiceStatus = async (name, checkFn) => {
     try {
@@ -64,10 +65,22 @@ class BotCheckCommand extends BaseCommand_js_1.BaseCommand {
         const processCpu = process.cpuUsage();
         const processUpMs = process.uptime() * 1000000; // microseconds
         const processCpuPercent = ((processCpu.user + processCpu.system) / processUpMs * 100).toFixed(1);
-        // Bot statistics
-        const guilds = client.guilds.cache.size;
-        const users = client.guilds.cache.reduce((acc, g) => acc + g.memberCount, 0);
-        const channels = client.channels.cache.size;
+        // Bot statistics - use ShardBridge for cross-shard aggregation
+        const shardInfo = ShardBridge_js_1.default.getShardInfo();
+        let guilds, users, channels;
+        if (shardInfo.totalShards > 1 && shardInfo.isInitialized) {
+            // Multi-shard: aggregate from all shards
+            const aggregateStats = await ShardBridge_js_1.default.getAggregateStats();
+            guilds = aggregateStats.totalGuilds;
+            users = aggregateStats.totalUsers;
+            channels = aggregateStats.totalChannels;
+        }
+        else {
+            // Single shard: use local cache
+            guilds = client.guilds.cache.size;
+            users = client.guilds.cache.reduce((acc, g) => acc + g.memberCount, 0);
+            channels = client.channels.cache.size;
+        }
         const emojis = client.emojis.cache.size;
         // Get commands from registry
         let commandCount = 0;

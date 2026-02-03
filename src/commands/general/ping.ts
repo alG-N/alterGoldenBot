@@ -7,6 +7,7 @@
 import { SlashCommandBuilder, EmbedBuilder, ChatInputCommandInteraction } from 'discord.js';
 import { BaseCommand, CommandCategory, CommandData } from '../BaseCommand';
 import { COLORS } from '../../constants';
+import shardBridge from '../../services/guild/ShardBridge.js';
 
 class PingCommand extends BaseCommand {
     constructor() {
@@ -58,6 +59,19 @@ class PingCommand extends BaseCommand {
             statusColor = COLORS.ERROR;
         }
 
+        // Get cross-shard stats
+        const shardInfo = shardBridge.getShardInfo();
+        let servers: number, users: number;
+        
+        if (shardInfo.totalShards > 1 && shardInfo.isInitialized) {
+            const stats = await shardBridge.getAggregateStats();
+            servers = stats.totalGuilds;
+            users = stats.totalUsers;
+        } else {
+            servers = interaction.client.guilds.cache.size;
+            users = interaction.client.guilds.cache.reduce((acc, g) => acc + g.memberCount, 0);
+        }
+
         const embed = new EmbedBuilder()
             .setColor(statusColor)
             .setTitle('🏓 Pong!')
@@ -66,8 +80,8 @@ class PingCommand extends BaseCommand {
                 { name: '🌐 API', value: `\`${apiLatency}ms\``, inline: true },
                 { name: '📊 Status', value: status, inline: true },
                 { name: '⏱️ Uptime', value: `\`${uptimeString}\``, inline: true },
-                { name: '🏠 Servers', value: `\`${interaction.client.guilds.cache.size}\``, inline: true },
-                { name: '👥 Users', value: `\`${interaction.client.users.cache.size}\``, inline: true }
+                { name: '🏠 Servers', value: `\`${servers}\``, inline: true },
+                { name: '👥 Users', value: `\`${users.toLocaleString()}\``, inline: true }
             )
             .setFooter({ 
                 text: `Requested by ${interaction.user.tag}`, 

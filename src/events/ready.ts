@@ -9,6 +9,8 @@ import { BaseEvent } from './BaseEvent.js';
 import logger from '../core/Logger.js';
 import { setPresence } from '../core/Client.js';
 import { bot } from '../config/index.js';
+import { updateDiscordMetrics, redisConnectionStatus } from '../core/metrics.js';
+import cacheService from '../cache/CacheService.js';
 // READY EVENT
 class ReadyEvent extends BaseEvent {
     constructor() {
@@ -37,6 +39,24 @@ class ReadyEvent extends BaseEvent {
         
         // Log statistics
         logger.info('Ready', `Serving ${client.guilds.cache.size} guilds`);
+        
+        // Start metrics collection
+        const collectMetrics = () => {
+            const totalUsers = client.guilds.cache.reduce((acc, g) => acc + g.memberCount, 0);
+            updateDiscordMetrics({
+                shardId: client.shard?.ids[0] ?? 0,
+                ping: client.ws.ping,
+                guilds: client.guilds.cache.size,
+                users: totalUsers,
+                channels: client.channels.cache.size,
+                uptime: client.uptime ?? 0
+            });
+            // Update Redis status
+            const cacheStats = cacheService.getStats();
+            redisConnectionStatus.set(cacheStats.redisConnected ? 1 : 0);
+        };
+        collectMetrics();
+        setInterval(collectMetrics, 15000); // Update every 15s
         
         // Log startup to Discord
         await logger.logSystemEvent(

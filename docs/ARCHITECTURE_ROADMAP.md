@@ -901,50 +901,167 @@ src/
 ### Phase 5: Scale Preparation (Week 15-16) 📈
 **Goal:** Sẵn sàng cho 1000+ servers.
 
-#### Week 15: Sharding Preparation
+#### Week 15: Sharding Preparation ✅ COMPLETE
 
 **Audit checklist:**
-- [ ] `client.guilds.cache.get()` → Cross-shard safe
-- [ ] `client.users.cache.get()` → Cross-shard safe  
-- [ ] Global stats → Redis aggregation
-- [ ] Voice state → Shard-aware
+- [x] `client.guilds.cache.get()` → Cross-shard safe via ShardBridge
+- [x] `client.users.cache.get()` → Cross-shard safe via ShardBridge
+- [x] Global stats → Redis aggregation via ShardBridge
+- [x] Voice state → Shard-aware (handled by Lavalink)
 
-**ShardingManager:**
-```javascript
-// src/sharding.js
-const { ShardingManager } = require('discord.js');
-
-const manager = new ShardingManager('./src/index.js', {
-    token: process.env.BOT_TOKEN,
-    totalShards: 'auto',
-    respawn: true
-});
-
-manager.on('shardCreate', shard => {
-    console.log(`Launched shard ${shard.id}`);
-});
-
-manager.spawn();
+**Completed Structure:**
+```
+src/
+├── sharding.ts                    # ✅ DONE - ShardingManager entry point
+│                                  #    - Multi-shard spawning
+│                                  #    - Shard state tracking
+│                                  #    - Health check server (:3001)
+│                                  #    - Aggregate stats API
+│                                  #    - Graceful shutdown
+│
+└── services/guild/
+    └── ShardBridge.ts            # ✅ DONE - Cross-shard communication
+                                  #    - Redis Pub/Sub for IPC
+                                  #    - getAggregateStats() - all shards
+                                  #    - findGuild() / findUser() - cross-shard lookup
+                                  #    - broadcast() - notify all shards
+                                  #    - Single shard fallback mode
 ```
 
-#### Week 16: Monitoring & Documentation
+**Files Updated for Shard-Safety:**
+| File | Change | Status |
+|------|--------|--------|
+| `src/commands/owner/botcheck.ts` | Uses `shardBridge.getAggregateStats()` | ✅ Done |
+| `src/commands/general/ping.ts` | Uses `shardBridge.getAggregateStats()` | ✅ Done |
+| `src/index.ts` | Initializes ShardBridge on ready | ✅ Done |
 
-**Prometheus Metrics:**
-```javascript
-// Metrics to expose
-- command_execution_duration_seconds
-- discord_gateway_latency_ms
-- cache_hit_ratio
-- circuit_breaker_state
-- queue_size_per_guild
-- active_voice_connections
+**ShardBridge API:**
+```typescript
+// Get aggregate stats from all shards
+const stats = await shardBridge.getAggregateStats();
+// { totalGuilds, totalUsers, totalChannels, shardCount, shards[] }
+
+// Find a guild across all shards
+const guild = await shardBridge.findGuild(guildId);
+// { id, name, memberCount, shardId } | null
+
+// Find a user across all shards
+const user = await shardBridge.findUser(userId);
+// { id, tag, shardId } | null
+
+// Broadcast message to all shards
+await shardBridge.broadcast('eventName', data);
+
+// Get current shard info
+const info = shardBridge.getShardInfo();
+// { shardId, totalShards, isInitialized }
 ```
 
-**Grafana Dashboards:**
-1. Overview Dashboard
-2. Music Service Dashboard
-3. Error Rate Dashboard
-4. Resource Usage Dashboard
+**Usage:**
+```bash
+# Development (single instance, no sharding)
+node dist/index.js
+
+# Production (multi-shard)
+node dist/sharding.js
+
+# Environment variables
+SHARD_COUNT=auto          # or specific number like 4
+SHARD_RESPAWN_DELAY=5000  # ms between shard spawns
+SHARD_SPAWN_TIMEOUT=30000 # ms timeout per shard
+SHARD_HEALTH_PORT=3001    # Sharding manager health port
+```
+
+#### Week 16: Monitoring & Documentation ✅ COMPLETE
+
+**Completed Structure:**
+```
+src/core/
+├── metrics.ts             # ✅ DONE (~570 LOC) - Prometheus metrics service
+│                          #    - Discord metrics (latency, guilds, users, uptime)
+│                          #    - Command metrics (count, duration, errors, active)
+│                          #    - Music metrics (players, queue, voice, lavalink)
+│                          #    - Cache metrics (hit ratio, operations, redis status)
+│                          #    - Database metrics (queries, duration, pool)
+│                          #    - Circuit breaker metrics (state, failures)
+│                          #    - AutoMod metrics (violations, actions)
+│                          #    - Helper functions: trackCommand(), updateDiscordMetrics(), etc.
+│
+└── health.ts              # ✅ UPDATED - Added /metrics endpoint
+
+src/commands/BaseCommand.ts # ✅ UPDATED - Integrated metrics tracking in execute()
+
+monitoring/
+├── docker-compose.yml     # ✅ DONE - Prometheus + Grafana + Alertmanager stack
+├── prometheus/
+│   ├── prometheus.yml     # ✅ DONE - Scrape configs for alterGolden
+│   └── alerts/
+│       └── altergolden.yml # ✅ DONE - Alert rules (28 alerts across 5 groups)
+├── alertmanager/
+│   └── alertmanager.yml   # ✅ DONE - Discord webhook routing
+└── grafana/
+    ├── provisioning/
+    │   ├── datasources/
+    │   │   └── datasources.yml  # ✅ DONE - Prometheus datasource
+    │   └── dashboards/
+    │       └── dashboards.yml   # ✅ DONE - Dashboard provisioning
+    └── dashboards/
+        └── altergolden-overview.json  # ✅ DONE - Main dashboard with 20+ panels
+
+docs/
+├── MONITORING.md          # ✅ DONE - Complete monitoring guide
+└── SHARDING.md            # ✅ DONE - Complete sharding guide
+```
+
+**Prometheus Metrics Exposed:**
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `altergolden_discord_gateway_latency_ms` | Gauge | shard_id | WebSocket latency |
+| `altergolden_discord_guilds_total` | Gauge | shard_id | Total guilds |
+| `altergolden_discord_users_total` | Gauge | shard_id | Total users |
+| `altergolden_discord_uptime_seconds` | Gauge | - | Bot uptime |
+| `altergolden_commands_executed_total` | Counter | command, category, status | Command executions |
+| `altergolden_command_execution_duration_seconds` | Histogram | command, category | Execution latency |
+| `altergolden_command_errors_total` | Counter | command, category, error_type | Command errors |
+| `altergolden_commands_active` | Gauge | command | Currently running |
+| `altergolden_music_players_active` | Gauge | - | Active music players |
+| `altergolden_music_queue_size_total` | Gauge | - | Total queue size |
+| `altergolden_cache_hit_ratio` | Gauge | - | Cache hit ratio |
+| `altergolden_redis_connection_status` | Gauge | - | Redis status (1/0) |
+| `altergolden_circuit_breaker_state` | Gauge | service, state | Breaker states |
+| `altergolden_automod_violations_total` | Counter | type, guild_id | AutoMod violations |
+| `altergolden_automod_actions_total` | Counter | action, guild_id | AutoMod actions |
+
+**Grafana Dashboard Sections:**
+1. **Overview** - Gateway latency, guild/user counts, uptime, redis status
+2. **Commands** - Rate by category, latency percentiles, errors, active commands
+3. **Music** - Active players, voice connections, queue size
+4. **System** - Memory usage (heap/external), CPU percentage
+5. **AutoMod** - Violations by type, actions taken
+
+**Alert Groups (28 alerts):**
+- `altergolden_bot_health` - BotDisconnected, HighGatewayLatency, CriticalGatewayLatency, GuildCountDrop
+- `altergolden_performance` - HighCommandErrorRate, SlowCommandExecution, HighMemoryUsage, PossibleMemoryLeak
+- `altergolden_music` - LavalinkNodeDown, HighMusicQueueSize
+- `altergolden_infrastructure` - RedisDisconnected, LowCacheHitRate, CircuitBreakerOpen, HighDatabaseLatency
+- `altergolden_automod` - HighAutomodActivity, AutomodBanSpike
+
+**Usage:**
+```bash
+# Start monitoring stack
+cd monitoring
+docker-compose up -d
+
+# Access
+# Grafana: http://localhost:3030 (admin/admin)
+# Prometheus: http://localhost:9090
+
+# Enable alerting (optional)
+docker-compose --profile alerting up -d
+
+# Bot metrics endpoint
+curl http://localhost:3000/metrics
+```
 
 ---
 
@@ -952,14 +1069,15 @@ manager.spawn();
 
 | Week | Milestone | Definition of Done |
 |------|-----------|-------------------|
-| 2 | Observability ✓ | Sentry nhận errors, `/health` returns 200 |
-| 5 | Clean Architecture ✓ | No singleton, unified cache, Result pattern |
-| 8 | Music Refactor ✓ | MusicService <400 LOC, 80% coverage |
-| 11 | Resilience ✓ | Circuit breakers active, load test pass |
-| 12 | Core Types ✓ | errors/, constants, Logger in TypeScript |
-| 13 | Infrastructure Types ✓ | Cache + Database fully typed |
-| 14 | Type Safety | Core modules TypeScript, no `any` |
-| 16 | Scale Ready | Sharding works, metrics exposed |
+| 2 | Observability ✅ | Sentry nhận errors, `/health` returns 200 |
+| 5 | Clean Architecture ✅ | No singleton, unified cache, Result pattern |
+| 8 | Music Refactor ✅ | MusicService <400 LOC, 80% coverage |
+| 11 | Resilience ✅ | Circuit breakers active, load test pass |
+| 12 | Core Types ✅ | errors/, constants, Logger in TypeScript |
+| 13 | Infrastructure Types ✅ | Cache + Database fully typed |
+| 14 | Type Safety ✅ | Core modules TypeScript, no `any` |
+| 15 | Sharding ✅ | ShardingManager, ShardBridge, cross-shard stats |
+| 16 | Scale Ready ✅ | Prometheus metrics, Grafana dashboards, alerts |
 
 ---
 
@@ -1039,6 +1157,6 @@ _Ghi chú thêm ở đây..._
 
 ---
 
-**Last Updated:** February 3, 2026  
+**Last Updated:** February 3, 2026 - Week 16 Complete  
 **Author:** Architecture Review  
-**Status:** Draft - Pending Approval
+**Status:** ✅ Phase 5 Complete - Production Ready

@@ -10,6 +10,7 @@ exports.BaseCommand = exports.CommandCategory = void 0;
 const discord_js_1 = require("discord.js");
 const constants_1 = require("../constants");
 const errors_1 = require("../errors");
+const metrics_1 = require("../core/metrics");
 // Helper to get default export from require()
 const getDefault = (mod) => mod.default || mod;
 // Use require for Logger to avoid circular dependency
@@ -96,6 +97,8 @@ class BaseCommand {
     async execute(interaction) {
         const startTime = Date.now();
         const commandName = this.data?.name || 'unknown';
+        // Track active commands
+        metrics_1.commandsActive.inc({ command: commandName });
         try {
             // Pre-execution validations
             await this._validateExecution(interaction);
@@ -118,13 +121,25 @@ class BaseCommand {
             });
             // Set cooldown after successful execution
             this._setCooldown(interaction.user.id);
-            // Log slow executions
+            // Track metrics
             const duration = Date.now() - startTime;
+            (0, metrics_1.trackCommand)(commandName, this.category, duration, 'success');
+            metrics_1.commandsActive.dec({ command: commandName });
+            // Log slow executions
             if (duration > 3000) {
                 logger.warn(commandName, `Slow command execution: ${duration}ms`);
             }
         }
         catch (error) {
+            // Track error metrics
+            const duration = Date.now() - startTime;
+            (0, metrics_1.trackCommand)(commandName, this.category, duration, 'error');
+            metrics_1.commandsActive.dec({ command: commandName });
+            metrics_1.commandErrorsTotal.inc({
+                command: commandName,
+                category: this.category,
+                error_type: error.name || 'Unknown'
+            });
             await this._handleError(interaction, error, commandName);
         }
     }

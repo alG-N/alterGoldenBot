@@ -4,10 +4,14 @@
  * Check bot latency and status
  * @module commands/general/ping
  */
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const discord_js_1 = require("discord.js");
 const BaseCommand_1 = require("../BaseCommand");
 const constants_1 = require("../../constants");
+const ShardBridge_js_1 = __importDefault(require("../../services/guild/ShardBridge.js"));
 class PingCommand extends BaseCommand_1.BaseCommand {
     constructor() {
         super({
@@ -54,10 +58,22 @@ class PingCommand extends BaseCommand_1.BaseCommand {
             status = '🔴 High';
             statusColor = constants_1.COLORS.ERROR;
         }
+        // Get cross-shard stats
+        const shardInfo = ShardBridge_js_1.default.getShardInfo();
+        let servers, users;
+        if (shardInfo.totalShards > 1 && shardInfo.isInitialized) {
+            const stats = await ShardBridge_js_1.default.getAggregateStats();
+            servers = stats.totalGuilds;
+            users = stats.totalUsers;
+        }
+        else {
+            servers = interaction.client.guilds.cache.size;
+            users = interaction.client.guilds.cache.reduce((acc, g) => acc + g.memberCount, 0);
+        }
         const embed = new discord_js_1.EmbedBuilder()
             .setColor(statusColor)
             .setTitle('🏓 Pong!')
-            .addFields({ name: '📡 Latency', value: `\`${latency}ms\``, inline: true }, { name: '🌐 API', value: `\`${apiLatency}ms\``, inline: true }, { name: '📊 Status', value: status, inline: true }, { name: '⏱️ Uptime', value: `\`${uptimeString}\``, inline: true }, { name: '🏠 Servers', value: `\`${interaction.client.guilds.cache.size}\``, inline: true }, { name: '👥 Users', value: `\`${interaction.client.users.cache.size}\``, inline: true })
+            .addFields({ name: '📡 Latency', value: `\`${latency}ms\``, inline: true }, { name: '🌐 API', value: `\`${apiLatency}ms\``, inline: true }, { name: '📊 Status', value: status, inline: true }, { name: '⏱️ Uptime', value: `\`${uptimeString}\``, inline: true }, { name: '🏠 Servers', value: `\`${servers}\``, inline: true }, { name: '👥 Users', value: `\`${users.toLocaleString()}\``, inline: true })
             .setFooter({
             text: `Requested by ${interaction.user.tag}`,
             iconURL: interaction.user.displayAvatarURL()

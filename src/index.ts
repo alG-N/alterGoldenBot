@@ -34,6 +34,7 @@ import {
 
 // Services
 import { commandRegistry as commandReg, eventRegistry as eventReg, snipeService as SnipeService, redisCache } from './services/index.js';
+import shardBridge from './services/guild/ShardBridge.js';
 
 // Configuration
 import { bot, music } from './config/index.js';
@@ -125,6 +126,11 @@ class AlterGoldenBot {
                 // Initialize Snipe Service
                 SnipeService.initialize(this.client);
                 logger.info('Services', 'SnipeService initialized');
+
+                // Initialize ShardBridge for cross-shard communication
+                await shardBridge.initialize(this.client);
+                const shardInfo = shardBridge.getShardInfo();
+                logger.info('Services', `ShardBridge initialized (shard ${shardInfo.shardId}/${shardInfo.totalShards})`);
 
                 // Deploy commands if enabled
                 if (bot.autoDeploy) {

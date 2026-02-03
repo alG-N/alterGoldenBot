@@ -1,0 +1,117 @@
+# Prometheus Configuration for alterGolden Bot
+# 
+# This configuration file defines:
+# - Global settings (scrape interval, evaluation interval)
+# - Alerting configuration (Alertmanager endpoints)
+# - Scrape targets (alterGolden bot metrics, Prometheus itself)
+# - Recording rules and alerts
+
+global:
+  scrape_interval: 15s          # How often to scrape targets
+  evaluation_interval: 15s       # How often to evaluate rules
+  scrape_timeout: 10s           # Timeout for scrape requests
+
+  # Labels attached to all metrics
+  external_labels:
+    monitor: 'altergolden'
+    environment: 'production'
+
+# ═══════════════════════════════════════════════════════════════
+# ALERTING CONFIGURATION
+# ═══════════════════════════════════════════════════════════════
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # Uncomment when using alertmanager
+          # - alertmanager:9093
+      scheme: http
+      timeout: 10s
+
+# ═══════════════════════════════════════════════════════════════
+# RULE FILES
+# ═══════════════════════════════════════════════════════════════
+rule_files:
+  - /etc/prometheus/alerts/*.yml
+
+# ═══════════════════════════════════════════════════════════════
+# SCRAPE CONFIGURATIONS
+# ═══════════════════════════════════════════════════════════════
+scrape_configs:
+  # ─────────────────────────────────────────────────────────────
+  # Prometheus self-monitoring
+  # ─────────────────────────────────────────────────────────────
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    metrics_path: /metrics
+    scheme: http
+
+  # ─────────────────────────────────────────────────────────────
+  # alterGolden Bot Metrics
+  # ─────────────────────────────────────────────────────────────
+  - job_name: 'altergolden'
+    static_configs:
+      - targets: 
+        # Single instance (development)
+        - 'host.docker.internal:3000'
+        labels:
+          instance: 'main'
+          app: 'altergolden'
+    metrics_path: /metrics
+    scheme: http
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # ─────────────────────────────────────────────────────────────
+  # alterGolden Shards (Production - uncomment when sharding)
+  # ─────────────────────────────────────────────────────────────
+  # - job_name: 'altergolden-shards'
+  #   # Service discovery using file_sd
+  #   file_sd_configs:
+  #     - files:
+  #       - /etc/prometheus/targets/shards.yml
+  #       refresh_interval: 30s
+  #   metrics_path: /metrics
+  #   scheme: http
+  #   relabel_configs:
+  #     - source_labels: [__address__]
+  #       target_label: shard
+  #       regex: '.*:(\d+)'
+  #       replacement: '${1}'
+
+  # ─────────────────────────────────────────────────────────────
+  # Node Exporter (Host metrics - optional)
+  # ─────────────────────────────────────────────────────────────
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    metrics_path: /metrics
+    scheme: http
+
+  # ─────────────────────────────────────────────────────────────
+  # Redis Exporter (optional - requires separate redis_exporter)
+  # ─────────────────────────────────────────────────────────────
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']
+  #   metrics_path: /metrics
+  #   scheme: http
+
+  # ─────────────────────────────────────────────────────────────
+  # PostgreSQL Exporter (optional - requires postgres_exporter)
+  # ─────────────────────────────────────────────────────────────
+  # - job_name: 'postgres'
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
+  #   metrics_path: /metrics
+  #   scheme: http
+
+  # ─────────────────────────────────────────────────────────────
+  # Lavalink Metrics (optional)
+  # ─────────────────────────────────────────────────────────────
+  # - job_name: 'lavalink'
+  #   static_configs:
+  #     - targets: ['lavalink:2333']
+  #   metrics_path: /metrics
+  #   scheme: http

@@ -13,6 +13,8 @@ const BaseEvent_js_1 = require("./BaseEvent.js");
 const Logger_js_1 = __importDefault(require("../core/Logger.js"));
 const Client_js_1 = require("../core/Client.js");
 const index_js_1 = require("../config/index.js");
+const metrics_js_1 = require("../core/metrics.js");
+const CacheService_js_1 = __importDefault(require("../cache/CacheService.js"));
 // READY EVENT
 class ReadyEvent extends BaseEvent_js_1.BaseEvent {
     constructor() {
@@ -32,6 +34,23 @@ class ReadyEvent extends BaseEvent_js_1.BaseEvent {
         (0, Client_js_1.setPresence)(client, (presenceConfig.status || 'online'), presenceConfig.activity || '/help | alterGolden', discord_js_1.ActivityType.Playing);
         // Log statistics
         Logger_js_1.default.info('Ready', `Serving ${client.guilds.cache.size} guilds`);
+        // Start metrics collection
+        const collectMetrics = () => {
+            const totalUsers = client.guilds.cache.reduce((acc, g) => acc + g.memberCount, 0);
+            (0, metrics_js_1.updateDiscordMetrics)({
+                shardId: client.shard?.ids[0] ?? 0,
+                ping: client.ws.ping,
+                guilds: client.guilds.cache.size,
+                users: totalUsers,
+                channels: client.channels.cache.size,
+                uptime: client.uptime ?? 0
+            });
+            // Update Redis status
+            const cacheStats = CacheService_js_1.default.getStats();
+            metrics_js_1.redisConnectionStatus.set(cacheStats.redisConnected ? 1 : 0);
+        };
+        collectMetrics();
+        setInterval(collectMetrics, 15000); // Update every 15s
         // Log startup to Discord
         await Logger_js_1.default.logSystemEvent('Bot Started', `alterGolden is now online with ${client.guilds.cache.size} guilds`);
         Logger_js_1.default.success('Ready', '🚀 alterGolden is fully operational!');

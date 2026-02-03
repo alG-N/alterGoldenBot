@@ -1,0 +1,38 @@
+# Grafana Data Sources Provisioning
+# Automatically configures Prometheus as data source
+
+apiVersion: 1
+
+datasources:
+  # ═══════════════════════════════════════════════════════════════
+  # PROMETHEUS - Primary data source
+  # ═══════════════════════════════════════════════════════════════
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    orgId: 1
+    uid: prometheus
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      httpMethod: POST
+      manageAlerts: true
+      prometheusType: Prometheus
+      prometheusVersion: "2.48.0"
+      cacheLevel: 'High'
+      disableRecordingRules: false
+      incrementalQueryOverlapWindow: 10m
+    editable: true
+
+  # ═══════════════════════════════════════════════════════════════
+  # ALERTMANAGER - For alert annotations
+  # ═══════════════════════════════════════════════════════════════
+  - name: Alertmanager
+    type: alertmanager
+    access: proxy
+    orgId: 1
+    uid: alertmanager
+    url: http://alertmanager:9093
+    jsonData:
+      implementation: prometheus
+    editable: true

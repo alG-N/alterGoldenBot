@@ -1,0 +1,205 @@
+# alterGolden Alert Rules
+# 
+# Categories:
+# - Bot Health: Discord connectivity, command execution
+# - Performance: Response times, memory usage
+# - Music: Player and Lavalink health
+# - Infrastructure: Redis, PostgreSQL connections
+
+groups:
+  # ═══════════════════════════════════════════════════════════════
+  # BOT HEALTH ALERTS
+  # ═══════════════════════════════════════════════════════════════
+  - name: altergolden_bot_health
+    rules:
+      # Bot disconnected from Discord
+      - alert: BotDisconnected
+        expr: altergolden_discord_uptime_seconds == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "alterGolden bot disconnected from Discord"
+          description: "The bot has been disconnected from Discord for more than 1 minute."
+
+      # High gateway latency
+      - alert: HighGatewayLatency
+        expr: altergolden_discord_gateway_latency_ms > 500
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Discord gateway latency"
+          description: "Gateway latency is {{ $value }}ms (threshold: 500ms)."
+
+      # Critical gateway latency
+      - alert: CriticalGatewayLatency
+        expr: altergolden_discord_gateway_latency_ms > 1000
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical Discord gateway latency"
+          description: "Gateway latency is {{ $value }}ms (threshold: 1000ms)."
+
+      # Guild count dropped significantly
+      - alert: GuildCountDrop
+        expr: delta(altergolden_discord_guilds_total[1h]) < -10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Significant guild count drop"
+          description: "Lost {{ $value }} guilds in the last hour."
+
+  # ═══════════════════════════════════════════════════════════════
+  # PERFORMANCE ALERTS
+  # ═══════════════════════════════════════════════════════════════
+  - name: altergolden_performance
+    rules:
+      # High command error rate
+      - alert: HighCommandErrorRate
+        expr: |
+          sum(rate(altergolden_command_errors_total[5m])) 
+          / 
+          sum(rate(altergolden_commands_executed_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High command error rate"
+          description: "Command error rate is {{ $value | humanizePercentage }}."
+
+      # Slow command execution
+      - alert: SlowCommandExecution
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(altergolden_command_execution_duration_seconds_bucket[5m])) by (le, command)
+          ) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow command execution detected"
+          description: "95th percentile latency for {{ $labels.command }} is {{ $value }}s."
+
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: |
+          altergolden_nodejs_external_memory_bytes 
+          + altergolden_nodejs_heap_size_used_bytes > 1.5e9
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Bot is using {{ $value | humanize1024 }} of memory."
+
+      # Memory leak detection
+      - alert: PossibleMemoryLeak
+        expr: |
+          delta(altergolden_nodejs_heap_size_used_bytes[1h]) > 100e6
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Possible memory leak detected"
+          description: "Heap grew by {{ $value | humanize1024 }} in the last hour."
+
+  # ═══════════════════════════════════════════════════════════════
+  # MUSIC ALERTS
+  # ═══════════════════════════════════════════════════════════════
+  - name: altergolden_music
+    rules:
+      # Lavalink node down
+      - alert: LavalinkNodeDown
+        expr: altergolden_lavalink_node_status{status="connected"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Lavalink node disconnected"
+          description: "Node {{ $labels.node }} has been disconnected for more than 2 minutes."
+
+      # High queue size
+      - alert: HighMusicQueueSize
+        expr: altergolden_music_queue_size_total > 500
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High music queue size"
+          description: "Total queue size is {{ $value }} tracks."
+
+  # ═══════════════════════════════════════════════════════════════
+  # INFRASTRUCTURE ALERTS
+  # ═══════════════════════════════════════════════════════════════
+  - name: altergolden_infrastructure
+    rules:
+      # Redis disconnected
+      - alert: RedisDisconnected
+        expr: altergolden_redis_connection_status == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis connection lost"
+          description: "Bot lost connection to Redis."
+
+      # Low cache hit rate
+      - alert: LowCacheHitRate
+        expr: altergolden_cache_hit_ratio < 0.5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low cache hit rate"
+          description: "Cache hit rate is {{ $value | humanizePercentage }}."
+
+      # Circuit breaker open
+      - alert: CircuitBreakerOpen
+        expr: altergolden_circuit_breaker_state{state="open"} > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker is open"
+          description: "Circuit breaker {{ $labels.service }} is open."
+
+      # High database query latency
+      - alert: HighDatabaseLatency
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(altergolden_database_query_duration_seconds_bucket[5m])) by (le)
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High database query latency"
+          description: "95th percentile database latency is {{ $value }}s."
+
+  # ═══════════════════════════════════════════════════════════════
+  # AUTOMOD ALERTS
+  # ═══════════════════════════════════════════════════════════════
+  - name: altergolden_automod
+    rules:
+      # High automod activity
+      - alert: HighAutomodActivity
+        expr: sum(rate(altergolden_automod_violations_total[5m])) > 10
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "High automod activity"
+          description: "{{ $value }} violations per second detected."
+
+      # Automod ban spike
+      - alert: AutomodBanSpike
+        expr: sum(rate(altergolden_automod_actions_total{action="ban"}[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High automod ban rate"
+          description: "{{ $value }} bans per second from automod."

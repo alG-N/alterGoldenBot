@@ -9,6 +9,7 @@ import * as http from 'http';
 import type { Server, IncomingMessage, ServerResponse } from 'http';
 import type { Client } from 'discord.js';
 import logger from './Logger';
+import { getMetrics, getContentType } from './metrics';
 // TYPES
 type HealthStatus = 'starting' | 'healthy' | 'unhealthy' | 'shutting_down';
 
@@ -164,6 +165,17 @@ export function startHealthServer(port: number = 3000): Server {
             // Liveness probe - just check if process is alive
             res.writeHead(200);
             res.end(JSON.stringify({ alive: true }));
+        } else if (req.url === '/metrics') {
+            // Prometheus metrics endpoint
+            try {
+                const metrics = await getMetrics();
+                res.setHeader('Content-Type', getContentType());
+                res.writeHead(200);
+                res.end(metrics);
+            } catch (error) {
+                res.writeHead(500);
+                res.end(`# Error collecting metrics: ${(error as Error).message}`);
+            }
         } else {
             res.writeHead(404);
             res.end(JSON.stringify({ error: 'Not found' }));

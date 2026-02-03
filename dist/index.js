@@ -29,6 +29,7 @@ const discord_js_1 = require("discord.js");
 const index_js_1 = require("./core/index.js");
 // Services
 const index_js_2 = require("./services/index.js");
+const ShardBridge_js_1 = __importDefault(require("./services/guild/ShardBridge.js"));
 // Configuration
 const index_js_3 = require("./config/index.js");
 // Database (PostgreSQL)
@@ -86,6 +87,10 @@ class AlterGoldenBot {
                 // Initialize Snipe Service
                 index_js_2.snipeService.initialize(this.client);
                 index_js_1.logger.info('Services', 'SnipeService initialized');
+                // Initialize ShardBridge for cross-shard communication
+                await ShardBridge_js_1.default.initialize(this.client);
+                const shardInfo = ShardBridge_js_1.default.getShardInfo();
+                index_js_1.logger.info('Services', `ShardBridge initialized (shard ${shardInfo.shardId}/${shardInfo.totalShards})`);
                 // Deploy commands if enabled
                 if (index_js_3.bot.autoDeploy) {
                     await this.deployCommands();
