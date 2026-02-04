@@ -11,8 +11,6 @@
 
 **A feature-rich, shard-safe Discord bot with music streaming, video downloads, API integrations, and advanced moderation tools.**
 
-**Architecture Score: 8.5/10** ✅
-
 </div>
 
 ---
