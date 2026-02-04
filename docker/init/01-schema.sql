@@ -83,13 +83,27 @@ CREATE INDEX idx_guild_user_xp ON guild_user_data(guild_id, xp DESC);
 -- ==========================================
 -- AFK TABLE
 -- ==========================================
-CREATE TABLE IF NOT EXISTS afk_users (
+-- Note: user_afk supports both global AFK (guild_id IS NULL) and guild-specific AFK
+CREATE TABLE IF NOT EXISTS user_afk (
+    id SERIAL PRIMARY KEY,
     user_id VARCHAR(20) NOT NULL,
-    guild_id VARCHAR(20) NOT NULL,
+    guild_id VARCHAR(20), -- NULL for global AFK
     reason TEXT DEFAULT 'AFK',
-    started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (user_id, guild_id)
+    timestamp BIGINT NOT NULL, -- Unix timestamp in milliseconds
+    type VARCHAR(10) NOT NULL DEFAULT 'guild', -- 'global' or 'guild'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_id, guild_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_user_afk_guild ON user_afk(guild_id) WHERE guild_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_user_afk_global ON user_afk(user_id) WHERE guild_id IS NULL;
+CREATE INDEX IF NOT EXISTS idx_user_afk_user ON user_afk(user_id);
+
+-- Update timestamp trigger for user_afk
+CREATE TRIGGER update_user_afk_timestamp
+    BEFORE UPDATE ON user_afk
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- ==========================================
 -- SNIPE TABLE (Deleted messages)
