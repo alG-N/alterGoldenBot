@@ -1,14 +1,21 @@
 /**
  * Lockdown Service
  * Channel and server lockdown functionality
+ * SHARD-SAFE: Uses Redis via CacheService for state persistence
  * @module services/moderation/LockdownService
  */
 
 import { PermissionFlagsBits, ChannelType, type Guild, type TextChannel, type Snowflake } from 'discord.js';
+import cacheService from '../../cache/CacheService.js';
 // TYPES
 interface SavedPermissions {
-    allow: bigint;
-    deny: bigint;
+    allow: string; // bigint as string for JSON serialization
+    deny: string;
+}
+
+interface LockdownState {
+    locked: boolean;
+    permissions: Record<Snowflake, SavedPermissions | null>;
 }
 
 interface LockResult {
@@ -24,31 +31,25 @@ interface ServerLockResult {
     skipped: LockResult[];
     message?: string;
 }
+
+// Redis key helpers
+const LOCKDOWN_NAMESPACE = 'lockdown';
+const getLockdownKey = (guildId: string, channelId: string) => `${guildId}:${channelId}`;
 // LOCKDOWN SERVICE CLASS
 class LockdownService {
-    // guildId -> channelId -> { roleId: permissions }
-    private savedPermissions: Map<Snowflake, Map<Snowflake, Record<Snowflake, SavedPermissions | null>>> = new Map();
-
-    // guildId -> Set<channelId>
-    private lockedChannels: Map<Snowflake, Set<Snowflake>> = new Map();
 
     /**
      * Lock a single channel
+     * SHARD-SAFE: Stores state in Redis
      */
     async lockChannel(channel: TextChannel, reason: string = 'Channel locked'): Promise<LockResult> {
         const guildId = channel.guild.id;
         const channelId = channel.id;
+        const cacheKey = getLockdownKey(guildId, channelId);
 
-        // Initialize storage
-        if (!this.savedPermissions.has(guildId)) {
-            this.savedPermissions.set(guildId, new Map());
-        }
-        if (!this.lockedChannels.has(guildId)) {
-            this.lockedChannels.set(guildId, new Set());
-        }
-
-        // Check if already locked
-        if (this.lockedChannels.get(guildId)!.has(channelId)) {
+        // Check if already locked (from Redis)
+        const existingState = await cacheService.get<LockdownState>(LOCKDOWN_NAMESPACE, cacheKey);
+        if (existingState?.locked) {
             return { success: false, error: 'Channel is already locked', channelId, channelName: channel.name };
         }
 
@@ -57,12 +58,12 @@ class LockdownService {
 
             // Save current permissions
             const currentOverwrite = channel.permissionOverwrites.cache.get(everyoneRole.id);
-            this.savedPermissions.get(guildId)!.set(channelId, {
+            const permissions: Record<Snowflake, SavedPermissions | null> = {
                 [everyoneRole.id]: currentOverwrite ? {
-                    allow: currentOverwrite.allow.bitfield,
-                    deny: currentOverwrite.deny.bitfield
+                    allow: currentOverwrite.allow.bitfield.toString(),
+                    deny: currentOverwrite.deny.bitfield.toString()
                 } : null
-            });
+            };
 
             // Lock channel
             await channel.permissionOverwrites.edit(everyoneRole, {
@@ -73,7 +74,14 @@ class LockdownService {
                 SendMessagesInThreads: false
             }, { reason });
 
-            this.lockedChannels.get(guildId)!.add(channelId);
+            // Store state in Redis (24 hour TTL for safety)
+            await cacheService.set<LockdownState>(LOCKDOWN_NAMESPACE, cacheKey, {
+                locked: true,
+                permissions
+            }, 86400);
+
+            // Update the index of locked channels
+            await this._addToIndex(guildId, channelId);
 
             return { success: true, channelId, channelName: channel.name };
         } catch (error) {
@@ -88,20 +96,23 @@ class LockdownService {
 
     /**
      * Unlock a single channel
+     * SHARD-SAFE: Retrieves state from Redis
      */
     async unlockChannel(channel: TextChannel, reason: string = 'Channel unlocked'): Promise<LockResult> {
         const guildId = channel.guild.id;
         const channelId = channel.id;
+        const cacheKey = getLockdownKey(guildId, channelId);
 
-        // Check if locked
-        if (!this.lockedChannels.get(guildId)?.has(channelId)) {
+        // Check if locked (from Redis)
+        const lockState = await cacheService.get<LockdownState>(LOCKDOWN_NAMESPACE, cacheKey);
+        if (!lockState?.locked) {
             return { success: false, error: 'Channel is not locked', channelId, channelName: channel.name };
         }
 
         try {
             const everyoneRole = channel.guild.roles.everyone;
 
-            // Restore permissions
+            // Restore permissions (reset to null = remove our overwrite)
             await channel.permissionOverwrites.edit(everyoneRole, {
                 SendMessages: null,
                 AddReactions: null,
@@ -110,9 +121,11 @@ class LockdownService {
                 SendMessagesInThreads: null
             }, { reason });
 
-            // Cleanup
-            this.lockedChannels.get(guildId)!.delete(channelId);
-            this.savedPermissions.get(guildId)?.delete(channelId);
+            // Remove from Redis
+            await cacheService.delete(LOCKDOWN_NAMESPACE, cacheKey);
+            
+            // Update the index
+            await this._removeFromIndex(guildId, channelId);
 
             return { success: true, channelId, channelName: channel.name };
         } catch (error) {
@@ -127,6 +140,7 @@ class LockdownService {
 
     /**
      * Lock entire server (all text channels)
+     * SHARD-SAFE: Each channel lock is stored in Redis
      */
     async lockServer(
         guild: Guild,
@@ -146,7 +160,11 @@ class LockdownService {
         };
 
         for (const [channelId, channel] of textChannels) {
-            if (this.lockedChannels.get(guild.id)?.has(channelId)) {
+            // Check if already locked via Redis
+            const cacheKey = getLockdownKey(guild.id, channelId);
+            const existingState = await cacheService.get<LockdownState>(LOCKDOWN_NAMESPACE, cacheKey);
+            
+            if (existingState?.locked) {
                 results.skipped.push({ success: true, channelId, channelName: channel.name });
                 continue;
             }
@@ -168,11 +186,13 @@ class LockdownService {
 
     /**
      * Unlock entire server
+     * SHARD-SAFE: Reads locked channels from Redis
      */
     async unlockServer(guild: Guild, reason: string = 'Server lockdown lifted'): Promise<ServerLockResult> {
-        const lockedChannels = this.lockedChannels.get(guild.id);
+        // Get all locked channels for this guild from Redis
+        const lockedChannelIds = await this.getLockedChannels(guild.id);
 
-        if (!lockedChannels || lockedChannels.size === 0) {
+        if (lockedChannelIds.length === 0) {
             return {
                 success: [],
                 failed: [],
@@ -187,10 +207,12 @@ class LockdownService {
             skipped: []
         };
 
-        for (const channelId of lockedChannels) {
+        for (const channelId of lockedChannelIds) {
             const channel = guild.channels.cache.get(channelId);
             if (!channel || channel.type !== ChannelType.GuildText) {
                 results.skipped.push({ success: false, channelId, channelName: 'Unknown' });
+                // Still try to clean up Redis entry
+                await cacheService.delete(LOCKDOWN_NAMESPACE, getLockdownKey(guild.id, channelId));
                 continue;
             }
 
@@ -210,24 +232,71 @@ class LockdownService {
 
     /**
      * Check if a channel is locked
+     * SHARD-SAFE: Checks Redis
      */
-    isChannelLocked(guildId: Snowflake, channelId: Snowflake): boolean {
-        return this.lockedChannels.get(guildId)?.has(channelId) || false;
+    async isChannelLocked(guildId: Snowflake, channelId: Snowflake): Promise<boolean> {
+        const cacheKey = getLockdownKey(guildId, channelId);
+        const state = await cacheService.get<LockdownState>(LOCKDOWN_NAMESPACE, cacheKey);
+        return state?.locked || false;
     }
 
     /**
      * Get locked channels for a guild
+     * SHARD-SAFE: Uses a separate index in Redis
      */
-    getLockedChannels(guildId: Snowflake): Snowflake[] {
-        return [...(this.lockedChannels.get(guildId) || [])];
+    async getLockedChannels(guildId: Snowflake): Promise<Snowflake[]> {
+        const indexKey = `index:${guildId}`;
+        const channelIds = await cacheService.get<Snowflake[]>(LOCKDOWN_NAMESPACE, indexKey);
+        return channelIds || [];
+    }
+
+    /**
+     * Add channel to the locked index
+     * @private
+     */
+    private async _addToIndex(guildId: Snowflake, channelId: Snowflake): Promise<void> {
+        const indexKey = `index:${guildId}`;
+        const current = await cacheService.get<Snowflake[]>(LOCKDOWN_NAMESPACE, indexKey) || [];
+        if (!current.includes(channelId)) {
+            current.push(channelId);
+            await cacheService.set(LOCKDOWN_NAMESPACE, indexKey, current, 86400);
+        }
+    }
+
+    /**
+     * Remove channel from the locked index
+     * @private
+     */
+    private async _removeFromIndex(guildId: Snowflake, channelId: Snowflake): Promise<void> {
+        const indexKey = `index:${guildId}`;
+        const current = await cacheService.get<Snowflake[]>(LOCKDOWN_NAMESPACE, indexKey) || [];
+        const filtered = current.filter(id => id !== channelId);
+        if (filtered.length > 0) {
+            await cacheService.set(LOCKDOWN_NAMESPACE, indexKey, filtered, 86400);
+        } else {
+            await cacheService.delete(LOCKDOWN_NAMESPACE, indexKey);
+        }
     }
 
     /**
      * Clear all lockdown data for a guild
+     * SHARD-SAFE: Clears from Redis
      */
-    clearGuildData(guildId: Snowflake): void {
-        this.savedPermissions.delete(guildId);
-        this.lockedChannels.delete(guildId);
+    async clearGuildData(guildId: Snowflake): Promise<void> {
+        try {
+            // Get all locked channels for this guild
+            const lockedChannelIds = await this.getLockedChannels(guildId);
+            
+            // Delete each channel's lockdown state
+            for (const channelId of lockedChannelIds) {
+                await cacheService.delete(LOCKDOWN_NAMESPACE, getLockdownKey(guildId, channelId));
+            }
+            
+            // Delete the index
+            await cacheService.delete(LOCKDOWN_NAMESPACE, `index:${guildId}`);
+        } catch (error) {
+            console.error('[LockdownService] Error clearing guild data:', error);
+        }
     }
 }
 

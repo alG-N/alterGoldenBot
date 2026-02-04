@@ -8,11 +8,13 @@ import jjkSkillset from '../../../config/deathbattle/skillsets/jjk.js';
 import narutoSkillset from '../../../config/deathbattle/skillsets/naruto.js';
 import demonSlayerSkillset from '../../../config/deathbattle/skillsets/demonslayer.js';
 import onePieceSkillset from '../../../config/deathbattle/skillsets/onepiece.js';
+import crossoverSkillset from '../../../config/deathbattle/skillsets/crossover.js';
 // TYPES
 export interface Power {
     name: string;
     type: string;
     desc: string;
+    char?: string;
     scale?: number;
     damage?: number;
     hits?: number;
@@ -34,6 +36,11 @@ export interface Power {
     ignore?: number;
     crit?: number;
     aoe?: boolean;
+    debuff?: number;
+    heal?: boolean;
+    charges?: number;
+    // Effect name for verse-specific DoT/debuff/buff display
+    effectName?: string;
 }
 
 export interface Skillset {
@@ -52,6 +59,7 @@ class SkillsetService {
         this.skillsets.set('naruto', narutoSkillset as Skillset);
         this.skillsets.set('demonslayer', demonSlayerSkillset as Skillset);
         this.skillsets.set('onepiece', onePieceSkillset as Skillset);
+        this.skillsets.set('crossover', crossoverSkillset as Skillset);
     }
 
     /**

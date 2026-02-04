@@ -116,15 +116,28 @@ function getNewPage(action, currentPage, totalPages) {
 /**
  * Pagination State Manager
  * Tracks pagination state with auto-expiry
+ * NOTE: Uses WeakRef-like pattern with cleanup on access for memory safety
  */
 class PaginationState {
     states = new Map();
     expiryMs;
-    cleanupInterval;
+    cleanupInterval = null;
+    static instances = new Set();
     constructor(expiryMs = 300000) {
         this.expiryMs = expiryMs;
         // Auto cleanup every 5 minutes
         this.cleanupInterval = setInterval(() => this._cleanup(), 300000);
+        // Track instance for global cleanup
+        PaginationState.instances.add(this);
+    }
+    /**
+     * Static method to destroy all instances (call on shutdown)
+     */
+    static destroyAll() {
+        for (const instance of PaginationState.instances) {
+            instance.destroy();
+        }
+        PaginationState.instances.clear();
     }
     set(userId, key, value) {
         const userKey = `${userId}_${key}`;
@@ -172,8 +185,12 @@ class PaginationState {
         }
     }
     destroy() {
-        clearInterval(this.cleanupInterval);
+        if (this.cleanupInterval) {
+            clearInterval(this.cleanupInterval);
+            this.cleanupInterval = null;
+        }
         this.states.clear();
+        PaginationState.instances.delete(this);
     }
 }
 exports.PaginationState = PaginationState;

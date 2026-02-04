@@ -123,13 +123,13 @@ class BotCheckCommand extends BaseCommand_js_1.BaseCommand {
         }
         // Redis
         try {
-            const redis = require('../../services/guild/RedisCache.js');
-            const redisCache = redis.default || redis;
-            const stats = await redisCache.getStats?.();
+            const cache = require('../../cache/CacheService.js');
+            const cacheService = cache.default || cache;
+            const stats = cacheService.getStats?.();
             services.push({
                 name: 'Redis',
-                healthy: stats?.connected ?? false,
-                details: stats?.connected ? 'Connected' : 'Fallback mode'
+                healthy: stats?.redisConnected ?? false,
+                details: stats?.redisConnected ? 'Connected' : 'Fallback mode'
             });
         }
         catch (e) {

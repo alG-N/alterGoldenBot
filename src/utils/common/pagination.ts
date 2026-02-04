@@ -153,17 +153,32 @@ export function getNewPage(action: string, currentPage: number, totalPages: numb
 /**
  * Pagination State Manager
  * Tracks pagination state with auto-expiry
+ * NOTE: Uses WeakRef-like pattern with cleanup on access for memory safety
  */
 export class PaginationState<T = unknown> {
     private states: Map<string, PaginationStateEntry<T>> = new Map();
     private expiryMs: number;
-    private cleanupInterval: ReturnType<typeof setInterval>;
+    private cleanupInterval: ReturnType<typeof setInterval> | null = null;
+    private static instances: Set<PaginationState> = new Set();
 
     constructor(expiryMs: number = 300000) { // 5 minutes default
         this.expiryMs = expiryMs;
 
         // Auto cleanup every 5 minutes
         this.cleanupInterval = setInterval(() => this._cleanup(), 300000);
+        
+        // Track instance for global cleanup
+        PaginationState.instances.add(this);
+    }
+
+    /**
+     * Static method to destroy all instances (call on shutdown)
+     */
+    static destroyAll(): void {
+        for (const instance of PaginationState.instances) {
+            instance.destroy();
+        }
+        PaginationState.instances.clear();
     }
 
     set(userId: string, key: string, value: T): void {
@@ -220,8 +235,12 @@ export class PaginationState<T = unknown> {
     }
 
     destroy(): void {
-        clearInterval(this.cleanupInterval);
+        if (this.cleanupInterval) {
+            clearInterval(this.cleanupInterval);
+            this.cleanupInterval = null;
+        }
         this.states.clear();
+        PaginationState.instances.delete(this);
     }
 }
 // GLOBAL INSTANCE

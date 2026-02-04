@@ -10,18 +10,20 @@ import naruto from './naruto.js';
 import onepiece from './onepiece.js';
 import jjk from './jjk.js';
 import demonslayer from './demonslayer.js';
+import crossover from './crossover.js';
 
-export { naruto, onepiece, jjk, demonslayer };
+export { naruto, onepiece, jjk, demonslayer, crossover };
 
 // All skillsets as array
-export const skillsets = [naruto, onepiece, jjk, demonslayer];
+export const skillsets = [naruto, onepiece, jjk, demonslayer, crossover];
 
 // Skillsets map by name
 export const skillsetsMap = {
     naruto,
     onepiece,
     jjk,
-    demonslayer
+    demonslayer,
+    crossover
 };
 
 export default skillsets;

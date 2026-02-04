@@ -18,6 +18,7 @@ const events_1 = require("./events");
 const MusicCacheFacade_1 = __importDefault(require("../../repositories/music/MusicCacheFacade"));
 const trackHandler_1 = __importDefault(require("../../handlers/music/trackHandler"));
 const music_1 = require("../../config/features/music");
+const metrics_1 = require("../../core/metrics");
 // MusicFacade Class
 class MusicFacade {
     queueService;
@@ -33,6 +34,23 @@ class MusicFacade {
         this.autoPlayService = autoplay_1.autoPlayService;
         this.eventBus = events_1.musicEventBus;
         this.eventHandlerInitialized = false;
+    }
+    /**
+     * Update music metrics (active players, queue size, voice connections)
+     */
+    updateMetrics() {
+        try {
+            // Get queue stats which includes active queues and total tracks
+            const queueStats = MusicCacheFacade_1.default.queueCache?.getStats?.() || { activeQueues: 0, totalTracks: 0 };
+            (0, metrics_1.updateMusicMetrics)({
+                activePlayers: queueStats.activeQueues,
+                totalQueueSize: queueStats.totalTracks,
+                voiceConnections: queueStats.activeQueues
+            });
+        }
+        catch (error) {
+            // Silently ignore metric update errors
+        }
     }
     /**
      * Initialize the event handler with service references
@@ -66,16 +84,19 @@ class MusicFacade {
     addTrack(guildId, track) {
         const result = MusicCacheFacade_1.default.addTrack(guildId, track);
         events_1.musicEventBus.emitEvent(events_1.MusicEvents.QUEUE_ADD, { guildId, track });
+        this.updateMetrics();
         return result;
     }
     addTrackToFront(guildId, track) {
         const result = MusicCacheFacade_1.default.addTrackToFront(guildId, track);
         events_1.musicEventBus.emitEvent(events_1.MusicEvents.QUEUE_ADD, { guildId, track, position: 'front' });
+        this.updateMetrics();
         return result;
     }
     addTracks(guildId, tracks) {
         const result = MusicCacheFacade_1.default.addTracks(guildId, tracks);
         events_1.musicEventBus.emitEvent(events_1.MusicEvents.QUEUE_ADD_MANY, { guildId, tracks, count: tracks.length });
+        this.updateMetrics();
         return result;
     }
     removeTrack(guildId, index) {
@@ -83,11 +104,13 @@ class MusicFacade {
         const track = queue?.tracks?.[index];
         const result = MusicCacheFacade_1.default.removeTrack(guildId, index);
         events_1.musicEventBus.emitEvent(events_1.MusicEvents.QUEUE_REMOVE, { guildId, track, index });
+        this.updateMetrics();
         return result;
     }
     clearQueue(guildId) {
         queue_1.queueService.clear(guildId);
         events_1.musicEventBus.emitEvent(events_1.MusicEvents.QUEUE_CLEAR, { guildId });
+        this.updateMetrics();
     }
     moveTrack(guildId, fromIndex, toIndex) {
         const result = queue_1.queueService.moveTrack(guildId, fromIndex, toIndex);
@@ -98,6 +121,12 @@ class MusicFacade {
     }
     // PLAYBACK OPERATIONS (delegated to PlaybackService)
     async playTrack(guildId, track) {
+        const queue = MusicCacheFacade_1.default.getQueue(guildId);
+        // Set replacing flag if a track is already playing
+        // This prevents the exception handler from skipping when we're just replacing
+        if (queue && queue.currentTrack) {
+            queue.isReplacing = true;
+        }
         queue_1.queueService.setCurrentTrack(guildId, track);
         const player = playback_1.playbackService.getPlayer(guildId);
         if (!player)
@@ -106,7 +135,19 @@ class MusicFacade {
         const encoded = track?.track?.encoded || track?.encoded;
         if (!encoded)
             throw new Error('INVALID_TRACK');
-        await player.playTrack({ track: { encoded } });
+        try {
+            await player.playTrack({ track: { encoded } });
+            // Track metrics - track played
+            const source = track?.info?.sourceName || 'unknown';
+            metrics_1.musicTracksPlayedTotal.inc({ source });
+            this.updateMetrics();
+        }
+        finally {
+            // Clear replacing flag after a short delay
+            if (queue) {
+                setTimeout(() => { queue.isReplacing = false; }, 1000);
+            }
+        }
         voice_1.voiceConnectionService.clearInactivityTimer(guildId);
         return track;
     }
@@ -226,6 +267,8 @@ class MusicFacade {
         this.initializeEventHandler();
         // Bind events after connection (now uses event bus internally)
         this.bindPlayerEvents(guildId, interaction);
+        // Update metrics on connect
+        this.updateMetrics();
         return result.data.player;
     }
     disconnect(guildId) {
@@ -253,6 +296,8 @@ class MusicFacade {
             onStart: (_data) => {
                 try {
                     voice_1.voiceConnectionService.clearInactivityTimer(guildId);
+                    // Update metrics when track starts
+                    this.updateMetrics();
                 }
                 catch (error) {
                     console.error(`[MusicFacade] Error in start handler:`, error.message);
@@ -288,6 +333,13 @@ class MusicFacade {
             },
             onException: async (data) => {
                 const excData = data;
+                // Check if we're in the process of replacing a track
+                // If so, ignore the exception as it's expected
+                const queue = MusicCacheFacade_1.default.getQueue(guildId);
+                if (queue?.isReplacing) {
+                    console.log(`[MusicFacade] Ignoring exception during track replacement in guild ${guildId}`);
+                    return;
+                }
                 console.error(`[MusicFacade] Track exception:`, excData?.message || 'Unknown error');
                 const lockAcquired = await playback_1.playbackService.acquireTransitionLock(guildId, 3000);
                 if (!lockAcquired)

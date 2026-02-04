@@ -48,7 +48,7 @@ class DeathBattleCommand extends BaseCommand_js_1.BaseCommand {
             .addStringOption(option => option.setName('skillset')
             .setDescription('Skill set to use')
             .setRequired(true)
-            .addChoices({ name: 'Jujutsu Kaisen', value: 'jjk' }, { name: 'Naruto', value: 'naruto' }, { name: 'Demon Slayer', value: 'demonslayer' }, { name: 'One Piece', value: 'onepiece' }))
+            .addChoices({ name: 'Jujutsu Kaisen', value: 'jjk' }, { name: 'Naruto', value: 'naruto' }, { name: 'Demon Slayer', value: 'demonslayer' }, { name: 'One Piece', value: 'onepiece' }, { name: 'Anime Crossover (All Powers)', value: 'crossover' }))
             .addIntegerOption(option => option.setName('your_hp')
             .setDescription(`Your HP (max ${MAX_HP.toLocaleString()})`)
             .setRequired(false))
@@ -120,20 +120,74 @@ class DeathBattleCommand extends BaseCommand_js_1.BaseCommand {
         }, 1000);
     }
     async _startBattle(message, battle) {
+        const guildId = message.guild?.id || '';
         const runRound = async () => {
-            if (battle.isFinished)
+            // Check if battle is finished (someone has 0 or less HP)
+            const isFinished = battle.player1Health <= 0 || battle.player2Health <= 0;
+            if (isFinished)
                 return;
             const roundResult = battleService.executeRound(battle);
             const embed = embedBuilder.buildRoundEmbed(battle, roundResult);
             await message.edit({ embeds: [embed] }).catch(() => { });
-            if (!battle.isFinished) {
+            // Check again after the round
+            const battleFinished = battle.player1Health <= 0 || battle.player2Health <= 0;
+            if (!battleFinished) {
                 setTimeout(() => runRound(), ROUND_INTERVAL);
             }
             else {
-                // Battle finished
-                const winnerEmbed = embedBuilder.buildWinnerEmbed(battle);
-                await message.edit({ embeds: [winnerEmbed] }).catch(() => { });
-                battleService.endBattle(battle.id);
+                // Battle finished - show winner with View Log button
+                const { embed: winnerEmbed, row } = embedBuilder.buildWinnerEmbed(battle);
+                await message.edit({ embeds: [winnerEmbed], components: [row] }).catch(() => { });
+                // Store history reference before ending battle
+                const battleHistory = [...battle.history];
+                const battleState = {
+                    player1: battle.player1,
+                    player2: battle.player2,
+                    skillsetName: battle.skillsetName,
+                    player1Health: battle.player1Health,
+                    player2Health: battle.player2Health,
+                    player1MaxHp: battle.player1MaxHp,
+                    player2MaxHp: battle.player2MaxHp,
+                    roundCount: battle.roundCount,
+                    battleLog: battle.battleLog,
+                    history: battleHistory
+                };
+                await battleService.endBattle(guildId);
+                // Set up button collector for View Battle Log
+                const collector = message.createMessageComponentCollector({
+                    componentType: discord_js_1.ComponentType.Button,
+                    time: 300000 // 5 minutes
+                });
+                collector.on('collect', async (buttonInteraction) => {
+                    try {
+                        if (buttonInteraction.customId === 'deathbattle_viewlog') {
+                            const { embed: logEmbed, row: logRow } = embedBuilder.buildBattleLogEmbed(battleState, battleHistory, 0);
+                            await buttonInteraction.reply({
+                                embeds: [logEmbed],
+                                components: logRow ? [logRow] : [],
+                                ephemeral: true
+                            });
+                        }
+                        else if (buttonInteraction.customId.startsWith('deathbattle_log_')) {
+                            const parts = buttonInteraction.customId.split('_');
+                            const direction = parts[2]; // 'prev' or 'next'
+                            const currentPage = parseInt(parts[3], 10);
+                            const newPage = direction === 'next' ? currentPage + 1 : currentPage - 1;
+                            const { embed: logEmbed, row: logRow } = embedBuilder.buildBattleLogEmbed(battleState, battleHistory, newPage);
+                            await buttonInteraction.update({
+                                embeds: [logEmbed],
+                                components: logRow ? [logRow] : []
+                            });
+                        }
+                    }
+                    catch (err) {
+                        console.error('[DeathBattle] Button interaction error:', err);
+                    }
+                });
+                collector.on('end', () => {
+                    // Remove button after timeout
+                    message.edit({ components: [] }).catch(() => { });
+                });
             }
         };
         runRound();

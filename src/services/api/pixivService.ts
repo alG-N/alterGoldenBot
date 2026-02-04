@@ -8,6 +8,7 @@ import * as path from 'path';
 import * as dotenv from 'dotenv';
 import logger from '../../core/Logger';
 import { circuitBreakerRegistry } from '../../core/CircuitBreakerRegistry';
+import cacheService from '../../cache/CacheService';
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 // TYPES & INTERFACES
@@ -209,7 +210,6 @@ class PixivService {
     private readonly clientSecret: string;
     private readonly baseHeaders: Record<string, string>;
     private readonly proxies: string[];
-    private translationCache: Map<string, string>;
 
     constructor() {
         this.auth = {
@@ -226,7 +226,6 @@ class PixivService {
             'App-Version': '5.0.234'
         };
         this.proxies = ['i.pixiv.cat', 'i.pixiv.nl', 'i.pximg.net'];
-        this.translationCache = new Map();
     }
 
     /**
@@ -628,7 +627,8 @@ class PixivService {
                 const hasJapaneseInRomaji = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(romaji);
 
                 if (hasJapanese) {
-                    const englishName = this._extractEnglishName(tagName, romaji);
+                    // Try to extract English name from both tagName and romaji
+                    const englishName = this._extractEnglishName(tagName, hasJapaneseInRomaji ? '' : romaji);
 
                     if (englishName && englishName !== tagName) {
                         return {
@@ -636,12 +636,20 @@ class PixivService {
                             value: tagName
                         };
                     }
+                    // If romaji is also Japanese, don't show it - just show the tag
                     return { name: tagName, value: tagName };
                 } else if (hasJapaneseInRomaji) {
-                    return {
-                        name: `${tagName} • ${romaji}`,
-                        value: tagName
-                    };
+                    // When tag_translation contains Japanese (common for character names),
+                    // try to extract English name from the romaji field itself
+                    const englishFromRomaji = this._extractEnglishName(romaji, '');
+                    if (englishFromRomaji && englishFromRomaji !== romaji) {
+                        return {
+                            name: `${tagName} (${englishFromRomaji})`,
+                            value: tagName
+                        };
+                    }
+                    // Fallback: just show tagName without the Japanese romaji
+                    return { name: tagName, value: tagName };
                 } else if (romaji && romaji !== tagName) {
                     const cleanRomaji = this._cleanRomaji(romaji);
                     if (cleanRomaji !== tagName) {
@@ -732,9 +740,10 @@ class PixivService {
      * Translate text to Japanese
      */
     async translateToJapanese(text: string): Promise<string> {
-        const cacheKey = `en_ja_${text}`;
-        if (this.translationCache.has(cacheKey)) {
-            return this.translationCache.get(cacheKey)!;
+        const cacheKey = `translate:en_ja_${text}`;
+        const cached = await cacheService.get<string>('api', cacheKey);
+        if (cached) {
+            return cached;
         }
 
         try {
@@ -752,7 +761,7 @@ class PixivService {
             const result = (data as Array<Array<string[]>>)?.[0]?.[0]?.[0];
 
             if (result) {
-                this.translationCache.set(cacheKey, result);
+                await cacheService.set('api', cacheKey, result, 3600); // 1 hour TTL
                 return result;
             }
             return text;
@@ -765,9 +774,10 @@ class PixivService {
      * Translate text to English
      */
     async translateToEnglish(text: string): Promise<string | null> {
-        const cacheKey = `ja_en_${text}`;
-        if (this.translationCache.has(cacheKey)) {
-            return this.translationCache.get(cacheKey)!;
+        const cacheKey = `translate:ja_en_${text}`;
+        const cached = await cacheService.get<string>('api', cacheKey);
+        if (cached) {
+            return cached;
         }
 
         try {
@@ -785,7 +795,7 @@ class PixivService {
             const result = (data as Array<Array<string[]>>)?.[0]?.[0]?.[0];
 
             if (result) {
-                this.translationCache.set(cacheKey, result);
+                await cacheService.set('api', cacheKey, result, 3600); // 1 hour TTL
                 return result;
             }
             return null;

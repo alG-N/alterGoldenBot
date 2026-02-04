@@ -1,1 +1,1 @@
-{"version":3,"file":"index.js","sourceRoot":"","sources":["../../../src/config/deathbattle/index.ts"],"names":[],"mappings":";AAAA;;;GAGG;;AAQH,MAAM,iBAAiB,GAAsB;IACzC,OAAO,EAAE,IAAI;IACb,SAAS,EAAE,EAAE;IACb,cAAc,EAAE,OAAO,CAAC,GAAG,CAAC,cAAc,IAAI,EAAE;CACnD,CAAC;AAEF,kBAAe,iBAAiB,CAAC"}
+{"version":3,"file":"index.js","sourceRoot":"","sources":["../../../src/config/deathbattle/index.ts"],"names":[],"mappings":";AAAA;;;GAGG;;AAQH,MAAM,iBAAiB,GAAsB;IACzC,OAAO,EAAE,IAAI;IACb,SAAS,EAAE,EAAE;IACb,cAAc,EAAE,OAAO,CAAC,GAAG,CAAC,qBAAqB,IAAI,EAAE;CAC1D,CAAC;AAEF,kBAAe,iBAAiB,CAAC"}

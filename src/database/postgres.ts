@@ -6,18 +6,10 @@
  */
 
 import { Pool, PoolClient, QueryResult, PoolConfig } from 'pg';
+import gracefulDegradation, { ServiceState } from '../core/GracefulDegradation.js';
 
 // Use require for internal modules to avoid circular dependency
 const logger = require('../core/Logger');
-
-// Lazy-load to avoid circular dependency
-let gracefulDegradation: ReturnType<typeof require> | null = null;
-const getGracefulDegradation = () => {
-    if (!gracefulDegradation) {
-        gracefulDegradation = require('../core/GracefulDegradation').default;
-    }
-    return gracefulDegradation;
-};
 // TYPES & INTERFACES
 /**
  * Allowed table names (whitelist for SQL injection prevention)
@@ -229,10 +221,9 @@ export class PostgresDatabase {
             logger.success('PostgreSQL', 'Connected to database');
             
             // Register with graceful degradation
-            const gd = getGracefulDegradation();
-            gd.initialize();
-            gd.registerFallback('database', async () => null);
-            gd.markHealthy('database');
+            gracefulDegradation.initialize();
+            gracefulDegradation.registerFallback('database', async () => null);
+            gracefulDegradation.markHealthy('database');
             
             // Start write queue processor
             this._startWriteQueueProcessor();
@@ -628,8 +619,7 @@ export class PostgresDatabase {
         logger.error('PostgreSQL', `Connection error (${this.failureCount}/${this.maxFailures}): ${error.message}`);
         
         if (this.failureCount >= this.maxFailures) {
-            const gd = getGracefulDegradation();
-            gd.markUnavailable('database', 'Too many connection failures');
+            gracefulDegradation.markUnavailable('database', 'Too many connection failures');
             this.isConnected = false;
         }
     }
@@ -652,11 +642,13 @@ export class PostgresDatabase {
     private _startWriteQueueProcessor(): void {
         this._writeQueueProcessor = setInterval(async () => {
             try {
-                const gd = getGracefulDegradation();
-                const state = gd.getServiceState('database');
+                const state = gracefulDegradation.getServiceState('database');
                 
-                if (state === 'healthy' && this.isConnected) {
-                    await gd.processWriteQueue('database');
+                // Queue processing happens automatically when service becomes healthy
+                // This is just for monitoring - actual processing is event-driven
+                if (state === ServiceState.HEALTHY && this.isConnected) {
+                    // Queue is processed automatically by GracefulDegradation
+                    // when markHealthy is called
                 }
             } catch (error) {
                 logger.error('PostgreSQL', `Write queue processing error: ${(error as Error).message}`);
@@ -668,12 +660,7 @@ export class PostgresDatabase {
      * Queue a write operation for later execution
      */
     async queueWrite(operation: WriteQueueEntry['operation'], params: WriteQueueEntry['params']): Promise<void> {
-        const gd = getGracefulDegradation();
-        await gd.queueWrite('database', {
-            operation,
-            params,
-            timestamp: Date.now()
-        });
+        gracefulDegradation.queueWrite('database', operation, params);
         logger.warn('PostgreSQL', `Queued ${operation} for later execution`);
     }
 
@@ -684,10 +671,9 @@ export class PostgresDatabase {
         table: string, 
         data: Record<string, unknown>
     ): Promise<T | QueuedResponse> {
-        const gd = getGracefulDegradation();
-        const state = gd.getServiceState('database');
+        const state = gracefulDegradation.getServiceState('database');
         
-        if (state === 'unavailable' || !this.isConnected) {
+        if (state === ServiceState.UNAVAILABLE || !this.isConnected) {
             await this.queueWrite('insert', { table, data });
             return { queued: true, operation: 'insert', table };
         }
@@ -703,10 +689,9 @@ export class PostgresDatabase {
         data: Record<string, unknown>, 
         where: Record<string, unknown>
     ): Promise<T | QueuedResponse | null> {
-        const gd = getGracefulDegradation();
-        const state = gd.getServiceState('database');
+        const state = gracefulDegradation.getServiceState('database');
         
-        if (state === 'unavailable' || !this.isConnected) {
+        if (state === ServiceState.UNAVAILABLE || !this.isConnected) {
             await this.queueWrite('update', { table, data, where });
             return { queued: true, operation: 'update', table };
         }
@@ -721,10 +706,9 @@ export class PostgresDatabase {
         table: string, 
         where: Record<string, unknown>
     ): Promise<number | QueuedResponse> {
-        const gd = getGracefulDegradation();
-        const state = gd.getServiceState('database');
+        const state = gracefulDegradation.getServiceState('database');
         
-        if (state === 'unavailable' || !this.isConnected) {
+        if (state === ServiceState.UNAVAILABLE || !this.isConnected) {
             await this.queueWrite('delete', { table, where });
             return { queued: true, operation: 'delete', table };
         }
@@ -736,16 +720,15 @@ export class PostgresDatabase {
      * Get database status
      */
     getStatus(): DatabaseStatus {
-        const gd = getGracefulDegradation();
-        const state = gd.getServiceState('database') || 'unknown';
-        const writeQueueSize = gd.writeQueues?.get('database')?.length || 0;
+        const state = gracefulDegradation.getServiceState('database');
+        const stateString = state ? state.toLowerCase() : 'unknown';
         
         return {
             isConnected: this.isConnected,
-            state,
+            state: stateString,
             failureCount: this.failureCount,
             maxFailures: this.maxFailures,
-            pendingWrites: writeQueueSize,
+            pendingWrites: 0, // Write queue is internal to GracefulDegradation
             readReplica: {
                 enabled: this.readReplicaEnabled,
                 host: process.env.DB_READ_HOST || null,

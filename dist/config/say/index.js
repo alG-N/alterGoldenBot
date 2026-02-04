@@ -16,7 +16,7 @@ exports.TYPE_COLORS = {
 };
 // OWNER SETTINGS
 exports.OWNER_ID = process.env.OWNER_ID || '';
-exports.LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || '';
+exports.LOG_CHANNEL_ID = process.env.SYSTEM_LOG_CHANNEL_ID || '';
 // DEFAULT EXPORT
 exports.default = {
     TYPE_COLORS: exports.TYPE_COLORS,

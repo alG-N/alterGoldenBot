@@ -7,6 +7,7 @@
 
 import lavalinkService from '../LavalinkService.js';
 import { queueService } from '../queue/index.js';
+import musicCache from '../../../repositories/music/MusicCacheFacade.js';
 import { Result } from '../../../core/Result.js';
 import { ErrorCodes } from '../../../core/ErrorCodes.js';
 import { TRACK_TRANSITION_DELAY } from '../../../config/features/music.js';
@@ -103,10 +104,24 @@ class PlaybackService {
                 return Result.err(ErrorCodes.TRACK_NOT_FOUND, 'Invalid track data.');
             }
 
+            // Set replacing flag if there's a current track to prevent exception handler
+            const queue = musicCache.getQueue(guildId) as any;
+            const hadCurrentTrack = !!queueService.getCurrentTrack(guildId);
+            if (hadCurrentTrack && queue) {
+                queue.isReplacing = true;
+            }
+
             queueService.setCurrentTrack(guildId, track);
             
-            // Shoukaku expects { track: { encoded: "..." } }
-            await player.playTrack({ track: { encoded: track.track.encoded } });
+            try {
+                // Shoukaku expects { track: { encoded: "..." } }
+                await player.playTrack({ track: { encoded: track.track.encoded } });
+            } finally {
+                // Clear replacing flag after a delay
+                if (queue) {
+                    setTimeout(() => { queue.isReplacing = false; }, 1000);
+                }
+            }
             
             return Result.ok({ track });
         } catch (error) {

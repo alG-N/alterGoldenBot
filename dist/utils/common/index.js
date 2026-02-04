@@ -35,6 +35,8 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RateLimiter = exports.withTimeoutAndRetry = exports.withTimeout = exports.withRetry = exports.isRetryableError = exports.apiSleep = exports.DEFAULT_CONFIG = exports.cooldown = exports.clearCooldown = exports.checkCooldown = exports.globalCooldownManager = exports.CooldownManager = exports.httpClient = exports.getClient = exports.clients = exports.USER_AGENTS = exports.HttpClient = exports.pagination = exports.globalPaginationState = exports.PaginationState = exports.getNewPage = exports.parsePaginationButton = exports.disablePaginationButtons = exports.createSimplePagination = exports.createPaginationButtons = exports.embed = exports.createProgressBar = exports.formatFieldValue = exports.stripHtml = exports.formatNumber = exports.truncateText = exports.createLoadingEmbed = exports.createInfoEmbed = exports.createWarningEmbed = exports.createSuccessEmbed = exports.createErrorEmbed = exports.EMBED_COLORS = exports.time = exports.endOfDay = exports.startOfDay = exports.isToday = exports.unixTimestamp = exports.sleep = exports.discordTimestamp = exports.parseTimeString = exports.parseDuration = exports.formatCountdown = exports.formatTimeAgo = exports.formatMusicDuration = exports.formatDuration = void 0;
 exports.getDefault = exports.apiUtils = void 0;
+exports.safeFireAndForget = safeFireAndForget;
+exports.silentFireAndForget = silentFireAndForget;
 /**
  * Common Utilities Index
  * Re-exports all common utilities
@@ -110,6 +112,28 @@ Object.defineProperty(exports, "RateLimiter", { enumerable: true, get: function 
 const apiUtils = __importStar(require("./apiUtils.js"));
 exports.apiUtils = apiUtils;
 // Note: Circuit breaker functionality moved to core/CircuitBreaker.ts and core/CircuitBreakerRegistry.ts
+// SAFE ASYNC UTILITIES
+/**
+ * Execute an async operation without awaiting, with error logging
+ * Use for fire-and-forget operations that shouldn't block but should log errors
+ * @param operation - Async operation to execute
+ * @param context - Optional context string for error logging
+ */
+function safeFireAndForget(operation, context = 'background operation') {
+    operation().catch((error) => {
+        console.error(`[SafeFireAndForget] Error in ${context}:`, error.message);
+    });
+}
+/**
+ * Execute an async operation without awaiting, silently ignoring errors
+ * Use only for truly optional operations where failure is acceptable
+ * @param operation - Async operation to execute
+ */
+function silentFireAndForget(operation) {
+    operation().catch(() => {
+        // Intentionally silent
+    });
+}
 // MODULE UTILITIES
 /**
  * Helper to get default export from require()

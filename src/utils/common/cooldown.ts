@@ -1,14 +1,12 @@
 /**
  * Cooldown Manager
  * Shared cooldown tracking for commands and features
+ * Uses Redis via CacheService for shard-safe distributed cooldowns
  * @module utils/common/cooldown
  */
-// TYPES
-interface CooldownEntry {
-    timestamp: number;
-    duration: number;
-}
 
+import cacheService from '../../cache/CacheService.js';
+// TYPES
 interface CooldownCheckResult {
     onCooldown: boolean;
     remaining: number;
@@ -26,25 +24,22 @@ interface CooldownStats {
 
 interface CooldownManagerOptions {
     defaultCooldown?: number;
-    cleanupInterval?: number;
+    prefix?: string;
 }
 // COOLDOWN MANAGER CLASS
+/**
+ * Shard-safe cooldown manager using Redis-backed CacheService
+ */
 export class CooldownManager {
-    private cooldowns: Map<string, CooldownEntry> = new Map();
     private defaultCooldown: number;
-    private cleanupInterval: ReturnType<typeof setInterval>;
+    private prefix: string;
 
     /**
      * @param options - Configuration options
      */
     constructor(options: CooldownManagerOptions = {}) {
         this.defaultCooldown = options.defaultCooldown || 3000;
-        
-        // Auto cleanup every 5 minutes
-        this.cleanupInterval = setInterval(
-            () => this._cleanup(), 
-            options.cleanupInterval || 300000
-        );
+        this.prefix = options.prefix || '';
     }
 
     /**
@@ -52,7 +47,7 @@ export class CooldownManager {
      * @private
      */
     private _getKey(userId: string, commandName: string): string {
-        return `${userId}:${commandName}`;
+        return this.prefix ? `${this.prefix}:${commandName}` : commandName;
     }
 
     /**
@@ -61,19 +56,11 @@ export class CooldownManager {
      * @param commandName - Command name
      * @param cooldownMs - Cooldown duration (uses default if not provided)
      */
-    check(userId: string, commandName: string, _cooldownMs: number = this.defaultCooldown): CooldownCheckResult {
+    async check(userId: string, commandName: string, _cooldownMs: number = this.defaultCooldown): Promise<CooldownCheckResult> {
         const key = this._getKey(userId, commandName);
-        const entry = this.cooldowns.get(key);
+        const remaining = await cacheService.getCooldown(key, userId);
         
-        if (!entry) {
-            return { onCooldown: false, remaining: 0 };
-        }
-        
-        const elapsed = Date.now() - entry.timestamp;
-        const remaining = entry.duration - elapsed;
-        
-        if (remaining <= 0) {
-            this.cooldowns.delete(key);
+        if (remaining === null || remaining <= 0) {
             return { onCooldown: false, remaining: 0 };
         }
         
@@ -86,29 +73,20 @@ export class CooldownManager {
      * @param commandName - Command name
      * @param cooldownMs - Cooldown duration
      */
-    set(userId: string, commandName: string, cooldownMs: number = this.defaultCooldown): void {
+    async set(userId: string, commandName: string, cooldownMs: number = this.defaultCooldown): Promise<void> {
         const key = this._getKey(userId, commandName);
-        this.cooldowns.set(key, {
-            timestamp: Date.now(),
-            duration: cooldownMs
-        });
+        await cacheService.setCooldown(key, userId, cooldownMs);
     }
 
     /**
-     * Check and set cooldown in one operation
+     * Check and set cooldown in one operation (atomic, shard-safe)
      * @param userId - User ID
      * @param commandName - Command name
      * @param cooldownMs - Cooldown duration
      */
-    checkAndSet(userId: string, commandName: string, cooldownMs: number = this.defaultCooldown): CooldownCheckAndSetResult {
-        const result = this.check(userId, commandName, cooldownMs);
-        
-        if (!result.onCooldown) {
-            this.set(userId, commandName, cooldownMs);
-            return { passed: true, remaining: 0 };
-        }
-        
-        return { passed: false, remaining: result.remaining };
+    async checkAndSet(userId: string, commandName: string, cooldownMs: number = this.defaultCooldown): Promise<CooldownCheckAndSetResult> {
+        const key = this._getKey(userId, commandName);
+        return cacheService.checkAndSetCooldown(key, userId, cooldownMs);
     }
 
     /**
@@ -116,21 +94,17 @@ export class CooldownManager {
      * @param userId - User ID
      * @param commandName - Command name
      */
-    clear(userId: string, commandName: string): void {
+    async clear(userId: string, commandName: string): Promise<void> {
         const key = this._getKey(userId, commandName);
-        this.cooldowns.delete(key);
+        await cacheService.clearCooldown(key, userId);
     }
 
     /**
      * Clear all cooldowns for a user
      * @param userId - User ID
      */
-    clearUser(userId: string): void {
-        for (const key of this.cooldowns.keys()) {
-            if (key.startsWith(`${userId}:`)) {
-                this.cooldowns.delete(key);
-            }
-        }
+    async clearUser(userId: string): Promise<void> {
+        await cacheService.clearUserCooldowns(userId);
     }
 
     /**
@@ -139,51 +113,37 @@ export class CooldownManager {
      * @param commandName - Command name
      * @returns Remaining time in ms (0 if not on cooldown)
      */
-    getRemaining(userId: string, commandName: string): number {
-        const result = this.check(userId, commandName);
+    async getRemaining(userId: string, commandName: string): Promise<number> {
+        const result = await this.check(userId, commandName);
         return result.remaining;
     }
 
     /**
-     * Cleanup expired cooldowns
-     * @private
-     */
-    private _cleanup(): void {
-        const now = Date.now();
-        for (const [key, entry] of this.cooldowns) {
-            if (now - entry.timestamp > entry.duration) {
-                this.cooldowns.delete(key);
-            }
-        }
-    }
-
-    /**
-     * Get stats for monitoring
+     * Get stats for monitoring (placeholder - stats now in CacheService)
      */
     getStats(): CooldownStats {
         return {
-            totalEntries: this.cooldowns.size,
-            memoryEstimate: this.cooldowns.size * 100 // rough estimate in bytes
+            totalEntries: 0,
+            memoryEstimate: 0
         };
     }
 
     /**
-     * Destroy the cooldown manager
+     * Destroy the cooldown manager (no-op with CacheService backend)
      */
     destroy(): void {
-        clearInterval(this.cleanupInterval);
-        this.cooldowns.clear();
+        // No-op - CacheService handles cleanup
     }
 }
 // GLOBAL INSTANCE & EXPORTS
 // Global cooldown manager instance
 export const globalCooldownManager = new CooldownManager();
 
-// Convenience functions using global manager
-export function checkCooldown(userId: string, commandName: string, cooldownMs?: number): CooldownCheckAndSetResult {
+// Convenience functions using global manager (now async)
+export async function checkCooldown(userId: string, commandName: string, cooldownMs?: number): Promise<CooldownCheckAndSetResult> {
     return globalCooldownManager.checkAndSet(userId, commandName, cooldownMs);
 }
 
-export function clearCooldown(userId: string, commandName: string): void {
+export async function clearCooldown(userId: string, commandName: string): Promise<void> {
     return globalCooldownManager.clear(userId, commandName);
 }

@@ -34,6 +34,8 @@ export interface Power {
     crit?: number;
     recoil?: number;
     charges?: number;
+    // Effect name for verse-specific DoT/debuff/buff display
+    effectName?: string;
 }
 
 export interface Skillset {

@@ -8,7 +8,8 @@ import type { Message, GuildMember, Snowflake } from 'discord.js';
 import * as FilterService from './FilterService.js';
 import * as InfractionService from './InfractionService.js';
 import logger from '../../core/Logger.js';
-import redisCache from '../guild/RedisCache.js';
+import cacheService from '../../cache/CacheService.js';
+import { trackAutomodViolation } from '../../core/metrics.js';
 
 // Use require for CommonJS modules
 const AutoModRepository = require('../../repositories/moderation/AutoModRepository.js') as {
@@ -56,6 +57,7 @@ const automodConfig = automodConfigModule.default || automodConfigModule;
 export interface AutoModSettings {
     enabled: boolean;
     filter_enabled: boolean;
+    filtered_words: string[];
     invites_enabled: boolean;
     invites_action: string;
     invites_whitelist: string[];
@@ -95,33 +97,25 @@ export interface Violation {
     details?: unknown;
 }
 
-interface CacheEntry {
-    settings: AutoModSettings;
-    timestamp: number;
-}
-// CACHE
-const settingsCache: Map<string, CacheEntry> = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL_SECONDS = 300; // 5 minutes
 // SETTINGS MANAGEMENT
 /**
- * Get auto-mod settings for a guild (with caching)
+ * Get auto-mod settings for a guild (with caching via Redis)
  */
 export async function getSettings(guildId: string): Promise<AutoModSettings> {
-    const cached = settingsCache.get(guildId);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-        return cached.settings;
-    }
-
-    const settings = await AutoModRepository.getOrCreate(guildId) as AutoModSettings;
-    settingsCache.set(guildId, { settings, timestamp: Date.now() });
-    return settings;
+    return cacheService.getOrSet<AutoModSettings>(
+        'guild',
+        `automod:${guildId}`,
+        async () => AutoModRepository.getOrCreate(guildId) as Promise<AutoModSettings>,
+        CACHE_TTL_SECONDS
+    );
 }
 
 /**
  * Invalidate settings cache
  */
-export function invalidateCache(guildId: string): void {
-    settingsCache.delete(guildId);
+export async function invalidateCache(guildId: string): Promise<void> {
+    await cacheService.delete('guild', `automod:${guildId}`);
 }
 
 /**
@@ -132,7 +126,7 @@ export async function updateSettings(
     updates: Partial<AutoModSettings>
 ): Promise<AutoModSettings> {
     const settings = await AutoModRepository.update(guildId, updates as Record<string, unknown>) as AutoModSettings;
-    invalidateCache(guildId);
+    await invalidateCache(guildId);
     return settings;
 }
 
@@ -145,7 +139,7 @@ export async function toggleFeature(
     enabled: boolean
 ): Promise<AutoModSettings> {
     const settings = await AutoModRepository.toggleFeature(guildId, feature, enabled) as AutoModSettings;
-    invalidateCache(guildId);
+    await invalidateCache(guildId);
     return settings;
 }
 // BYPASS CHECKS
@@ -214,10 +208,12 @@ export async function processMessage(message: Message): Promise<Violation | null
 // INDIVIDUAL CHECKS
 /**
  * Check word filter
+ * Checks both FilterService (database patterns) AND filtered_words from settings (live update)
  */
 export async function checkWordFilter(message: Message, settings: AutoModSettings): Promise<Violation | null> {
     if (!settings.filter_enabled) return null;
 
+    // Check database filters via FilterService
     const result = await FilterService.checkMessage(message.guild!.id, message.content);
 
     if (result) {
@@ -228,6 +224,27 @@ export async function checkWordFilter(message: Message, settings: AutoModSetting
             severity: result.severity,
             details: result
         };
+    }
+
+    // Check filtered_words from settings (live, no cache delay)
+    const filteredWords = settings.filtered_words || [];
+    if (filteredWords.length > 0) {
+        const lowerContent = message.content.toLowerCase();
+        for (const word of filteredWords) {
+            if (!word) continue;
+            const lowerWord = word.toLowerCase();
+            // Check for word boundary matches
+            const wordRegex = new RegExp(`\\b${lowerWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+            if (wordRegex.test(lowerContent)) {
+                return {
+                    type: 'filter',
+                    trigger: `Matched filtered word: "${word}"`,
+                    action: 'delete_warn',
+                    severity: 3,
+                    details: { pattern: word, matchType: 'word' }
+                };
+            }
+        }
     }
 
     return null;
@@ -324,14 +341,14 @@ export async function checkSpam(message: Message, settings: AutoModSettings): Pr
     const windowSeconds = Math.ceil((settings.spam_window_ms || 5000) / 1000);
     const threshold = settings.spam_threshold || 5;
 
-    const count = await redisCache.trackSpamMessage(
+    const count = await cacheService.trackSpamMessage(
         message.guild!.id,
         message.author.id,
         windowSeconds
     );
 
     if (count >= threshold) {
-        await redisCache.resetSpamTracker(message.guild!.id, message.author.id);
+        await cacheService.resetSpamTracker(message.guild!.id, message.author.id);
 
         return {
             type: 'spam',
@@ -357,7 +374,7 @@ export async function checkDuplicates(message: Message, settings: AutoModSetting
 
     if (content.length < 5) return null;
 
-    const { count } = await redisCache.trackDuplicateMessage(
+    const { count } = await cacheService.trackDuplicateMessage(
         message.guild!.id,
         message.author.id,
         content,
@@ -365,7 +382,7 @@ export async function checkDuplicates(message: Message, settings: AutoModSetting
     );
 
     if (count >= threshold) {
-        await redisCache.resetDuplicateTracker(message.guild!.id, message.author.id);
+        await cacheService.resetDuplicateTracker(message.guild!.id, message.author.id);
 
         return {
             type: 'duplicate',
@@ -487,7 +504,7 @@ export async function executeAction(
             results.warned = true;
             
             // Track warn count in Redis
-            results.warnCount = await redisCache.trackAutomodWarn(
+            results.warnCount = await cacheService.trackAutomodWarn(
                 message.guild!.id,
                 message.author.id,
                 warnResetHours
@@ -505,7 +522,7 @@ export async function executeAction(
                     results.escalated = true;
                     
                     // Reset warn count after mute
-                    await redisCache.resetAutomodWarn(message.guild!.id, message.author.id);
+                    await cacheService.resetAutomodWarn(message.guild!.id, message.author.id);
                     
                     logger.info('AutoMod', `Escalated to mute: ${message.author.tag} (${results.warnCount} warns)`);
                 } catch (e) {
@@ -541,6 +558,9 @@ export async function executeAction(
             }
         );
 
+        // Track metrics for Prometheus
+        trackAutomodViolation(violation.type, results.escalated ? 'mute' : action);
+
     } catch (error) {
         logger.error('[AutoModService]', `Error executing action: ${(error as Error).message}`);
         results.error = (error as Error).message;
@@ -559,7 +579,7 @@ export async function addIgnoredChannel(guildId: string, channelId: string): Pro
         channels.push(channelId as never);
         await updateSettings(guildId, { ignored_channels: channels });
     }
-    invalidateCache(guildId);
+    await invalidateCache(guildId);
 }
 
 /**
@@ -569,7 +589,7 @@ export async function removeIgnoredChannel(guildId: string, channelId: string): 
     const settings = await getSettings(guildId);
     const channels = (settings.ignored_channels || []).filter((c: string) => c !== channelId);
     await updateSettings(guildId, { ignored_channels: channels });
-    invalidateCache(guildId);
+    await invalidateCache(guildId);
 }
 
 /**
@@ -582,7 +602,7 @@ export async function addIgnoredRole(guildId: string, roleId: string): Promise<v
         roles.push(roleId as never);
         await updateSettings(guildId, { ignored_roles: roles });
     }
-    invalidateCache(guildId);
+    await invalidateCache(guildId);
 }
 
 /**
@@ -592,7 +612,7 @@ export async function removeIgnoredRole(guildId: string, roleId: string): Promis
     const settings = await getSettings(guildId);
     const roles = (settings.ignored_roles || []).filter((r: string) => r !== roleId);
     await updateSettings(guildId, { ignored_roles: roles });
-    invalidateCache(guildId);
+    await invalidateCache(guildId);
 }
 // EXPORTS
 export default {

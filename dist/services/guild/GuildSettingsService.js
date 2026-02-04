@@ -31,7 +31,7 @@ exports.hasAdminPermission = hasAdminPermission;
 exports.hasModPermission = hasModPermission;
 exports.isServerOwner = isServerOwner;
 exports.clearCache = clearCache;
-const RedisCache_js_1 = __importDefault(require("./RedisCache.js"));
+const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
 // Use require for CommonJS database module
 const adminDB = require('../../database/admin.js');
 // DEFAULT SETTINGS
@@ -76,7 +76,7 @@ exports.DEFAULT_GUILD_SETTINGS = {
  */
 async function getGuildSettings(guildId) {
     // Check Redis cache first
-    const cached = await RedisCache_js_1.default.getGuildSettings(guildId);
+    const cached = await CacheService_js_1.default.getGuildSettings(guildId);
     if (cached) {
         return { ...exports.DEFAULT_GUILD_SETTINGS, ...cached };
     }
@@ -85,13 +85,13 @@ async function getGuildSettings(guildId) {
         const dbSettings = await adminDB.getOne('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
         if (dbSettings) {
             const settings = { ...exports.DEFAULT_GUILD_SETTINGS, ...dbSettings };
-            await RedisCache_js_1.default.setGuildSettings(guildId, settings);
+            await CacheService_js_1.default.setGuildSettings(guildId, settings);
             return settings;
         }
         // Create default settings if none exist
         const defaultSettings = { ...exports.DEFAULT_GUILD_SETTINGS, guild_id: guildId };
         await adminDB.upsert('guild_settings', { guild_id: guildId }, 'guild_id');
-        await RedisCache_js_1.default.setGuildSettings(guildId, defaultSettings);
+        await CacheService_js_1.default.setGuildSettings(guildId, defaultSettings);
         return defaultSettings;
     }
     catch (error) {
@@ -105,7 +105,7 @@ async function getGuildSettings(guildId) {
 async function updateGuildSettings(guildId, updates) {
     try {
         await adminDB.update('guild_settings', updates, { guild_id: guildId });
-        await RedisCache_js_1.default.invalidateGuildSettings(guildId);
+        await CacheService_js_1.default.invalidateGuildSettings(guildId);
         return true;
     }
     catch (error) {
@@ -226,7 +226,7 @@ function isServerOwner(member) {
  * Clear cached settings for a guild
  */
 async function clearCache(guildId) {
-    await RedisCache_js_1.default.invalidateGuildSettings(guildId);
+    await CacheService_js_1.default.invalidateGuildSettings(guildId);
 }
 // EXPORTS
 exports.default = {

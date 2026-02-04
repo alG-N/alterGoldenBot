@@ -13,6 +13,7 @@ const jjk_js_1 = __importDefault(require("../../../config/deathbattle/skillsets/
 const naruto_js_1 = __importDefault(require("../../../config/deathbattle/skillsets/naruto.js"));
 const demonslayer_js_1 = __importDefault(require("../../../config/deathbattle/skillsets/demonslayer.js"));
 const onepiece_js_1 = __importDefault(require("../../../config/deathbattle/skillsets/onepiece.js"));
+const crossover_js_1 = __importDefault(require("../../../config/deathbattle/skillsets/crossover.js"));
 // SKILLSET SERVICE CLASS
 class SkillsetService {
     skillsets = new Map();
@@ -21,6 +22,7 @@ class SkillsetService {
         this.skillsets.set('naruto', naruto_js_1.default);
         this.skillsets.set('demonslayer', demonslayer_js_1.default);
         this.skillsets.set('onepiece', onepiece_js_1.default);
+        this.skillsets.set('crossover', crossover_js_1.default);
     }
     /**
      * Get a skillset by name

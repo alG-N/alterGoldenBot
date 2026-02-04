@@ -63,40 +63,33 @@ exports.removeIgnoredRole = removeIgnoredRole;
 const FilterService = __importStar(require("./FilterService.js"));
 const InfractionService = __importStar(require("./InfractionService.js"));
 const Logger_js_1 = __importDefault(require("../../core/Logger.js"));
-const RedisCache_js_1 = __importDefault(require("../guild/RedisCache.js"));
+const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
+const metrics_js_1 = require("../../core/metrics.js");
 // Use require for CommonJS modules
 const AutoModRepository = require('../../repositories/moderation/AutoModRepository.js');
 const automodConfigModule = require('../../config/features/moderation/automod.js');
 // Handle both ESM default export and direct export
 const automodConfig = automodConfigModule.default || automodConfigModule;
-// CACHE
-const settingsCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL_SECONDS = 300; // 5 minutes
 // SETTINGS MANAGEMENT
 /**
- * Get auto-mod settings for a guild (with caching)
+ * Get auto-mod settings for a guild (with caching via Redis)
  */
 async function getSettings(guildId) {
-    const cached = settingsCache.get(guildId);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-        return cached.settings;
-    }
-    const settings = await AutoModRepository.getOrCreate(guildId);
-    settingsCache.set(guildId, { settings, timestamp: Date.now() });
-    return settings;
+    return CacheService_js_1.default.getOrSet('guild', `automod:${guildId}`, async () => AutoModRepository.getOrCreate(guildId), CACHE_TTL_SECONDS);
 }
 /**
  * Invalidate settings cache
  */
-function invalidateCache(guildId) {
-    settingsCache.delete(guildId);
+async function invalidateCache(guildId) {
+    await CacheService_js_1.default.delete('guild', `automod:${guildId}`);
 }
 /**
  * Update auto-mod settings
  */
 async function updateSettings(guildId, updates) {
     const settings = await AutoModRepository.update(guildId, updates);
-    invalidateCache(guildId);
+    await invalidateCache(guildId);
     return settings;
 }
 /**
@@ -104,7 +97,7 @@ async function updateSettings(guildId, updates) {
  */
 async function toggleFeature(guildId, feature, enabled) {
     const settings = await AutoModRepository.toggleFeature(guildId, feature, enabled);
-    invalidateCache(guildId);
+    await invalidateCache(guildId);
     return settings;
 }
 // BYPASS CHECKS
@@ -173,10 +166,12 @@ async function processMessage(message) {
 // INDIVIDUAL CHECKS
 /**
  * Check word filter
+ * Checks both FilterService (database patterns) AND filtered_words from settings (live update)
  */
 async function checkWordFilter(message, settings) {
     if (!settings.filter_enabled)
         return null;
+    // Check database filters via FilterService
     const result = await FilterService.checkMessage(message.guild.id, message.content);
     if (result) {
         return {
@@ -186,6 +181,27 @@ async function checkWordFilter(message, settings) {
             severity: result.severity,
             details: result
         };
+    }
+    // Check filtered_words from settings (live, no cache delay)
+    const filteredWords = settings.filtered_words || [];
+    if (filteredWords.length > 0) {
+        const lowerContent = message.content.toLowerCase();
+        for (const word of filteredWords) {
+            if (!word)
+                continue;
+            const lowerWord = word.toLowerCase();
+            // Check for word boundary matches
+            const wordRegex = new RegExp(`\\b${lowerWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+            if (wordRegex.test(lowerContent)) {
+                return {
+                    type: 'filter',
+                    trigger: `Matched filtered word: "${word}"`,
+                    action: 'delete_warn',
+                    severity: 3,
+                    details: { pattern: word, matchType: 'word' }
+                };
+            }
+        }
     }
     return null;
 }
@@ -269,9 +285,9 @@ async function checkSpam(message, settings) {
         return null;
     const windowSeconds = Math.ceil((settings.spam_window_ms || 5000) / 1000);
     const threshold = settings.spam_threshold || 5;
-    const count = await RedisCache_js_1.default.trackSpamMessage(message.guild.id, message.author.id, windowSeconds);
+    const count = await CacheService_js_1.default.trackSpamMessage(message.guild.id, message.author.id, windowSeconds);
     if (count >= threshold) {
-        await RedisCache_js_1.default.resetSpamTracker(message.guild.id, message.author.id);
+        await CacheService_js_1.default.resetSpamTracker(message.guild.id, message.author.id);
         return {
             type: 'spam',
             trigger: `${threshold}+ messages in ${windowSeconds}s`,
@@ -293,9 +309,9 @@ async function checkDuplicates(message, settings) {
     const content = message.content.toLowerCase().trim();
     if (content.length < 5)
         return null;
-    const { count } = await RedisCache_js_1.default.trackDuplicateMessage(message.guild.id, message.author.id, content, windowSeconds);
+    const { count } = await CacheService_js_1.default.trackDuplicateMessage(message.guild.id, message.author.id, content, windowSeconds);
     if (count >= threshold) {
-        await RedisCache_js_1.default.resetDuplicateTracker(message.guild.id, message.author.id);
+        await CacheService_js_1.default.resetDuplicateTracker(message.guild.id, message.author.id);
         return {
             type: 'duplicate',
             trigger: `Same message sent ${threshold}+ times`,
@@ -386,7 +402,7 @@ async function executeAction(message, violation) {
         if (action.includes('warn')) {
             results.warned = true;
             // Track warn count in Redis
-            results.warnCount = await RedisCache_js_1.default.trackAutomodWarn(message.guild.id, message.author.id, warnResetHours);
+            results.warnCount = await CacheService_js_1.default.trackAutomodWarn(message.guild.id, message.author.id, warnResetHours);
             // Check if threshold reached -> escalate to mute
             if (results.warnCount >= results.warnThreshold && message.member) {
                 try {
@@ -395,7 +411,7 @@ async function executeAction(message, violation) {
                     results.muted = true;
                     results.escalated = true;
                     // Reset warn count after mute
-                    await RedisCache_js_1.default.resetAutomodWarn(message.guild.id, message.author.id);
+                    await CacheService_js_1.default.resetAutomodWarn(message.guild.id, message.author.id);
                     Logger_js_1.default.info('AutoMod', `Escalated to mute: ${message.author.tag} (${results.warnCount} warns)`);
                 }
                 catch (e) {
@@ -420,6 +436,8 @@ async function executeAction(message, violation) {
             warnCount: results.warnCount,
             escalated: results.escalated
         });
+        // Track metrics for Prometheus
+        (0, metrics_js_1.trackAutomodViolation)(violation.type, results.escalated ? 'mute' : action);
     }
     catch (error) {
         Logger_js_1.default.error('[AutoModService]', `Error executing action: ${error.message}`);
@@ -438,7 +456,7 @@ async function addIgnoredChannel(guildId, channelId) {
         channels.push(channelId);
         await updateSettings(guildId, { ignored_channels: channels });
     }
-    invalidateCache(guildId);
+    await invalidateCache(guildId);
 }
 /**
  * Remove ignored channel
@@ -447,7 +465,7 @@ async function removeIgnoredChannel(guildId, channelId) {
     const settings = await getSettings(guildId);
     const channels = (settings.ignored_channels || []).filter((c) => c !== channelId);
     await updateSettings(guildId, { ignored_channels: channels });
-    invalidateCache(guildId);
+    await invalidateCache(guildId);
 }
 /**
  * Add ignored role
@@ -459,7 +477,7 @@ async function addIgnoredRole(guildId, roleId) {
         roles.push(roleId);
         await updateSettings(guildId, { ignored_roles: roles });
     }
-    invalidateCache(guildId);
+    await invalidateCache(guildId);
 }
 /**
  * Remove ignored role
@@ -468,7 +486,7 @@ async function removeIgnoredRole(guildId, roleId) {
     const settings = await getSettings(guildId);
     const roles = (settings.ignored_roles || []).filter((r) => r !== roleId);
     await updateSettings(guildId, { ignored_roles: roles });
-    invalidateCache(guildId);
+    await invalidateCache(guildId);
 }
 // EXPORTS
 exports.default = {

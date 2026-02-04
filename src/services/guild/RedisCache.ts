@@ -47,9 +47,19 @@ interface CacheStats {
 }
 // REDIS CACHE CLASS
 export class RedisCache {
-    private client: Redis | null = null;
-    private isConnected: boolean = false;
+    private _client: Redis | null = null;
+    private _isConnected: boolean = false;
     private fallbackCache: Map<string, unknown> = new Map();
+
+    /** Get connection status */
+    get isConnected(): boolean {
+        return this._isConnected;
+    }
+
+    /** Get Redis client for CacheService */
+    get client(): Redis | null {
+        return this._client;
+    }
     
     public readonly TTL: CacheTTL = {
         GUILD_SETTINGS: 300,      // 5 minutes
@@ -70,7 +80,7 @@ export class RedisCache {
         const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
         
         try {
-            this.client = new Redis(redisUrl, {
+            this._client = new Redis(redisUrl, {
                 maxRetriesPerRequest: 1,
                 retryStrategy: (times: number) => {
                     if (times > 3) return null;
@@ -81,27 +91,27 @@ export class RedisCache {
                 connectTimeout: 5000,
             });
 
-            this.client.on('connect', () => {
+            this._client.on('connect', () => {
                 console.log('[Redis] ✅ Connected');
-                this.isConnected = true;
+                this._isConnected = true;
             });
 
-            this.client.on('error', (err: Error) => {
-                if (this.isConnected) {
+            this._client.on('error', (err: Error) => {
+                if (this._isConnected) {
                     console.warn('[Redis] ⚠️ Error:', err.message);
                 }
-                this.isConnected = false;
+                this._isConnected = false;
             });
 
-            this.client.on('close', () => {
-                this.isConnected = false;
+            this._client.on('close', () => {
+                this._isConnected = false;
             });
 
-            await this.client.connect();
+            await this._client.connect();
             return true;
         } catch {
             console.log('[Redis] Using in-memory cache (Redis not available)');
-            this.isConnected = false;
+            this._isConnected = false;
             return false;
         }
     }
@@ -111,8 +121,8 @@ export class RedisCache {
      */
     async get<T = unknown>(key: string): Promise<T | null> {
         try {
-            if (this.isConnected && this.client) {
-                const value = await this.client.get(key);
+            if (this._isConnected && this._client) {
+                const value = await this._client.get(key);
                 return value ? JSON.parse(value) : null;
             }
             return (this.fallbackCache.get(key) as T) || null;
@@ -129,8 +139,8 @@ export class RedisCache {
         try {
             const stringValue = JSON.stringify(value);
             
-            if (this.isConnected && this.client) {
-                await this.client.setex(key, ttl, stringValue);
+            if (this._isConnected && this._client) {
+                await this._client.setex(key, ttl, stringValue);
             }
             
             // Always set in fallback for redundancy
@@ -147,8 +157,8 @@ export class RedisCache {
      */
     async delete(key: string): Promise<void> {
         try {
-            if (this.isConnected && this.client) {
-                await this.client.del(key);
+            if (this._isConnected && this._client) {
+                await this._client.del(key);
             }
             this.fallbackCache.delete(key);
         } catch (error) {
@@ -161,10 +171,10 @@ export class RedisCache {
      */
     async deletePattern(pattern: string): Promise<void> {
         try {
-            if (this.isConnected && this.client) {
-                const keys = await this.client.keys(pattern);
+            if (this._isConnected && this._client) {
+                const keys = await this._client.keys(pattern);
                 if (keys.length > 0) {
-                    await this.client.del(...keys);
+                    await this._client.del(...keys);
                 }
             }
             
@@ -193,8 +203,8 @@ export class RedisCache {
     // Cooldown Cache
     async getCooldown(commandName: string, userId: string): Promise<number | null> {
         const key = `cooldown:${commandName}:${userId}`;
-        const ttl = this.isConnected && this.client
-            ? await this.client.ttl(key)
+        const ttl = this._isConnected && this._client
+            ? await this._client.ttl(key)
             : null;
         
         if (ttl && ttl > 0) {
@@ -221,8 +231,8 @@ export class RedisCache {
     // Statistics
     async increment(key: string): Promise<number> {
         try {
-            if (this.isConnected && this.client) {
-                return await this.client.incr(key);
+            if (this._isConnected && this._client) {
+                return await this._client.incr(key);
             }
             const current = (this.fallbackCache.get(key) as number) || 0;
             this.fallbackCache.set(key, current + 1);
@@ -235,17 +245,17 @@ export class RedisCache {
 
     async getStats(): Promise<CacheStats> {
         return {
-            connected: this.isConnected,
+            connected: this._isConnected,
             fallbackSize: this.fallbackCache.size,
-            redisInfo: this.isConnected && this.client ? await this.client.info('memory') : null,
+            redisInfo: this._isConnected && this._client ? await this._client.info('memory') : null,
         };
     }
     // Spam & Duplicate Tracking (AutoMod)
     async trackSpamMessage(guildId: string, userId: string, windowSeconds: number = 5): Promise<number> {
         const key = `spam:${guildId}:${userId}`;
         try {
-            if (this.isConnected && this.client) {
-                const multi = this.client.multi();
+            if (this._isConnected && this._client) {
+                const multi = this._client.multi();
                 multi.incr(key);
                 multi.expire(key, windowSeconds);
                 const results = await multi.exec();
@@ -279,18 +289,18 @@ export class RedisCache {
         const hashKey = `dup:${guildId}:${userId}:hash`;
         
         try {
-            if (this.isConnected && this.client) {
-                const storedHash = await this.client.get(hashKey);
+            if (this._isConnected && this._client) {
+                const storedHash = await this._client.get(hashKey);
                 
                 if (storedHash !== contentHash) {
-                    const multi = this.client.multi();
+                    const multi = this._client.multi();
                     multi.set(hashKey, contentHash, 'EX', windowSeconds);
                     multi.set(countKey, 1, 'EX', windowSeconds);
                     await multi.exec();
                     return { count: 1, isNew: true };
                 }
                 
-                const multi = this.client.multi();
+                const multi = this._client.multi();
                 multi.incr(countKey);
                 multi.expire(countKey, windowSeconds);
                 multi.expire(hashKey, windowSeconds);
@@ -330,8 +340,8 @@ export class RedisCache {
         const ttlSeconds = resetHours * 3600;
         
         try {
-            if (this.isConnected && this.client) {
-                const multi = this.client.multi();
+            if (this._isConnected && this._client) {
+                const multi = this._client.multi();
                 multi.incr(key);
                 multi.expire(key, ttlSeconds);
                 const results = await multi.exec();
@@ -351,8 +361,8 @@ export class RedisCache {
     async getAutomodWarnCount(guildId: string, userId: string): Promise<number> {
         const key = `automod:warn:${guildId}:${userId}`;
         try {
-            if (this.isConnected && this.client) {
-                const count = await this.client.get(key);
+            if (this._isConnected && this._client) {
+                const count = await this._client.get(key);
                 return parseInt(count || '0') || 0;
             }
             return (this.fallbackCache.get(key) as number) || 0;
@@ -369,8 +379,8 @@ export class RedisCache {
         const redisKey = `ratelimit:${key}`;
         
         try {
-            if (this.isConnected && this.client) {
-                const multi = this.client.multi();
+            if (this._isConnected && this._client) {
+                const multi = this._client.multi();
                 multi.incr(redisKey);
                 multi.ttl(redisKey);
                 const results = await multi.exec();
@@ -379,7 +389,7 @@ export class RedisCache {
                 let ttl = results?.[1]?.[1] as number ?? -1;
                 
                 if (ttl === -1) {
-                    await this.client.expire(redisKey, windowSeconds);
+                    await this._client.expire(redisKey, windowSeconds);
                     ttl = windowSeconds;
                 }
                 
@@ -419,9 +429,9 @@ export class RedisCache {
      * Graceful shutdown
      */
     async shutdown(): Promise<void> {
-        if (this.client) {
-            await this.client.quit();
-            this.isConnected = false;
+        if (this._client) {
+            await this._client.quit();
+            this._isConnected = false;
             console.log('[Redis] Disconnected');
         }
     }

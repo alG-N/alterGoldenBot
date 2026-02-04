@@ -5,6 +5,7 @@
  */
 
 import logger from './Logger';
+import container from '../container';
 // TYPES
 interface ShutdownHandler {
     name: string;
@@ -117,7 +118,17 @@ async function runShutdownSequence(client: { destroy: () => void } | null): Prom
         }
     }
     
-    // 3. Close database connections (try infrastructure first, then legacy)
+    // 3. Shutdown DI container (this calls shutdown() on all registered services)
+    try {
+        logger.info('Shutdown', 'Shutting down DI container...');
+        await container.shutdown();
+        results.push({ name: 'DI Container', success: true });
+    } catch (error) {
+        logger.error('Shutdown', `Container shutdown failed: ${(error as Error).message}`);
+        results.push({ name: 'DI Container', success: false, error: (error as Error).message });
+    }
+    
+    // 4. Close database connections (try infrastructure first, then legacy)
     try {
         let infrastructure: { shutdown?: () => Promise<void> } | null = null;
         try {
@@ -139,14 +150,25 @@ async function runShutdownSequence(client: { destroy: () => void } | null): Prom
         results.push({ name: 'Database', success: false, error: (error as Error).message });
     }
     
-    // 4. Close Redis connections
+    // 5. Close Redis connections
     try {
-        const redis = require('../services/RedisCache');
-        await redis.disconnect();
-        logger.info('Shutdown', 'Redis connection closed');
+        const cacheService = require('../cache/CacheService');
+        const instance = cacheService.default || cacheService;
+        await instance.shutdown?.();
+        logger.info('Shutdown', 'Cache service closed');
         results.push({ name: 'Redis', success: true });
     } catch (error) {
         results.push({ name: 'Redis', success: false, error: (error as Error).message });
+    }
+
+    // 6. Cleanup PaginationState instances
+    try {
+        const { PaginationState } = require('../utils/common/pagination');
+        PaginationState.destroyAll();
+        logger.info('Shutdown', 'Pagination state cleanup complete');
+        results.push({ name: 'PaginationState', success: true });
+    } catch (error) {
+        results.push({ name: 'PaginationState', success: false, error: (error as Error).message });
     }
     
     return results;

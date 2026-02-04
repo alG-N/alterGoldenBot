@@ -27,7 +27,7 @@ exports.createInfoEmbed = createInfoEmbed;
 exports.createCooldownEmbed = createCooldownEmbed;
 const discord_js_1 = require("discord.js");
 const constants_1 = require("../constants");
-const RedisCache_1 = __importDefault(require("../services/guild/RedisCache"));
+const CacheService_1 = __importDefault(require("../cache/CacheService"));
 const urlValidator_1 = require("./urlValidator");
 // Access Types
 const AccessType = {
@@ -41,48 +41,42 @@ const AccessType = {
     NSFW: 'nsfw', // NSFW channels only
 };
 exports.AccessType = AccessType;
-// Rate Limiter (In-Memory)
+// Rate Limiter (Redis-backed via CacheService)
 /**
- * In-memory rate limiter for single-instance deployments
+ * Shard-safe rate limiter using CacheService (Redis with memory fallback)
  */
 class RateLimiter {
-    cooldowns;
     active;
     cooldownMs;
     maxConcurrent;
-    _cleanupInterval;
+    name;
     constructor(options = {}) {
-        this.cooldowns = new Map();
         this.active = new Set();
         this.cooldownMs = (options.cooldownSeconds || 30) * 1000;
         this.maxConcurrent = options.maxConcurrent || 5;
-        this._cleanupInterval = null;
-        // Auto cleanup interval
-        if (options.autoCleanup !== false) {
-            this._cleanupInterval = setInterval(() => this._cleanup(), 60000);
-        }
+        this.name = 'ratelimiter';
     }
     /**
      * Check if user is on cooldown
      */
-    checkCooldown(userId) {
-        const expiry = this.cooldowns.get(userId);
-        if (expiry && Date.now() < expiry) {
-            return Math.ceil((expiry - Date.now()) / 1000);
+    async checkCooldown(userId) {
+        const remaining = await CacheService_1.default.getCooldown(this.name, userId);
+        if (remaining !== null && remaining > 0) {
+            return Math.ceil(remaining / 1000);
         }
         return 0;
     }
     /**
      * Set cooldown for user
      */
-    setCooldown(userId, customMs) {
-        this.cooldowns.set(userId, Date.now() + (customMs || this.cooldownMs));
+    async setCooldown(userId, customMs) {
+        await CacheService_1.default.setCooldown(this.name, userId, customMs || this.cooldownMs);
     }
     /**
      * Clear cooldown for user
      */
-    clearCooldown(userId) {
-        this.cooldowns.delete(userId);
+    async clearCooldown(userId) {
+        await CacheService_1.default.clearCooldown(this.name, userId);
     }
     /**
      * Check if concurrent limit reached
@@ -103,24 +97,9 @@ class RateLimiter {
         this.active.delete(userId);
     }
     /**
-     * Cleanup expired cooldowns
-     */
-    _cleanup() {
-        const now = Date.now();
-        for (const [userId, expiry] of this.cooldowns.entries()) {
-            if (now > expiry) {
-                this.cooldowns.delete(userId);
-            }
-        }
-    }
-    /**
      * Destroy rate limiter
      */
     destroy() {
-        if (this._cleanupInterval) {
-            clearInterval(this._cleanupInterval);
-        }
-        this.cooldowns.clear();
         this.active.clear();
     }
 }
@@ -147,7 +126,7 @@ class DistributedRateLimiter {
      */
     async check(userId) {
         const key = `${this.name}:${userId}`;
-        return RedisCache_1.default.checkRateLimit(key, this.limit, this.windowSeconds);
+        return CacheService_1.default.checkRateLimit(key, this.limit, this.windowSeconds);
     }
     /**
      * Check and consume a rate limit slot

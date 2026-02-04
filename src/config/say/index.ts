@@ -13,7 +13,7 @@ export const TYPE_COLORS: Record<string, number> = {
 };
 // OWNER SETTINGS
 export const OWNER_ID: string = process.env.OWNER_ID || '';
-export const LOG_CHANNEL_ID: string = process.env.LOG_CHANNEL_ID || '';
+export const LOG_CHANNEL_ID: string = process.env.SYSTEM_LOG_CHANNEL_ID || '';
 // DEFAULT EXPORT
 export default {
     TYPE_COLORS,

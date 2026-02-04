@@ -86,6 +86,32 @@ import * as apiUtils from './apiUtils.js';
 export { apiUtils };
 
 // Note: Circuit breaker functionality moved to core/CircuitBreaker.ts and core/CircuitBreakerRegistry.ts
+// SAFE ASYNC UTILITIES
+/**
+ * Execute an async operation without awaiting, with error logging
+ * Use for fire-and-forget operations that shouldn't block but should log errors
+ * @param operation - Async operation to execute
+ * @param context - Optional context string for error logging
+ */
+export function safeFireAndForget(
+    operation: () => Promise<unknown>,
+    context: string = 'background operation'
+): void {
+    operation().catch((error: Error) => {
+        console.error(`[SafeFireAndForget] Error in ${context}:`, error.message);
+    });
+}
+
+/**
+ * Execute an async operation without awaiting, silently ignoring errors
+ * Use only for truly optional operations where failure is acceptable
+ * @param operation - Async operation to execute
+ */
+export function silentFireAndForget(operation: () => Promise<unknown>): void {
+    operation().catch(() => {
+        // Intentionally silent
+    });
+}
 // MODULE UTILITIES
 /**
  * Helper to get default export from require()

@@ -68,6 +68,7 @@ class QueueCache {
             // State flags
             eventsBound: false,
             isTransitioning: false,
+            isReplacing: false,
             // Auto-play feature
             autoPlay: false,
             lastPlayedTracks: [],

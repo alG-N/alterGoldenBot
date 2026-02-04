@@ -63,6 +63,7 @@ export interface MusicQueue {
     // State flags
     eventsBound: boolean;
     isTransitioning: boolean;
+    isReplacing: boolean; // Flag to indicate a track is being replaced (prevents error handling)
     
     // Auto-play feature
     autoPlay: boolean;
@@ -169,6 +170,7 @@ class QueueCache {
             // State flags
             eventsBound: false,
             isTransitioning: false,
+            isReplacing: false,
             
             // Auto-play feature
             autoPlay: false,

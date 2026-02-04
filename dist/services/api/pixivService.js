@@ -46,6 +46,7 @@ const path = __importStar(require("path"));
 const dotenv = __importStar(require("dotenv"));
 const Logger_1 = __importDefault(require("../../core/Logger"));
 const CircuitBreakerRegistry_1 = require("../../core/CircuitBreakerRegistry");
+const CacheService_1 = __importDefault(require("../../cache/CacheService"));
 dotenv.config({ path: path.join(__dirname, '../.env') });
 // CONSTANTS
 const SERIES_MAP = {
@@ -98,7 +99,6 @@ class PixivService {
     clientSecret;
     baseHeaders;
     proxies;
-    translationCache;
     constructor() {
         this.auth = {
             accessToken: null,
@@ -114,7 +114,6 @@ class PixivService {
             'App-Version': '5.0.234'
         };
         this.proxies = ['i.pixiv.cat', 'i.pixiv.nl', 'i.pximg.net'];
-        this.translationCache = new Map();
     }
     /**
      * Authenticate with Pixiv API
@@ -417,20 +416,29 @@ class PixivService {
                 const hasJapanese = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(tagName);
                 const hasJapaneseInRomaji = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(romaji);
                 if (hasJapanese) {
-                    const englishName = this._extractEnglishName(tagName, romaji);
+                    // Try to extract English name from both tagName and romaji
+                    const englishName = this._extractEnglishName(tagName, hasJapaneseInRomaji ? '' : romaji);
                     if (englishName && englishName !== tagName) {
                         return {
                             name: `${englishName} • ${tagName}`,
                             value: tagName
                         };
                     }
+                    // If romaji is also Japanese, don't show it - just show the tag
                     return { name: tagName, value: tagName };
                 }
                 else if (hasJapaneseInRomaji) {
-                    return {
-                        name: `${tagName} • ${romaji}`,
-                        value: tagName
-                    };
+                    // When tag_translation contains Japanese (common for character names),
+                    // try to extract English name from the romaji field itself
+                    const englishFromRomaji = this._extractEnglishName(romaji, '');
+                    if (englishFromRomaji && englishFromRomaji !== romaji) {
+                        return {
+                            name: `${tagName} (${englishFromRomaji})`,
+                            value: tagName
+                        };
+                    }
+                    // Fallback: just show tagName without the Japanese romaji
+                    return { name: tagName, value: tagName };
                 }
                 else if (romaji && romaji !== tagName) {
                     const cleanRomaji = this._cleanRomaji(romaji);
@@ -511,9 +519,10 @@ class PixivService {
      * Translate text to Japanese
      */
     async translateToJapanese(text) {
-        const cacheKey = `en_ja_${text}`;
-        if (this.translationCache.has(cacheKey)) {
-            return this.translationCache.get(cacheKey);
+        const cacheKey = `translate:en_ja_${text}`;
+        const cached = await CacheService_1.default.get('api', cacheKey);
+        if (cached) {
+            return cached;
         }
         try {
             const controller = new AbortController();
@@ -523,7 +532,7 @@ class PixivService {
             const data = await response.json();
             const result = data?.[0]?.[0]?.[0];
             if (result) {
-                this.translationCache.set(cacheKey, result);
+                await CacheService_1.default.set('api', cacheKey, result, 3600); // 1 hour TTL
                 return result;
             }
             return text;
@@ -536,9 +545,10 @@ class PixivService {
      * Translate text to English
      */
     async translateToEnglish(text) {
-        const cacheKey = `ja_en_${text}`;
-        if (this.translationCache.has(cacheKey)) {
-            return this.translationCache.get(cacheKey);
+        const cacheKey = `translate:ja_en_${text}`;
+        const cached = await CacheService_1.default.get('api', cacheKey);
+        if (cached) {
+            return cached;
         }
         try {
             const controller = new AbortController();
@@ -548,7 +558,7 @@ class PixivService {
             const data = await response.json();
             const result = data?.[0]?.[0]?.[0];
             if (result) {
-                this.translationCache.set(cacheKey, result);
+                await CacheService_1.default.set('api', cacheKey, result, 3600); // 1 hour TTL
                 return result;
             }
             return null;

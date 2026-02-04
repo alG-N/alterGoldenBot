@@ -6,6 +6,21 @@
  */
 
 import { EventEmitter } from 'events';
+
+// Helper to get default export from require()
+const getDefault = <T>(mod: { default?: T } | T): T => (mod as { default?: T }).default || mod as T;
+
+// Lazy-load cacheService to avoid circular dependency
+let _cacheService: typeof import('../cache/CacheService').default | null = null;
+const getCacheService = () => {
+    if (!_cacheService) {
+        _cacheService = getDefault(require('../cache/CacheService'));
+    }
+    return _cacheService;
+};
+
+// Redis key for durable write queue
+const WRITE_QUEUE_KEY = 'graceful:writequeue:pending';
 // TYPES & ENUMS
 /**
  * Degradation levels for service health
@@ -103,8 +118,11 @@ export class GracefulDegradation extends EventEmitter {
     /** Fallback handlers per service */
     private fallbackHandlers: Map<string, (error: Error | null, options: Record<string, unknown>) => Promise<unknown>> = new Map();
     
-    /** Cached data for fallbacks */
+    /** Cached data for fallbacks (LRU eviction via insertion order) */
     private fallbackCache: Map<string, CachedData<unknown>> = new Map();
+    
+    /** Max fallback cache size before LRU eviction */
+    private maxCacheSize: number = 500;
     
     /** Queued operations for when service recovers */
     private writeQueue: QueuedWrite[] = [];
@@ -117,6 +135,43 @@ export class GracefulDegradation extends EventEmitter {
 
     constructor() {
         super();
+    }
+
+    /**
+     * Set cache to value with LRU eviction
+     * @private
+     */
+    private _setCacheWithLRU(key: string, value: CachedData<unknown>): void {
+        // Delete first to move to end of Map (most recently used)
+        if (this.fallbackCache.has(key)) {
+            this.fallbackCache.delete(key);
+        }
+        
+        // Evict oldest entries if at capacity
+        while (this.fallbackCache.size >= this.maxCacheSize) {
+            const oldestKey = this.fallbackCache.keys().next().value;
+            if (oldestKey) {
+                this.fallbackCache.delete(oldestKey);
+            } else {
+                break;
+            }
+        }
+        
+        this.fallbackCache.set(key, value);
+    }
+
+    /**
+     * Get cache value and update LRU order
+     * @private
+     */
+    private _getCacheWithLRU<T>(key: string): CachedData<T> | undefined {
+        const value = this.fallbackCache.get(key) as CachedData<T> | undefined;
+        if (value) {
+            // Move to end (most recently used)
+            this.fallbackCache.delete(key);
+            this.fallbackCache.set(key, value);
+        }
+        return value;
     }
 
     /**
@@ -293,9 +348,9 @@ export class GracefulDegradation extends EventEmitter {
         try {
             const result = await operation();
             
-            // Cache successful result if cacheKey provided
+            // Cache successful result if cacheKey provided (with LRU)
             if (options.cacheKey && result != null) {
-                this.fallbackCache.set(`${serviceName}:${options.cacheKey}`, {
+                this._setCacheWithLRU(`${serviceName}:${options.cacheKey}`, {
                     data: result,
                     timestamp: Date.now()
                 });
@@ -346,9 +401,9 @@ export class GracefulDegradation extends EventEmitter {
             }
         }
 
-        // Try cached value
+        // Try cached value (with LRU update)
         if (options.cacheKey) {
-            const cached = this.fallbackCache.get(`${serviceName}:${options.cacheKey}`) as CachedData<T> | undefined;
+            const cached = this._getCacheWithLRU<T>(`${serviceName}:${options.cacheKey}`);
             if (cached) {
                 return { 
                     success: true, 
@@ -376,28 +431,116 @@ export class GracefulDegradation extends EventEmitter {
 
     /**
      * Queue a write operation for when service recovers
+     * Persisted to Redis for durability across restarts
      * @param serviceName - Service name
      * @param operation - Operation name
      * @param data - Data to write
      * @param options - Additional options
      */
-    queueWrite(serviceName: string, operation: string, data: unknown, options: Record<string, unknown> = {}): void {
+    async queueWrite(serviceName: string, operation: string, data: unknown, options: Record<string, unknown> = {}): Promise<void> {
         if (this.writeQueue.length >= this.maxQueueSize) {
-            // Drop oldest entries
-            this.writeQueue.shift();
+            // Drop oldest entries (both memory and Redis)
+            const dropped = this.writeQueue.shift();
+            if (dropped) {
+                await this._removeFromRedisQueue(dropped);
+            }
             console.warn('[GracefulDegradation] Write queue full, dropping oldest entry');
         }
 
-        this.writeQueue.push({
+        const entry: QueuedWrite = {
             serviceName,
             operation,
             data,
             options,
             timestamp: Date.now(),
             retries: 0
-        });
+        };
+
+        // Add to memory queue for fast processing
+        this.writeQueue.push(entry);
+
+        // Persist to Redis for durability
+        await this._persistToRedisQueue(entry);
 
         this.emit('writeQueued', { serviceName, operation, queueSize: this.writeQueue.length });
+    }
+
+    /**
+     * Persist a write entry to Redis queue
+     * @private
+     */
+    private async _persistToRedisQueue(entry: QueuedWrite): Promise<void> {
+        try {
+            const cacheService = getCacheService();
+            const redis = cacheService?.getRedis();
+            if (redis) {
+                await redis.lpush(WRITE_QUEUE_KEY, JSON.stringify(entry));
+                // Set TTL of 24 hours to prevent unbounded growth
+                await redis.expire(WRITE_QUEUE_KEY, 86400);
+            }
+        } catch (error) {
+            console.error('[GracefulDegradation] Failed to persist write to Redis:', (error as Error).message);
+        }
+    }
+
+    /**
+     * Remove a write entry from Redis queue
+     * @private
+     */
+    private async _removeFromRedisQueue(entry: QueuedWrite): Promise<void> {
+        try {
+            const cacheService = getCacheService();
+            const redis = cacheService?.getRedis();
+            if (redis) {
+                // Remove the specific entry by value
+                await redis.lrem(WRITE_QUEUE_KEY, 1, JSON.stringify(entry));
+            }
+        } catch (error) {
+            console.error('[GracefulDegradation] Failed to remove write from Redis:', (error as Error).message);
+        }
+    }
+
+    /**
+     * Recover write queue from Redis on startup
+     * Call this after Redis is connected
+     */
+    async recoverWriteQueue(): Promise<number> {
+        try {
+            const cacheService = getCacheService();
+            const redis = cacheService?.getRedis();
+            if (!redis) {
+                console.log('[GracefulDegradation] Redis not available, skipping queue recovery');
+                return 0;
+            }
+
+            const pending = await redis.lrange(WRITE_QUEUE_KEY, 0, -1);
+            if (pending.length === 0) {
+                return 0;
+            }
+
+            // Parse and add to memory queue (dedupe by timestamp)
+            const existingTimestamps = new Set(this.writeQueue.map(w => w.timestamp));
+            let recovered = 0;
+
+            for (const entryStr of pending) {
+                try {
+                    const entry = JSON.parse(entryStr) as QueuedWrite;
+                    if (!existingTimestamps.has(entry.timestamp)) {
+                        this.writeQueue.push(entry);
+                        existingTimestamps.add(entry.timestamp);
+                        recovered++;
+                    }
+                } catch {
+                    // Skip malformed entries
+                }
+            }
+
+            console.log(`[GracefulDegradation] Recovered ${recovered} queued writes from Redis`);
+            return recovered;
+        } catch (error) {
+            console.error('[GracefulDegradation] Failed to recover write queue:', (error as Error).message);
+            return 0;
+        }
     }
 
     /**
@@ -415,15 +558,19 @@ export class GracefulDegradation extends EventEmitter {
                 // Emit event for handler to process
                 this.emit('processQueuedWrite', item);
                 
-                // Remove from queue
+                // Remove from memory queue
                 const idx = this.writeQueue.indexOf(item);
                 if (idx > -1) this.writeQueue.splice(idx, 1);
+
+                // Remove from Redis queue
+                await this._removeFromRedisQueue(item);
             } catch (error) {
                 item.retries++;
                 if (item.retries >= 3) {
                     // Give up after 3 retries
                     const idx = this.writeQueue.indexOf(item);
                     if (idx > -1) this.writeQueue.splice(idx, 1);
+                    await this._removeFromRedisQueue(item);
                     console.error(`[GracefulDegradation] Failed to process queued write after 3 retries:`, (error as Error).message);
                 }
             }
@@ -521,14 +668,48 @@ export class GracefulDegradation extends EventEmitter {
     }
 
     /**
-     * Shutdown
+     * Get the current write queue size
+     * @returns Number of queued writes
+     */
+    getQueueSize(): number {
+        return this.writeQueue.length;
+    }
+
+    /**
+     * Get all queued writes (for debugging/monitoring)
+     * @returns Copy of the write queue
+     */
+    getQueuedWrites(): QueuedWrite[] {
+        return [...this.writeQueue];
+    }
+
+    /**
+     * Shutdown - clears memory but preserves Redis queue for recovery
      */
     shutdown(): void {
         this.services.clear();
         this.fallbackHandlers.clear();
         this.fallbackCache.clear();
+        // Note: writeQueue in Redis is preserved for recovery on restart
         this.writeQueue = [];
         this.initialized = false;
+        console.log('[GracefulDegradation] Shutdown complete (Redis queue preserved)');
+    }
+
+    /**
+     * Force clear the Redis write queue (use with caution)
+     */
+    async clearRedisQueue(): Promise<void> {
+        try {
+            const cacheService = getCacheService();
+            const redis = cacheService?.getRedis();
+            if (redis) {
+                await redis.del(WRITE_QUEUE_KEY);
+                console.log('[GracefulDegradation] Redis write queue cleared');
+            }
+        } catch (error) {
+            console.error('[GracefulDegradation] Failed to clear Redis queue:', (error as Error).message);
+        }
     }
 }
 // SINGLETON INSTANCE & EXPORTS

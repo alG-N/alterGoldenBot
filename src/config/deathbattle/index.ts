@@ -12,7 +12,7 @@ export interface DeathbattleConfig {
 const deathbattleConfig: DeathbattleConfig = {
     enabled: true,
     maxRounds: 10,
-    LOG_CHANNEL_ID: process.env.LOG_CHANNEL_ID || ''
+    LOG_CHANNEL_ID: process.env.SYSTEM_LOG_CHANNEL_ID || ''
 };
 
 export default deathbattleConfig;

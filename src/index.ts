@@ -15,7 +15,7 @@
  * - src/services/    - Application services
  * 
  * @author alterGolden Team
- * @version 4.0.0
+ * @version 4.1.0
  */
 
 import 'dotenv/config';
@@ -32,9 +32,19 @@ import {
     health
 } from './core/index.js';
 
-// Services
-import { commandRegistry as commandReg, eventRegistry as eventReg, snipeService as SnipeService, redisCache } from './services/index.js';
+// DI Container & Service Registration
+import container from './container.js';
+import { registerServices } from './bootstrap/services.js';
+
+// Services (resolved via container after registration)
+import { snipeService as SnipeService } from './services/index.js';
 import shardBridge from './services/guild/ShardBridge.js';
+
+// Import types for container resolution
+import type { CommandRegistry } from './services/registry/CommandRegistry.js';
+import type { EventRegistry } from './services/registry/EventRegistry.js';
+import type { RedisCache } from './services/guild/RedisCache.js';
+import type { CacheService } from './cache/CacheService.js';
 
 // Configuration
 import { bot, music } from './config/index.js';
@@ -42,6 +52,12 @@ import { bot, music } from './config/index.js';
 // Database (PostgreSQL)
 import { initializeDatabase } from './database/admin.js';
 import postgres from './database/postgres.js';
+
+// Services resolved from container (set during start())
+let commandReg: CommandRegistry;
+let eventReg: EventRegistry;
+let redisCache: RedisCache;
+let cacheService: CacheService;
 // Types
 interface Command {
     data?: { name: string };
@@ -74,11 +90,11 @@ class AlterGoldenBot {
      */
     async start(): Promise<void> {
         try {
-            logger.info('Startup', 'Initializing alterGolden v4.0...');
+            logger.info('Startup', 'Initializing alterGolden v4.1...');
 
             // Initialize Sentry error tracking first
             sentry.initialize({
-                release: '4.0.0',
+                release: '4.1.0',
                 tags: { bot: 'alterGolden' }
             });
 
@@ -88,8 +104,11 @@ class AlterGoldenBot {
             // Initialize database (PostgreSQL)
             await initializeDatabase();
 
-            // Initialize Redis cache (optional, falls back to in-memory)
-            await this.initializeCache();
+            // Register services with DI container
+            registerServices();
+            
+            // Boot core services (this initializes Redis)
+            await this.bootServices();
 
             // Load commands
             this.loadCommands();
@@ -158,6 +177,36 @@ class AlterGoldenBot {
     }
 
     /**
+     * Boot services via DI container
+     */
+    private async bootServices(): Promise<void> {
+        logger.info('Container', 'Booting services via DI container...');
+        
+        // Resolve core services from container
+        redisCache = container.resolve<RedisCache>('redisCache');
+        cacheService = container.resolve<CacheService>('cacheService');
+        commandReg = container.resolve<CommandRegistry>('commandRegistry');
+        eventReg = container.resolve<EventRegistry>('eventRegistry');
+        
+        // Initialize Redis
+        try {
+            const connected = await redisCache.initialize();
+            if (connected) {
+                // Connect unified CacheService to Redis
+                cacheService.setRedis(redisCache.client);
+                logger.info('Cache', 'Redis cache connected via container');
+            } else {
+                logger.info('Cache', 'Using in-memory cache (Redis not available)');
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            logger.warn('Cache', `Redis initialization failed: ${message}`);
+        }
+        
+        logger.info('Container', 'All services booted successfully');
+    }
+
+    /**
      * Register health checks for all services
      */
     private registerHealthChecks(): void {
@@ -169,26 +218,10 @@ class AlterGoldenBot {
         health.registerDefaultChecks({
             client: this.client,
             database: postgres,
-            redis: redisCache as any,
-            lavalink: lavalinkService
+            redis: redisCache as { isConnected: boolean; client: { ping: () => Promise<unknown> } },
+            lavalink: lavalinkService,
+            cacheService: cacheService
         });
-    }
-
-    /**
-     * Initialize Redis cache (optional)
-     */
-    private async initializeCache(): Promise<void> {
-        try {
-            const connected = await redisCache.initialize();
-            if (connected) {
-                logger.info('Cache', 'Redis cache connected');
-            } else {
-                logger.info('Cache', 'Using in-memory cache (Redis not available)');
-            }
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            logger.warn('Cache', `Redis initialization failed: ${message}`);
-        }
     }
 
     /**
@@ -232,16 +265,13 @@ class AlterGoldenBot {
                         return;
                     }
 
-                    // Auto-defer if command has deferReply enabled
-                    if (command.deferReply && !interaction.replied && !interaction.deferred) {
-                        await interaction.deferReply({ ephemeral: command.ephemeral ?? false });
-                    }
-
-                    // Execute command
-                    if (command.run) {
-                        await command.run(interaction);
-                    } else if (command.execute) {
+                    // Execute command - always use execute() for metrics tracking
+                    // BaseCommand.execute() handles defer, cooldown, validation, and metrics
+                    if (command.execute) {
                         await command.execute(interaction);
+                    } else if (command.run) {
+                        // Fallback for legacy commands without execute()
+                        await command.run(interaction);
                     }
                 }
                 

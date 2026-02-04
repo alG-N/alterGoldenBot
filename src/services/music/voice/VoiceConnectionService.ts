@@ -11,6 +11,7 @@ import { queueService } from '../queue/index.js';
 import { Result } from '../../../core/Result.js';
 import { ErrorCodes } from '../../../core/ErrorCodes.js';
 import { INACTIVITY_TIMEOUT, VC_CHECK_INTERVAL } from '../../../config/features/music.js';
+import cacheService from '../../../cache/CacheService.js';
 // TYPES
 interface PlayerLike {
     removeAllListeners(): void;
@@ -64,8 +65,45 @@ const getEventBus = (): EventsModule => {
 // VOICE CONNECTION SERVICE CLASS
 class VoiceConnectionService {
     private boundGuilds: Set<string> = new Set();
-    private inactivityTimers: Map<string, NodeJS.Timeout> = new Map();
-    private vcMonitorIntervals: Map<string, NodeJS.Timeout> = new Map();
+    // Local timers for callback execution (Redis stores deadlines, local timers execute)
+    private localInactivityTimers: Map<string, NodeJS.Timeout> = new Map();
+    private localVCMonitorIntervals: Map<string, NodeJS.Timeout> = new Map();
+    // Global inactivity checker interval
+    private inactivityCheckerInterval: NodeJS.Timeout | null = null;
+
+    constructor() {
+        // Start global inactivity checker (checks Redis deadlines every 10 seconds)
+        this._startInactivityChecker();
+    }
+
+    /**
+     * Start global inactivity checker
+     * Polls Redis for expired inactivity deadlines
+     */
+    private _startInactivityChecker(): void {
+        if (this.inactivityCheckerInterval) return;
+        
+        this.inactivityCheckerInterval = setInterval(async () => {
+            try {
+                const expiredGuildIds = await cacheService.checkInactivityDeadlines();
+                const { musicEventBus, MusicEvents } = getEventBus();
+                
+                for (const guildId of expiredGuildIds) {
+                    console.log(`[VoiceConnectionService] Inactivity timeout for guild ${guildId}`);
+                    musicEventBus.emitEvent(MusicEvents.INACTIVITY_TIMEOUT, { guildId });
+                    
+                    // Clear local timer if exists
+                    const localTimer = this.localInactivityTimers.get(guildId);
+                    if (localTimer) {
+                        clearTimeout(localTimer);
+                        this.localInactivityTimers.delete(guildId);
+                    }
+                }
+            } catch (error) {
+                console.error('[VoiceConnectionService] Inactivity checker error:', (error as Error).message);
+            }
+        }, 10000); // Check every 10 seconds
+    }
 
     /**
      * Connect to voice channel
@@ -241,46 +279,63 @@ class VoiceConnectionService {
     areEventsBound(guildId: string): boolean {
         return this.boundGuilds.has(guildId);
     }
-    // INACTIVITY TIMER
+    // INACTIVITY TIMER (Redis-backed for shard safety)
     /**
      * Set inactivity timer
+     * Now uses Redis to store deadline for shard-safety
+     * Local timer is kept for immediate callback execution on this shard
      */
-    setInactivityTimer(guildId: string, callback?: () => void, timeout: number = INACTIVITY_TIMEOUT): void {
-        this.clearInactivityTimer(guildId);
+    async setInactivityTimer(guildId: string, callback?: () => void, timeout: number = INACTIVITY_TIMEOUT): Promise<void> {
+        await this.clearInactivityTimer(guildId);
 
-        const { musicEventBus, MusicEvents } = getEventBus();
+        // Store deadline in Redis (shard-safe)
+        await cacheService.setInactivityDeadline(guildId, timeout);
 
-        const timer = setTimeout(() => {
-            musicEventBus.emitEvent(MusicEvents.INACTIVITY_TIMEOUT, { guildId });
-            if (callback) callback();
-        }, timeout);
-
-        this.inactivityTimers.set(guildId, timer);
+        // Also set local timer for immediate callback on this shard
+        if (callback) {
+            const timer = setTimeout(() => {
+                callback();
+                this.localInactivityTimers.delete(guildId);
+            }, timeout);
+            this.localInactivityTimers.set(guildId, timer);
+        }
     }
 
     /**
      * Clear inactivity timer
+     * Clears both Redis deadline and local timer
      */
-    clearInactivityTimer(guildId: string): void {
-        const timer = this.inactivityTimers.get(guildId);
+    async clearInactivityTimer(guildId: string): Promise<void> {
+        // Clear Redis deadline
+        await cacheService.clearInactivityDeadline(guildId);
+        
+        // Clear local timer
+        const timer = this.localInactivityTimers.get(guildId);
         if (timer) {
             clearTimeout(timer);
-            this.inactivityTimers.delete(guildId);
+            this.localInactivityTimers.delete(guildId);
         }
     }
-    // VOICE CHANNEL MONITORING
+    // VOICE CHANNEL MONITORING (Redis-backed for shard safety)
     /**
      * Start voice channel monitoring
+     * Uses Redis flag for coordination, local interval for execution
      */
-    startVCMonitor(guildId: string, guild: Guild, onEmpty?: () => void): void {
-        if (this.vcMonitorIntervals.has(guildId)) return;
+    async startVCMonitor(guildId: string, guild: Guild, onEmpty?: () => void): Promise<void> {
+        // Check if already monitoring (either locally or another shard)
+        if (this.localVCMonitorIntervals.has(guildId)) return;
+        const isActive = await cacheService.isVCMonitorActive(guildId);
+        if (isActive) return;
+
+        // Set Redis flag
+        await cacheService.setVCMonitorActive(guildId, true);
 
         const { musicEventBus, MusicEvents } = getEventBus();
 
         const interval = setInterval(async () => {
             const vcId = this.getVoiceChannelId(guildId);
             if (!vcId) {
-                this.stopVCMonitor(guildId);
+                await this.stopVCMonitor(guildId);
                 return;
             }
 
@@ -300,17 +355,21 @@ class VoiceConnectionService {
             }
         }, VC_CHECK_INTERVAL);
 
-        this.vcMonitorIntervals.set(guildId, interval);
+        this.localVCMonitorIntervals.set(guildId, interval);
     }
 
     /**
      * Stop voice channel monitoring
      */
-    stopVCMonitor(guildId: string): void {
-        const interval = this.vcMonitorIntervals.get(guildId);
+    async stopVCMonitor(guildId: string): Promise<void> {
+        // Clear Redis flag
+        await cacheService.setVCMonitorActive(guildId, false);
+        
+        // Clear local interval
+        const interval = this.localVCMonitorIntervals.get(guildId);
         if (interval) {
             clearInterval(interval);
-            this.vcMonitorIntervals.delete(guildId);
+            this.localVCMonitorIntervals.delete(guildId);
         }
     }
     // LISTENERS
@@ -362,9 +421,9 @@ class VoiceConnectionService {
     /**
      * Full cleanup for a guild
      */
-    cleanup(guildId: string): void {
-        this.clearInactivityTimer(guildId);
-        this.stopVCMonitor(guildId);
+    async cleanup(guildId: string): Promise<void> {
+        await this.clearInactivityTimer(guildId);
+        await this.stopVCMonitor(guildId);
         this.unbindPlayerEvents(guildId);
         queueService.destroy(guildId);
         lavalinkService.destroyPlayer(guildId);
@@ -374,17 +433,23 @@ class VoiceConnectionService {
      * Shutdown all connections
      */
     shutdownAll(): void {
-        // Clear all timers
-        for (const [, timer] of this.inactivityTimers) {
+        // Stop global inactivity checker
+        if (this.inactivityCheckerInterval) {
+            clearInterval(this.inactivityCheckerInterval);
+            this.inactivityCheckerInterval = null;
+        }
+        
+        // Clear all local timers
+        for (const [, timer] of this.localInactivityTimers) {
             clearTimeout(timer);
         }
-        this.inactivityTimers.clear();
+        this.localInactivityTimers.clear();
 
-        // Clear all monitors
-        for (const [, interval] of this.vcMonitorIntervals) {
+        // Clear all local monitors
+        for (const [, interval] of this.localVCMonitorIntervals) {
             clearInterval(interval);
         }
-        this.vcMonitorIntervals.clear();
+        this.localVCMonitorIntervals.clear();
 
         // Clear bound guilds
         this.boundGuilds.clear();
@@ -398,8 +463,8 @@ class VoiceConnectionService {
             isConnected: this.isConnected(guildId),
             voiceChannelId: this.getVoiceChannelId(guildId),
             eventsBound: this.areEventsBound(guildId),
-            hasInactivityTimer: this.inactivityTimers.has(guildId),
-            hasVCMonitor: this.vcMonitorIntervals.has(guildId)
+            hasInactivityTimer: this.localInactivityTimers.has(guildId),
+            hasVCMonitor: this.localVCMonitorIntervals.has(guildId)
         };
     }
 }

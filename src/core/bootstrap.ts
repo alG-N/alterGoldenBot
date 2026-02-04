@@ -76,8 +76,9 @@ export async function bootstrap(client: Client, _options: Record<string, unknown
         // 2. Initialize Redis (optional - graceful degradation)
         results.timings.redis = await initWithTiming('Redis', async () => {
             try {
-                const redisCache = require('../services/RedisCache');
-                await redisCache.initialize();
+                const redisCache = require('../services/guild/RedisCache');
+                const instance = redisCache.default || redisCache;
+                await instance.initialize?.();
                 return { connected: true };
             } catch (error) {
                 logger.warn('Bootstrap', `Redis unavailable: ${(error as Error).message}. Using fallback.`);
@@ -176,9 +177,10 @@ export async function healthCheck(): Promise<HealthStatus> {
     
     // Redis health
     try {
-        const redis = require('../services/RedisCache');
-        if (redis.isConnected) {
-            await redis.ping();
+        const cacheService = require('../cache/CacheService');
+        const instance = cacheService.default || cacheService;
+        const stats = instance.getStats?.();
+        if (stats?.redisConnected) {
             health.services.redis = { status: 'healthy' };
         } else {
             health.services.redis = { status: 'disconnected' };

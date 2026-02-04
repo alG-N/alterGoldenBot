@@ -5,21 +5,47 @@
  * Includes graceful degradation with write queue for resilience
  * @module database/postgres
  */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PostgresDatabase = exports.TRANSIENT_ERROR_CODES = exports.ALLOWED_TABLES = void 0;
 exports.validateTable = validateTable;
 exports.validateIdentifier = validateIdentifier;
 const pg_1 = require("pg");
+const GracefulDegradation_js_1 = __importStar(require("../core/GracefulDegradation.js"));
 // Use require for internal modules to avoid circular dependency
 const logger = require('../core/Logger');
-// Lazy-load to avoid circular dependency
-let gracefulDegradation = null;
-const getGracefulDegradation = () => {
-    if (!gracefulDegradation) {
-        gracefulDegradation = require('../core/GracefulDegradation').default;
-    }
-    return gracefulDegradation;
-};
 // TYPES & INTERFACES
 /**
  * Allowed table names (whitelist for SQL injection prevention)
@@ -143,10 +169,9 @@ class PostgresDatabase {
             this.isConnected = true;
             logger.success('PostgreSQL', 'Connected to database');
             // Register with graceful degradation
-            const gd = getGracefulDegradation();
-            gd.initialize();
-            gd.registerFallback('database', async () => null);
-            gd.markHealthy('database');
+            GracefulDegradation_js_1.default.initialize();
+            GracefulDegradation_js_1.default.registerFallback('database', async () => null);
+            GracefulDegradation_js_1.default.markHealthy('database');
             // Start write queue processor
             this._startWriteQueueProcessor();
         }
@@ -459,8 +484,7 @@ class PostgresDatabase {
         this.failureCount++;
         logger.error('PostgreSQL', `Connection error (${this.failureCount}/${this.maxFailures}): ${error.message}`);
         if (this.failureCount >= this.maxFailures) {
-            const gd = getGracefulDegradation();
-            gd.markUnavailable('database', 'Too many connection failures');
+            GracefulDegradation_js_1.default.markUnavailable('database', 'Too many connection failures');
             this.isConnected = false;
         }
     }
@@ -480,10 +504,12 @@ class PostgresDatabase {
     _startWriteQueueProcessor() {
         this._writeQueueProcessor = setInterval(async () => {
             try {
-                const gd = getGracefulDegradation();
-                const state = gd.getServiceState('database');
-                if (state === 'healthy' && this.isConnected) {
-                    await gd.processWriteQueue('database');
+                const state = GracefulDegradation_js_1.default.getServiceState('database');
+                // Queue processing happens automatically when service becomes healthy
+                // This is just for monitoring - actual processing is event-driven
+                if (state === GracefulDegradation_js_1.ServiceState.HEALTHY && this.isConnected) {
+                    // Queue is processed automatically by GracefulDegradation
+                    // when markHealthy is called
                 }
             }
             catch (error) {
@@ -495,21 +521,15 @@ class PostgresDatabase {
      * Queue a write operation for later execution
      */
     async queueWrite(operation, params) {
-        const gd = getGracefulDegradation();
-        await gd.queueWrite('database', {
-            operation,
-            params,
-            timestamp: Date.now()
-        });
+        GracefulDegradation_js_1.default.queueWrite('database', operation, params);
         logger.warn('PostgreSQL', `Queued ${operation} for later execution`);
     }
     /**
      * Safe insert with graceful degradation
      */
     async safeInsert(table, data) {
-        const gd = getGracefulDegradation();
-        const state = gd.getServiceState('database');
-        if (state === 'unavailable' || !this.isConnected) {
+        const state = GracefulDegradation_js_1.default.getServiceState('database');
+        if (state === GracefulDegradation_js_1.ServiceState.UNAVAILABLE || !this.isConnected) {
             await this.queueWrite('insert', { table, data });
             return { queued: true, operation: 'insert', table };
         }
@@ -519,9 +539,8 @@ class PostgresDatabase {
      * Safe update with graceful degradation
      */
     async safeUpdate(table, data, where) {
-        const gd = getGracefulDegradation();
-        const state = gd.getServiceState('database');
-        if (state === 'unavailable' || !this.isConnected) {
+        const state = GracefulDegradation_js_1.default.getServiceState('database');
+        if (state === GracefulDegradation_js_1.ServiceState.UNAVAILABLE || !this.isConnected) {
             await this.queueWrite('update', { table, data, where });
             return { queued: true, operation: 'update', table };
         }
@@ -531,9 +550,8 @@ class PostgresDatabase {
      * Safe delete with graceful degradation
      */
     async safeDelete(table, where) {
-        const gd = getGracefulDegradation();
-        const state = gd.getServiceState('database');
-        if (state === 'unavailable' || !this.isConnected) {
+        const state = GracefulDegradation_js_1.default.getServiceState('database');
+        if (state === GracefulDegradation_js_1.ServiceState.UNAVAILABLE || !this.isConnected) {
             await this.queueWrite('delete', { table, where });
             return { queued: true, operation: 'delete', table };
         }
@@ -543,15 +561,14 @@ class PostgresDatabase {
      * Get database status
      */
     getStatus() {
-        const gd = getGracefulDegradation();
-        const state = gd.getServiceState('database') || 'unknown';
-        const writeQueueSize = gd.writeQueues?.get('database')?.length || 0;
+        const state = GracefulDegradation_js_1.default.getServiceState('database');
+        const stateString = state ? state.toLowerCase() : 'unknown';
         return {
             isConnected: this.isConnected,
-            state,
+            state: stateString,
             failureCount: this.failureCount,
             maxFailures: this.maxFailures,
-            pendingWrites: writeQueueSize,
+            pendingWrites: 0, // Write queue is internal to GracefulDegradation
             readReplica: {
                 enabled: this.readReplicaEnabled,
                 host: process.env.DB_READ_HOST || null,

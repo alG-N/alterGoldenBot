@@ -93,11 +93,9 @@ class PlaybackEventHandler {
      * Bind global event handlers
      */
     private _bindGlobalHandlers(): void {
-        // Track end - handle queue progression
-        musicEventBus.subscribe(MusicEvents.TRACK_END, async (data) => {
-            await this._handleTrackEnd(data as EventData);
-        });
-
+        // NOTE: TRACK_END is handled by MusicFacade.bindPlayerEvents() to avoid double handling
+        // Do NOT subscribe to TRACK_END here as it causes race conditions and double-skipping
+        
         // Track error - skip to next
         musicEventBus.subscribe(MusicEvents.TRACK_ERROR, async (data) => {
             await this._handleTrackError(data as EventData);
@@ -215,6 +213,14 @@ class PlaybackEventHandler {
      */
     private async _handleTrackError(data: EventData): Promise<void> {
         const { guildId, error } = data;
+        
+        // Check if we're replacing a track - if so, ignore the error
+        const queue = musicCache.getQueue(guildId) as any;
+        if (queue?.isReplacing) {
+            console.log(`[PlaybackEventHandler] Ignoring track error during replacement in guild ${guildId}`);
+            return;
+        }
+        
         console.error(`[PlaybackEventHandler] Track error in guild ${guildId}:`, error);
 
         const { playbackService } = this.services;
@@ -509,13 +515,28 @@ class PlaybackEventHandler {
         const { playbackService, queueService, voiceService } = this.services;
         if (!playbackService) throw new Error('PlaybackService not available');
 
+        // Set replacing flag if there's a current track
+        const queue = musicCache.getQueue(guildId) as any;
+        const hadCurrentTrack = !!queueService?.getCurrentTrack(guildId);
+        if (hadCurrentTrack && queue) {
+            queue.isReplacing = true;
+        }
+
         queueService?.setCurrentTrack(guildId, track);
         
         const player = playbackService.getPlayer(guildId);
         if (!player) throw new Error('NO_PLAYER');
         if (!track?.track?.encoded) throw new Error('INVALID_TRACK');
 
-        await player.playTrack({ track: { encoded: track.track.encoded } });
+        try {
+            await player.playTrack({ track: { encoded: track.track.encoded } });
+        } finally {
+            // Clear replacing flag after a delay
+            if (queue) {
+                setTimeout(() => { queue.isReplacing = false; }, 1000);
+            }
+        }
+        
         voiceService?.clearInactivityTimer(guildId);
 
         return track;

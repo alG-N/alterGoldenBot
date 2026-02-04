@@ -5,7 +5,7 @@
  */
 
 import type { GuildMember, Snowflake, Role } from 'discord.js';
-import redisCache from './RedisCache.js';
+import cacheService from '../../cache/CacheService.js';
 
 // Use require for CommonJS database module
 const adminDB = require('../../database/admin.js') as {
@@ -93,7 +93,7 @@ export const DEFAULT_GUILD_SETTINGS: GuildSettings = {
  */
 export async function getGuildSettings(guildId: Snowflake): Promise<GuildSettings> {
     // Check Redis cache first
-    const cached = await redisCache.getGuildSettings<GuildSettings>(guildId);
+    const cached = await cacheService.getGuildSettings<GuildSettings>(guildId);
     if (cached) {
         return { ...DEFAULT_GUILD_SETTINGS, ...cached };
     }
@@ -107,14 +107,14 @@ export async function getGuildSettings(guildId: Snowflake): Promise<GuildSetting
         
         if (dbSettings) {
             const settings: GuildSettings = { ...DEFAULT_GUILD_SETTINGS, ...dbSettings };
-            await redisCache.setGuildSettings(guildId, settings);
+            await cacheService.setGuildSettings(guildId, settings);
             return settings;
         }
 
         // Create default settings if none exist
         const defaultSettings: GuildSettings = { ...DEFAULT_GUILD_SETTINGS, guild_id: guildId };
         await adminDB.upsert('guild_settings', { guild_id: guildId }, 'guild_id');
-        await redisCache.setGuildSettings(guildId, defaultSettings);
+        await cacheService.setGuildSettings(guildId, defaultSettings);
         return defaultSettings;
     } catch (error) {
         console.error('[GuildSettings] Error getting settings:', (error as Error).message);
@@ -131,7 +131,7 @@ export async function updateGuildSettings(
 ): Promise<boolean> {
     try {
         await adminDB.update('guild_settings', updates as Record<string, unknown>, { guild_id: guildId });
-        await redisCache.invalidateGuildSettings(guildId);
+        await cacheService.invalidateGuildSettings(guildId);
         return true;
     } catch (error) {
         console.error('[GuildSettings] Error updating settings:', (error as Error).message);
@@ -271,7 +271,7 @@ export function isServerOwner(member: GuildMember): boolean {
  * Clear cached settings for a guild
  */
 export async function clearCache(guildId: Snowflake): Promise<void> {
-    await redisCache.invalidateGuildSettings(guildId);
+    await cacheService.invalidateGuildSettings(guildId);
 }
 // EXPORTS
 export default {

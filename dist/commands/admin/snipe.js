@@ -136,15 +136,20 @@ class SnipeCommand extends BaseCommand_js_1.BaseCommand {
             // Get deleted messages from SnipeService
             let messages = [];
             try {
-                const { SnipeService } = require('../../services');
+                const { snipeService } = require('../../services');
+                if (!snipeService) {
+                    await this.errorReply(interaction, 'SnipeService is not available.');
+                    return;
+                }
                 if (targetUser) {
-                    messages = SnipeService.getDeletedMessagesByUser?.(interaction.guild.id, targetUser.id, effectiveCount) || [];
+                    messages = snipeService.getDeletedMessagesByUser?.(interaction.guild.id, targetUser.id, effectiveCount) || [];
                 }
                 else {
-                    messages = SnipeService.getDeletedMessages?.(interaction.guild.id, effectiveCount, targetChannel.id) || [];
+                    messages = snipeService.getDeletedMessages?.(interaction.guild.id, effectiveCount, targetChannel.id) || [];
                 }
             }
-            catch {
+            catch (e) {
+                console.error('[Snipe] Service import error:', e);
                 await this.errorReply(interaction, 'SnipeService is not available.');
                 return;
             }

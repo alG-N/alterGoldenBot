@@ -16,7 +16,7 @@
  * - src/services/    - Application services
  *
  * @author alterGolden Team
- * @version 4.0.0
+ * @version 4.1.0
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -27,7 +27,10 @@ require("dotenv/config");
 const discord_js_1 = require("discord.js");
 // Core utilities (from src/core)
 const index_js_1 = require("./core/index.js");
-// Services
+// DI Container & Service Registration
+const container_js_1 = __importDefault(require("./container.js"));
+const services_js_1 = require("./bootstrap/services.js");
+// Services (resolved via container after registration)
 const index_js_2 = require("./services/index.js");
 const ShardBridge_js_1 = __importDefault(require("./services/guild/ShardBridge.js"));
 // Configuration
@@ -35,6 +38,11 @@ const index_js_3 = require("./config/index.js");
 // Database (PostgreSQL)
 const admin_js_1 = require("./database/admin.js");
 const postgres_js_1 = __importDefault(require("./database/postgres.js"));
+// Services resolved from container (set during start())
+let commandReg;
+let eventReg;
+let redisCache;
+let cacheService;
 // APPLICATION INITIALIZATION
 class AlterGoldenBot {
     client;
@@ -49,18 +57,20 @@ class AlterGoldenBot {
      */
     async start() {
         try {
-            index_js_1.logger.info('Startup', 'Initializing alterGolden v4.0...');
+            index_js_1.logger.info('Startup', 'Initializing alterGolden v4.1...');
             // Initialize Sentry error tracking first
             index_js_1.sentry.initialize({
-                release: '4.0.0',
+                release: '4.1.0',
                 tags: { bot: 'alterGolden' }
             });
             // Start health check server
             this.startHealthServer();
             // Initialize database (PostgreSQL)
             await (0, admin_js_1.initializeDatabase)();
-            // Initialize Redis cache (optional, falls back to in-memory)
-            await this.initializeCache();
+            // Register services with DI container
+            (0, services_js_1.registerServices)();
+            // Boot core services (this initializes Redis)
+            await this.bootServices();
             // Load commands
             this.loadCommands();
             // Load events
@@ -114,6 +124,34 @@ class AlterGoldenBot {
         this.healthServer = index_js_1.health.startHealthServer(port);
     }
     /**
+     * Boot services via DI container
+     */
+    async bootServices() {
+        index_js_1.logger.info('Container', 'Booting services via DI container...');
+        // Resolve core services from container
+        redisCache = container_js_1.default.resolve('redisCache');
+        cacheService = container_js_1.default.resolve('cacheService');
+        commandReg = container_js_1.default.resolve('commandRegistry');
+        eventReg = container_js_1.default.resolve('eventRegistry');
+        // Initialize Redis
+        try {
+            const connected = await redisCache.initialize();
+            if (connected) {
+                // Connect unified CacheService to Redis
+                cacheService.setRedis(redisCache.client);
+                index_js_1.logger.info('Cache', 'Redis cache connected via container');
+            }
+            else {
+                index_js_1.logger.info('Cache', 'Using in-memory cache (Redis not available)');
+            }
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            index_js_1.logger.warn('Cache', `Redis initialization failed: ${message}`);
+        }
+        index_js_1.logger.info('Container', 'All services booted successfully');
+    }
+    /**
      * Register health checks for all services
      */
     registerHealthChecks() {
@@ -124,47 +162,30 @@ class AlterGoldenBot {
         index_js_1.health.registerDefaultChecks({
             client: this.client,
             database: postgres_js_1.default,
-            redis: index_js_2.redisCache,
-            lavalink: lavalinkService
+            redis: redisCache,
+            lavalink: lavalinkService,
+            cacheService: cacheService
         });
-    }
-    /**
-     * Initialize Redis cache (optional)
-     */
-    async initializeCache() {
-        try {
-            const connected = await index_js_2.redisCache.initialize();
-            if (connected) {
-                index_js_1.logger.info('Cache', 'Redis cache connected');
-            }
-            else {
-                index_js_1.logger.info('Cache', 'Using in-memory cache (Redis not available)');
-            }
-        }
-        catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            index_js_1.logger.warn('Cache', `Redis initialization failed: ${message}`);
-        }
     }
     /**
      * Load all commands
      */
     loadCommands() {
         // Load commands from feature modules AND presentation layer
-        index_js_2.commandRegistry.loadCommands({ useLegacy: false, useModules: true });
+        commandReg.loadCommands({ useLegacy: false, useModules: true });
         // Attach to client for easy access
-        this.client.commands = index_js_2.commandRegistry.commands;
-        index_js_1.logger.info('Commands', `Loaded ${index_js_2.commandRegistry.size} commands`);
+        this.client.commands = commandReg.commands;
+        index_js_1.logger.info('Commands', `Loaded ${commandReg.size} commands`);
     }
     /**
      * Load all events
      */
     loadEvents() {
         // Load events (no legacy mode)
-        index_js_2.eventRegistry.loadEvents({ useLegacy: false });
+        eventReg.loadEvents({ useLegacy: false });
         // Register with client
-        index_js_2.eventRegistry.registerWithClient(this.client);
-        index_js_1.logger.info('Events', `Loaded ${index_js_2.eventRegistry.size} events`);
+        eventReg.registerWithClient(this.client);
+        index_js_1.logger.info('Events', `Loaded ${eventReg.size} events`);
     }
     /**
      * Setup the main interaction listener
@@ -174,26 +195,24 @@ class AlterGoldenBot {
             try {
                 // Handle slash commands
                 if (interaction.isChatInputCommand()) {
-                    const command = index_js_2.commandRegistry.get(interaction.commandName);
+                    const command = commandReg.get(interaction.commandName);
                     if (!command) {
                         index_js_1.logger.warn('Interaction', `Unknown command: ${interaction.commandName}`);
                         return;
                     }
-                    // Auto-defer if command has deferReply enabled
-                    if (command.deferReply && !interaction.replied && !interaction.deferred) {
-                        await interaction.deferReply({ ephemeral: command.ephemeral ?? false });
-                    }
-                    // Execute command
-                    if (command.run) {
-                        await command.run(interaction);
-                    }
-                    else if (command.execute) {
+                    // Execute command - always use execute() for metrics tracking
+                    // BaseCommand.execute() handles defer, cooldown, validation, and metrics
+                    if (command.execute) {
                         await command.execute(interaction);
+                    }
+                    else if (command.run) {
+                        // Fallback for legacy commands without execute()
+                        await command.run(interaction);
                     }
                 }
                 // Handle autocomplete
                 else if (interaction.isAutocomplete()) {
-                    const command = index_js_2.commandRegistry.get(interaction.commandName);
+                    const command = commandReg.get(interaction.commandName);
                     if (command?.autocomplete) {
                         await command.autocomplete(interaction);
                     }
@@ -202,7 +221,7 @@ class AlterGoldenBot {
                 else if (interaction.isButton()) {
                     // Button handling logic
                     const [commandName] = interaction.customId.split('_');
-                    const command = index_js_2.commandRegistry.get(commandName);
+                    const command = commandReg.get(commandName);
                     if (command?.handleButton) {
                         await command.handleButton(interaction);
                     }
@@ -210,8 +229,8 @@ class AlterGoldenBot {
                 // Handle modals
                 else if (interaction.isModalSubmit()) {
                     const [commandName] = interaction.customId.split('_');
-                    const command = (index_js_2.commandRegistry.getModalHandler(commandName) ||
-                        index_js_2.commandRegistry.get(commandName));
+                    const command = (commandReg.getModalHandler(commandName) ||
+                        commandReg.get(commandName));
                     if (command?.handleModal) {
                         await command.handleModal(interaction);
                     }
@@ -219,7 +238,7 @@ class AlterGoldenBot {
                 // Handle select menus
                 else if (interaction.isStringSelectMenu()) {
                     const [commandName] = interaction.customId.split('_');
-                    const command = index_js_2.commandRegistry.get(commandName);
+                    const command = commandReg.get(commandName);
                     if (command?.handleSelectMenu) {
                         await command.handleSelectMenu(interaction);
                     }
@@ -277,7 +296,7 @@ class AlterGoldenBot {
      */
     async deployCommands() {
         try {
-            const commands = index_js_2.commandRegistry.toJSON();
+            const commands = commandReg.toJSON();
             index_js_1.logger.info('Deploy', `Deploying ${commands.length} commands...`);
             await this.rest.put(discord_js_1.Routes.applicationCommands(index_js_3.bot.clientId), { body: commands });
             index_js_1.logger.info('Deploy', `Successfully deployed ${commands.length} commands!`);

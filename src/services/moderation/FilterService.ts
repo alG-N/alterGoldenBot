@@ -67,33 +67,27 @@ export interface FilterMatch {
     severity: number;
 }
 
-interface CacheEntry {
-    filters: Filter[];
-    timestamp: number;
-}
-// CACHE
-const filterCache: Map<string, CacheEntry> = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+import cacheService from '../../cache/CacheService.js';
+
+const CACHE_TTL_SECONDS = 300; // 5 minutes
 // CORE FUNCTIONS
 /**
- * Get filters for a guild (with caching)
+ * Get filters for a guild (with caching via Redis)
  */
 export async function getFilters(guildId: string): Promise<Filter[]> {
-    const cached = filterCache.get(guildId);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-        return cached.filters;
-    }
-
-    const filters = await FilterRepository.getAll(guildId) as Filter[];
-    filterCache.set(guildId, { filters, timestamp: Date.now() });
-    return filters;
+    return cacheService.getOrSet<Filter[]>(
+        'guild',
+        `filters:${guildId}`,
+        async () => FilterRepository.getAll(guildId) as Promise<Filter[]>,
+        CACHE_TTL_SECONDS
+    );
 }
 
 /**
  * Invalidate cache for a guild
  */
-export function invalidateCache(guildId: string): void {
-    filterCache.delete(guildId);
+export async function invalidateCache(guildId: string): Promise<void> {
+    await cacheService.delete('guild', `filters:${guildId}`);
 }
 
 /**
@@ -204,7 +198,7 @@ export async function checkMessage(guildId: string, content: string): Promise<Fi
  */
 export async function addFilter(data: Partial<Filter> & { guildId: string }): Promise<Filter> {
     const filter = await FilterRepository.add(data as Record<string, unknown>) as Filter;
-    invalidateCache(data.guildId);
+    await invalidateCache(data.guildId);
     return filter;
 }
 
@@ -217,7 +211,7 @@ export async function addFilters(
     createdBy: string
 ): Promise<number> {
     const count = await FilterRepository.addBulk(guildId, filters, createdBy);
-    invalidateCache(guildId);
+    await invalidateCache(guildId);
     return count;
 }
 
@@ -226,7 +220,7 @@ export async function addFilters(
  */
 export async function removeFilter(guildId: string, pattern: string): Promise<boolean> {
     const result = await FilterRepository.removeByPattern(guildId, pattern);
-    invalidateCache(guildId);
+    await invalidateCache(guildId);
     return result;
 }
 
@@ -235,7 +229,7 @@ export async function removeFilter(guildId: string, pattern: string): Promise<bo
  */
 export async function removeFilterById(id: number, guildId?: string): Promise<boolean> {
     const result = await FilterRepository.remove(id);
-    if (guildId) invalidateCache(guildId);
+    if (guildId) await invalidateCache(guildId);
     return result;
 }
 
@@ -251,7 +245,7 @@ export async function listFilters(guildId: string): Promise<Filter[]> {
  */
 export async function clearFilters(guildId: string): Promise<number> {
     const count = await FilterRepository.removeAll(guildId);
-    invalidateCache(guildId);
+    await invalidateCache(guildId);
     return count;
 }
 

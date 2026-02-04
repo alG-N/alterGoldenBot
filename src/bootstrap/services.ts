@@ -12,6 +12,7 @@ export interface DefaultInstances {
     cache: unknown;
     lavalink: unknown;
     commandRegistry: unknown;
+    eventRegistry: unknown;
 }
 // Service Registration
 /**
@@ -19,7 +20,7 @@ export interface DefaultInstances {
  * Call this once during application startup
  */
 export function registerServices(): void {
-    logger.info('Services', 'Registering services...');
+    logger.info('Container', 'Registering services with DI container...');
     // CORE SERVICES
     // Database
     container.register('database', () => {
@@ -36,28 +37,14 @@ export function registerServices(): void {
     }, { tags: ['core', 'cache'] });
 
     // Unified Cache Service (recommended)
-    container.register('cacheService', (c) => {
+    container.register('cacheService', () => {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { CacheService } = require('../cache/CacheService');
-        const cacheService = new CacheService();
-        
-        // Connect to Redis if available
-        const redis = c.resolve<{ isConnected?: boolean; client?: unknown }>('redisCache');
-        if (redis.isConnected && redis.client) {
-            cacheService.setRedis(redis.client);
-        }
-        
-        return cacheService;
+        return new CacheService();
     }, { tags: ['core', 'cache'] });
 
     // Legacy alias for backward compatibility
     container.register('cache', (c) => c.resolve('redisCache'), { tags: ['core'] });
-    // MUSIC SERVICES (when enabled)
-    container.register('lavalink', () => {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { LavalinkService } = require('../services/music/LavalinkService');
-        return new LavalinkService();
-    }, { tags: ['music'] });
     // REGISTRY SERVICES
     container.register('commandRegistry', () => {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -65,7 +52,38 @@ export function registerServices(): void {
         return new CommandRegistry();
     }, { tags: ['core', 'registry'] });
 
-    logger.info('Services', 'All services registered');
+    container.register('eventRegistry', () => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { EventRegistry } = require('../services/registry/EventRegistry');
+        return new EventRegistry();
+    }, { tags: ['core', 'registry'] });
+    // MUSIC SERVICES (when enabled)
+    container.register('lavalink', () => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { LavalinkService } = require('../services/music/LavalinkService');
+        return new LavalinkService();
+    }, { tags: ['music'] });
+
+    // API SERVICES (for proper cleanup interval management)
+    container.register('wikipediaService', () => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { WikipediaService } = require('../services/api/wikipediaService');
+        return new WikipediaService();
+    }, { tags: ['api'] });
+
+    container.register('googleService', () => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { GoogleService } = require('../services/api/googleService');
+        return new GoogleService();
+    }, { tags: ['api'] });
+
+    container.register('fandomService', () => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { FandomService } = require('../services/api/fandomService');
+        return new FandomService();
+    }, { tags: ['api'] });
+
+    logger.info('Container', 'All services registered');
 }
 
 /**
@@ -83,6 +101,8 @@ export function getDefaultInstances(): DefaultInstances {
         lavalink: require('../services/music/LavalinkService'),
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         commandRegistry: require('../services/registry/CommandRegistry'),
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        eventRegistry: require('../services/registry/EventRegistry'),
     };
 }
 
@@ -97,7 +117,7 @@ export function registerDefaultInstances(): void {
         container.instance(name, instance);
     }
     
-    logger.info('Services', 'Default instances registered');
+    logger.info('Container', 'Default instances registered');
 }
 
 export default {

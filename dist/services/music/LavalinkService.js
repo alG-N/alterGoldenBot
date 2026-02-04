@@ -46,6 +46,7 @@ const shoukaku_1 = require("shoukaku");
 const lavalinkConfig = __importStar(require("../../config/features/lavalink.js"));
 const CircuitBreakerRegistry_js_1 = __importDefault(require("../../core/CircuitBreakerRegistry.js"));
 const GracefulDegradation_js_1 = __importDefault(require("../../core/GracefulDegradation.js"));
+const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
 // LAVALINK SERVICE CLASS
 class LavalinkService {
     shoukaku = null;
@@ -53,8 +54,7 @@ class LavalinkService {
     isReady = false;
     readyNodes = new Set();
     circuitBreaker = null;
-    /** Preserved queue states when Lavalink goes down */
-    preservedQueues = new Map();
+    // Note: preservedQueues moved to Redis via CacheService for shard-safety
     /**
      * Pre-initialize Shoukaku with Discord client
      */
@@ -494,21 +494,25 @@ class LavalinkService {
     }
     /**
      * Preserve all active queues when Lavalink goes down
+     * Now uses Redis for shard-safety
      */
-    _preserveAllQueues() {
+    async _preserveAllQueues() {
         if (!this.shoukaku)
             return;
+        let preservedCount = 0;
         for (const [guildId, player] of this.shoukaku.players) {
             try {
-                // Preserve current state
-                this.preservedQueues.set(guildId, {
+                // Preserve current state to Redis
+                const state = {
                     timestamp: Date.now(),
                     track: player.track,
                     position: player.position,
                     paused: player.paused,
                     volume: player.volume,
                     // Note: Queue itself is managed by QueueService, not LavalinkService
-                });
+                };
+                await CacheService_js_1.default.preserveQueueState(guildId, state);
+                preservedCount++;
                 console.log(`[Lavalink] 📦 Preserved state for guild ${guildId}`);
             }
             catch (error) {
@@ -516,39 +520,51 @@ class LavalinkService {
                 console.error(`[Lavalink] Failed to preserve queue for ${guildId}:`, err.message);
             }
         }
-        console.log(`[Lavalink] 📦 Preserved ${this.preservedQueues.size} guild states`);
+        console.log(`[Lavalink] 📦 Preserved ${preservedCount} guild states to Redis`);
     }
     /**
      * Restore preserved queues when Lavalink comes back
+     * Now reads from Redis for shard-safety
      */
     async _restorePreservedQueues() {
-        if (this.preservedQueues.size === 0)
-            return;
-        const staleThreshold = 30 * 60 * 1000; // 30 minutes
-        const now = Date.now();
-        for (const [guildId, state] of this.preservedQueues) {
-            // Skip stale queues
-            if (now - state.timestamp > staleThreshold) {
-                console.log(`[Lavalink] ⏰ Skipping stale queue for guild ${guildId}`);
-                this.preservedQueues.delete(guildId);
-                continue;
+        try {
+            const guildIds = await CacheService_js_1.default.getAllPreservedQueueGuildIds();
+            if (guildIds.length === 0)
+                return;
+            const staleThreshold = 30 * 60 * 1000; // 30 minutes
+            const now = Date.now();
+            for (const guildId of guildIds) {
+                const state = await CacheService_js_1.default.getPreservedQueueState(guildId);
+                if (!state)
+                    continue;
+                // Skip stale queues
+                if (now - state.timestamp > staleThreshold) {
+                    console.log(`[Lavalink] ⏰ Skipping stale queue for guild ${guildId}`);
+                    await CacheService_js_1.default.clearPreservedQueueState(guildId);
+                    continue;
+                }
+                // Emit event for QueueService to handle restoration
+                // The actual restoration will be handled by the music event system
+                console.log(`[Lavalink] 🔄 Queue restoration available for guild ${guildId}`);
             }
-            // Emit event for QueueService to handle restoration
-            // The actual restoration will be handled by the music event system
-            console.log(`[Lavalink] 🔄 Queue restoration available for guild ${guildId}`);
+        }
+        catch (error) {
+            console.error('[Lavalink] Error restoring preserved queues:', error.message);
         }
     }
     /**
      * Get preserved queue state for a guild
+     * Now reads from Redis for shard-safety
      */
-    getPreservedState(guildId) {
-        return this.preservedQueues.get(guildId) || null;
+    async getPreservedState(guildId) {
+        return CacheService_js_1.default.getPreservedQueueState(guildId);
     }
     /**
      * Clear preserved state for a guild
+     * Now clears from Redis for shard-safety
      */
-    clearPreservedState(guildId) {
-        this.preservedQueues.delete(guildId);
+    async clearPreservedState(guildId) {
+        await CacheService_js_1.default.clearPreservedQueueState(guildId);
     }
     /**
      * Check if Lavalink is available with graceful degradation

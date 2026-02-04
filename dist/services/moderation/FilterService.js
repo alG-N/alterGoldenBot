@@ -4,6 +4,9 @@
  * Handles word filtering and content scanning
  * @module services/moderation/FilterService
  */
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getFilters = getFilters;
 exports.invalidateCache = invalidateCache;
@@ -25,27 +28,20 @@ const FilterRepository = require('../../repositories/moderation/FilterRepository
 const filterConfigModule = require('../../config/features/moderation/filters.js');
 // Handle both ESM default export and direct export
 const filterConfig = filterConfigModule.default || filterConfigModule;
-// CACHE
-const filterCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
+const CACHE_TTL_SECONDS = 300; // 5 minutes
 // CORE FUNCTIONS
 /**
- * Get filters for a guild (with caching)
+ * Get filters for a guild (with caching via Redis)
  */
 async function getFilters(guildId) {
-    const cached = filterCache.get(guildId);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-        return cached.filters;
-    }
-    const filters = await FilterRepository.getAll(guildId);
-    filterCache.set(guildId, { filters, timestamp: Date.now() });
-    return filters;
+    return CacheService_js_1.default.getOrSet('guild', `filters:${guildId}`, async () => FilterRepository.getAll(guildId), CACHE_TTL_SECONDS);
 }
 /**
  * Invalidate cache for a guild
  */
-function invalidateCache(guildId) {
-    filterCache.delete(guildId);
+async function invalidateCache(guildId) {
+    await CacheService_js_1.default.delete('guild', `filters:${guildId}`);
 }
 /**
  * Normalize text for matching
@@ -139,7 +135,7 @@ async function checkMessage(guildId, content) {
  */
 async function addFilter(data) {
     const filter = await FilterRepository.add(data);
-    invalidateCache(data.guildId);
+    await invalidateCache(data.guildId);
     return filter;
 }
 /**
@@ -147,7 +143,7 @@ async function addFilter(data) {
  */
 async function addFilters(guildId, filters, createdBy) {
     const count = await FilterRepository.addBulk(guildId, filters, createdBy);
-    invalidateCache(guildId);
+    await invalidateCache(guildId);
     return count;
 }
 /**
@@ -155,7 +151,7 @@ async function addFilters(guildId, filters, createdBy) {
  */
 async function removeFilter(guildId, pattern) {
     const result = await FilterRepository.removeByPattern(guildId, pattern);
-    invalidateCache(guildId);
+    await invalidateCache(guildId);
     return result;
 }
 /**
@@ -164,7 +160,7 @@ async function removeFilter(guildId, pattern) {
 async function removeFilterById(id, guildId) {
     const result = await FilterRepository.remove(id);
     if (guildId)
-        invalidateCache(guildId);
+        await invalidateCache(guildId);
     return result;
 }
 /**
@@ -178,7 +174,7 @@ async function listFilters(guildId) {
  */
 async function clearFilters(guildId) {
     const count = await FilterRepository.removeAll(guildId);
-    invalidateCache(guildId);
+    await invalidateCache(guildId);
     return count;
 }
 /**
