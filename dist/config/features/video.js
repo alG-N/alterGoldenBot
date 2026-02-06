@@ -22,7 +22,7 @@ exports.mobile = {
     enabled: true,
     videoCodec: 'libx264',
     audioCodec: 'aac',
-    crf: '28',
+    crf: '23',
     preset: 'ultrafast',
     useHardwareAccel: true,
     hardwareEncoders: ['h264_nvenc', 'h264_qsv', 'h264_vaapi']

@@ -6,7 +6,6 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isValidQueue = exports.isValidTrack = exports.isYouTubeUrl = exports.isValidUrl = exports.validators = void 0;
-exports.formatDuration = formatDuration;
 exports.formatTime = formatTime;
 exports.formatSecondsToTime = formatSecondsToTime;
 exports.parseDuration = parseDuration;
@@ -17,26 +16,6 @@ exports.formatNumber = formatNumber;
 exports.truncateText = truncateText;
 exports.formatTimestamp = formatTimestamp;
 // TIME UTILITIES
-/**
- * Format milliseconds to duration string
- * @param ms - Milliseconds
- * @returns Formatted duration (e.g., "1h 30m 45s")
- */
-function formatDuration(ms) {
-    if (!ms || ms <= 0)
-        return '0s';
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const parts = [];
-    if (hours > 0)
-        parts.push(`${hours}h`);
-    if (minutes % 60 > 0)
-        parts.push(`${minutes % 60}m`);
-    if (seconds % 60 > 0 && hours === 0)
-        parts.push(`${seconds % 60}s`);
-    return parts.join(' ') || '0s';
-}
 /**
  * Format milliseconds to time string
  * @param ms - Milliseconds

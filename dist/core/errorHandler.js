@@ -142,10 +142,18 @@ function withErrorHandling(fn, options = {}) {
  * @param context - Context for error
  */
 async function withTimeout(fn, timeout, context = 'Operation') {
-    return Promise.race([
-        fn(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error(`${context} timed out after ${timeout}ms`)), timeout))
-    ]);
+    let timer;
+    try {
+        return await Promise.race([
+            fn(),
+            new Promise((_, reject) => {
+                timer = setTimeout(() => reject(new Error(`${context} timed out after ${timeout}ms`)), timeout);
+            })
+        ]);
+    }
+    finally {
+        clearTimeout(timer);
+    }
 }
 /**
  * Create error boundary for Discord interactions

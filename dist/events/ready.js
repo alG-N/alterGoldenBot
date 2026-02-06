@@ -17,6 +17,7 @@ const metrics_js_1 = require("../core/metrics.js");
 const CacheService_js_1 = __importDefault(require("../cache/CacheService.js"));
 // READY EVENT
 class ReadyEvent extends BaseEvent_js_1.BaseEvent {
+    _metricsInterval = null;
     constructor() {
         super({
             name: discord_js_1.Events.ClientReady,
@@ -57,10 +58,19 @@ class ReadyEvent extends BaseEvent_js_1.BaseEvent {
             metrics_js_1.redisConnectionStatus.set(stats.redisConnected ? 1 : 0);
         };
         collectMetrics();
-        setInterval(collectMetrics, 15000); // Update every 15s
+        this._metricsInterval = setInterval(collectMetrics, 15000); // Update every 15s
         // Log startup to Discord
         await Logger_js_1.default.logSystemEvent('Bot Started', `alterGolden is now online with ${client.guilds.cache.size} guilds`);
         Logger_js_1.default.success('Ready', '🚀 alterGolden is fully operational!');
+    }
+    /**
+     * Destroy - clear metrics interval for clean shutdown
+     */
+    destroy() {
+        if (this._metricsInterval) {
+            clearInterval(this._metricsInterval);
+            this._metricsInterval = null;
+        }
     }
 }
 exports.default = new ReadyEvent();

@@ -35,7 +35,7 @@ BEGIN
     END IF;
     
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'automod_settings' AND column_name = 'spam_mute_duration_ms') THEN
-        ALTER TABLE automod_settings ADD COLUMN spam_mute_duration_ms INTEGER DEFAULT 300000;
+        ALTER TABLE automod_settings ADD COLUMN spam_mute_duration_ms BIGINT DEFAULT 300000;
     END IF;
     
     -- Duplicate columns
@@ -146,7 +146,7 @@ BEGIN
     END IF;
     
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'automod_settings' AND column_name = 'raid_auto_unlock_ms') THEN
-        ALTER TABLE automod_settings ADD COLUMN raid_auto_unlock_ms INTEGER DEFAULT 300000;
+        ALTER TABLE automod_settings ADD COLUMN raid_auto_unlock_ms BIGINT DEFAULT 300000;
     END IF;
     
     -- Ignored columns
@@ -168,7 +168,7 @@ BEGIN
     END IF;
     
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'automod_settings' AND column_name = 'mute_duration') THEN
-        ALTER TABLE automod_settings ADD COLUMN mute_duration INTEGER DEFAULT 300000;
+        ALTER TABLE automod_settings ADD COLUMN mute_duration BIGINT DEFAULT 300000;
     END IF;
     
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'automod_settings' AND column_name = 'default_action') THEN

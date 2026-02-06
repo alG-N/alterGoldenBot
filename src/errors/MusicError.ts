@@ -23,15 +23,11 @@ export type MusicErrorCode =
 
 /**
  * Base music error - use only for catch blocks or instanceof checks.
- * For throwing errors, prefer `Result.err(ErrorCodes.XXX)` pattern.
+ * @deprecated Prefer `Result.err(ErrorCodes.XXX)` pattern for new error flows.
  */
 export class MusicError extends AppError {
+    /** @deprecated Use `Result.err(ErrorCodes.XXX)` instead. */
     constructor(message: string, code: MusicErrorCode = 'MUSIC_ERROR') {
         super(message, code, 400);
     }
 }
-
-// CommonJS compatibility
-module.exports = {
-    MusicError,
-};

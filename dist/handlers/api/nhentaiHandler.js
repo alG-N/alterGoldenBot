@@ -11,6 +11,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.NHentaiHandler = void 0;
 const discord_js_1 = require("discord.js");
 const nhentaiRepository_1 = __importDefault(require("../../repositories/api/nhentaiRepository"));
+const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const getDefault = (mod) => mod.default || mod;
 const nhentaiService = getDefault(require('../../services/api/nhentaiService'));
@@ -23,32 +24,11 @@ const COLORS = {
 };
 // NHENTAI HANDLER CLASS
 class NHentaiHandler {
-    pageCache = new Map();
-    searchCache = new Map();
-    cacheExpiry = 600000; // 10 minutes
-    _cleanupInterval;
+    CACHE_NS = 'api';
+    SESSION_TTL = 600; // 10 minutes in seconds
+    _cleanupInterval = null;
     constructor() {
-        // Auto-cleanup every 5 minutes to prevent memory leaks
-        this._cleanupInterval = setInterval(() => this._cleanupExpiredSessions(), 300000);
-    }
-    _cleanupExpiredSessions() {
-        const now = Date.now();
-        let cleaned = 0;
-        for (const [userId, session] of this.pageCache) {
-            if (now > session.expiresAt) {
-                this.pageCache.delete(userId);
-                cleaned++;
-            }
-        }
-        for (const [userId, session] of this.searchCache) {
-            if (now > session.expiresAt) {
-                this.searchCache.delete(userId);
-                cleaned++;
-            }
-        }
-        if (cleaned > 0) {
-            console.log(`[NHentai] Cleaned ${cleaned} expired sessions`);
-        }
+        // Sessions are now managed by CacheService with Redis TTL — no local cleanup needed
     }
     /**
      * Create gallery info embed
@@ -309,49 +289,40 @@ class NHentaiHandler {
             .setTimestamp();
     }
     /**
-     * Cache management for page reading sessions
+     * Cache management for page reading sessions (shard-safe via CacheService)
      */
-    setPageSession(userId, gallery, currentPage = 1) {
-        this.pageCache.set(userId, {
+    async setPageSession(userId, gallery, currentPage = 1) {
+        await CacheService_js_1.default.set(this.CACHE_NS, `nhentai:page:${userId}`, {
             galleryId: gallery.id,
             gallery,
             currentPage,
             totalPages: gallery.num_pages,
-            expiresAt: Date.now() + this.cacheExpiry
-        });
+            expiresAt: Date.now() + this.SESSION_TTL * 1000
+        }, this.SESSION_TTL);
     }
-    getPageSession(userId) {
-        const session = this.pageCache.get(userId);
-        if (!session || Date.now() > session.expiresAt) {
-            this.pageCache.delete(userId);
-            return null;
-        }
-        return session;
+    async getPageSession(userId) {
+        return CacheService_js_1.default.get(this.CACHE_NS, `nhentai:page:${userId}`);
     }
-    updatePageSession(userId, currentPage) {
-        const session = this.pageCache.get(userId);
+    async updatePageSession(userId, currentPage) {
+        const session = await this.getPageSession(userId);
         if (session) {
             session.currentPage = currentPage;
-            session.expiresAt = Date.now() + this.cacheExpiry;
+            session.expiresAt = Date.now() + this.SESSION_TTL * 1000;
+            await CacheService_js_1.default.set(this.CACHE_NS, `nhentai:page:${userId}`, session, this.SESSION_TTL);
         }
     }
-    clearPageSession(userId) {
-        this.pageCache.delete(userId);
+    async clearPageSession(userId) {
+        await CacheService_js_1.default.delete(this.CACHE_NS, `nhentai:page:${userId}`);
     }
-    // Search session management
-    setSearchSession(userId, data) {
-        this.searchCache.set(userId, {
+    // Search session management (shard-safe via CacheService)
+    async setSearchSession(userId, data) {
+        await CacheService_js_1.default.set(this.CACHE_NS, `nhentai:search:${userId}`, {
             ...data,
-            expiresAt: Date.now() + this.cacheExpiry
-        });
+            expiresAt: Date.now() + this.SESSION_TTL * 1000
+        }, this.SESSION_TTL);
     }
-    getSearchSession(userId) {
-        const session = this.searchCache.get(userId);
-        if (!session || Date.now() > session.expiresAt) {
-            this.searchCache.delete(userId);
-            return null;
-        }
-        return session;
+    async getSearchSession(userId) {
+        return CacheService_js_1.default.get(this.CACHE_NS, `nhentai:search:${userId}`);
     }
     /**
      * Create search results embed
@@ -523,7 +494,7 @@ class NHentaiHandler {
                 }
                 case 'read': {
                     const galleryId = parts[2];
-                    const session = this.getPageSession(userId);
+                    const session = await this.getPageSession(userId);
                     let gallery = session?.gallery;
                     if (!gallery || gallery.id !== parseInt(galleryId)) {
                         const result = await nhentaiService.fetchGallery(galleryId);
@@ -535,7 +506,7 @@ class NHentaiHandler {
                             return;
                         }
                         gallery = result.data;
-                        this.setPageSession(userId, gallery, 1);
+                        await this.setPageSession(userId, gallery, 1);
                     }
                     const pageEmbed = this.createPageEmbed(gallery, 1);
                     const pageRows = this.createPageButtons(parseInt(galleryId), userId, 1, gallery.num_pages);
@@ -546,7 +517,7 @@ class NHentaiHandler {
                 case 'next':
                 case 'first':
                 case 'last': {
-                    const session = this.getPageSession(userId);
+                    const session = await this.getPageSession(userId);
                     if (!session) {
                         await interaction.editReply({
                             embeds: [this.createErrorEmbed('Session expired. Please start again.')],
@@ -563,7 +534,7 @@ class NHentaiHandler {
                         newPage = 1;
                     else if (action === 'last')
                         newPage = session.totalPages;
-                    this.updatePageSession(userId, newPage);
+                    await this.updatePageSession(userId, newPage);
                     const pageEmbed = this.createPageEmbed(session.gallery, newPage);
                     const pageRows = this.createPageButtons(session.galleryId, userId, newPage, session.totalPages);
                     await interaction.editReply({ embeds: [pageEmbed], components: pageRows });
@@ -587,7 +558,7 @@ class NHentaiHandler {
                 }
                 case 'fav': {
                     const galleryId = parts[2];
-                    const session = this.getPageSession(userId);
+                    const session = await this.getPageSession(userId);
                     let gallery = session?.gallery;
                     if (!gallery || gallery.id !== parseInt(galleryId)) {
                         const result = await nhentaiService.fetchGallery(galleryId);
@@ -614,7 +585,7 @@ class NHentaiHandler {
                 }
                 case 'sprev':
                 case 'snext': {
-                    const searchSession = this.getSearchSession(userId);
+                    const searchSession = await this.getSearchSession(userId);
                     if (!searchSession) {
                         await interaction.editReply({
                             embeds: [this.createErrorEmbed('Search session expired. Please search again.')],
@@ -633,7 +604,7 @@ class NHentaiHandler {
                         });
                         return;
                     }
-                    this.setSearchSession(userId, { ...searchSession, currentPage: newPage, results: searchResult.data.results });
+                    await this.setSearchSession(userId, { ...searchSession, currentPage: newPage, results: searchResult.data.results });
                     const embed = this.createSearchResultsEmbed(searchSession.query || '', searchResult.data, newPage, searchSession.sort || 'popular');
                     const rows = this.createSearchButtons(searchSession.query || '', searchResult.data, newPage, userId);
                     await interaction.editReply({ embeds: [embed], components: rows });
@@ -641,7 +612,7 @@ class NHentaiHandler {
                 }
                 case 'favpage': {
                     const direction = parts[2];
-                    const searchSession = this.getSearchSession(userId);
+                    const searchSession = await this.getSearchSession(userId);
                     const currentPage = searchSession?.favPage || 1;
                     const newPage = direction === 'prev'
                         ? Math.max(1, currentPage - 1)
@@ -653,7 +624,7 @@ class NHentaiHandler {
                     }
                     const favourites = await nhentaiRepository_1.default.getUserFavourites(userId, 10, (newPage - 1) * 10);
                     const rows = this.createFavouritesButtons(userId, newPage, totalPages, favourites);
-                    this.setSearchSession(userId, { ...searchSession, favPage: newPage });
+                    await this.setSearchSession(userId, { ...searchSession, favPage: newPage });
                     await interaction.editReply({ embeds: [embed], components: rows });
                     break;
                 }
@@ -695,13 +666,13 @@ class NHentaiHandler {
                     }
                     const favourites = await nhentaiRepository_1.default.getUserFavourites(userId, 10, 0);
                     const rows = this.createFavouritesButtons(userId, 1, totalPages, favourites);
-                    this.setSearchSession(userId, { favPage: 1, expiresAt: Date.now() + this.cacheExpiry });
+                    await this.setSearchSession(userId, { favPage: 1, expiresAt: Date.now() + this.SESSION_TTL * 1000 });
                     await interaction.editReply({ embeds: [embed], components: rows });
                     break;
                 }
                 case 'jump': {
                     const galleryId = parts[2];
-                    const session = this.getPageSession(userId);
+                    const session = await this.getPageSession(userId);
                     const totalPages = session?.totalPages || 1;
                     const modal = new discord_js_1.ModalBuilder()
                         .setCustomId(`nhentai_jumpmodal_${galleryId}_${userId}`)
@@ -805,6 +776,15 @@ class NHentaiHandler {
                 ephemeral: true
             }).catch(() => { });
         }
+    }
+    /**
+     * Destroy handler - clear intervals for clean shutdown
+     */
+    destroy() {
+        if (this._cleanupInterval) {
+            clearInterval(this._cleanupInterval);
+        }
+        // Sessions are managed by CacheService — no local state to clear
     }
 }
 exports.NHentaiHandler = NHentaiHandler;

@@ -505,8 +505,3 @@ const anilistService = new AnilistService();
 
 export { anilistService, AnilistService };
 export default anilistService;
-
-// CommonJS compatibility
-module.exports = anilistService;
-module.exports.anilistService = anilistService;
-module.exports.AnilistService = AnilistService;

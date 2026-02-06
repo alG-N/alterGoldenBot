@@ -71,6 +71,7 @@ class Rule34Service {
     auth;
     headers;
     translationCache;
+    MAX_TRANSLATION_CACHE = 2000;
     constructor() {
         this.auth = {
             userId: process.env.RULE34_USER_ID || '',
@@ -331,11 +332,28 @@ class Rule34Service {
         const lowerTag = tag.toLowerCase();
         if (commonTranslations[lowerTag]) {
             this.translationCache.set(tag, commonTranslations[lowerTag]);
+            this._evictTranslationCache();
             return commonTranslations[lowerTag];
         }
         const formatted = tag.trim().replace(/\s+/g, '_').toLowerCase();
         this.translationCache.set(tag, formatted);
+        this._evictTranslationCache();
         return formatted;
+    }
+    /**
+     * Evict oldest entries from translationCache when it exceeds cap
+     */
+    _evictTranslationCache() {
+        if (this.translationCache.size <= this.MAX_TRANSLATION_CACHE)
+            return;
+        const excess = this.translationCache.size - this.MAX_TRANSLATION_CACHE;
+        const iter = this.translationCache.keys();
+        for (let i = 0; i < excess; i++) {
+            const { value, done } = iter.next();
+            if (done)
+                break;
+            this.translationCache.delete(value);
+        }
     }
     _buildSearchQuery(query, options) {
         const { rating, excludeAi, minScore, contentType, excludeTags = [], requireTags = [], minWidth, minHeight, highQualityOnly, excludeLowQuality, sort } = options;

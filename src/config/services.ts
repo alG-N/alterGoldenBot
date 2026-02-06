@@ -12,8 +12,8 @@ export const steam = {
 };
 
 export const reddit = {
-    clientId: process.env.REDDIT_CLIENT_ID || process.env.CLIENT_ID || '',
-    secretKey: process.env.REDDIT_SECRET_KEY || process.env.SECRET_KEY || '',
+    clientId: process.env.REDDIT_CLIENT_ID || '',
+    secretKey: process.env.REDDIT_SECRET_KEY || '',
     userAgent: 'alterGolden/2.0 (Discord Bot)',
     baseUrl: 'https://oauth.reddit.com',
     authUrl: 'https://www.reddit.com/api/v1/access_token',
@@ -26,8 +26,8 @@ export const reddit = {
 
 export const pixiv = {
     refreshToken: process.env.PIXIV_REFRESH_TOKEN || '',
-    clientId: process.env.PIXIV_CLIENT_ID || 'MOBrBDS8blbauoSck0ZfDbtuzpyT',
-    clientSecret: process.env.PIXIV_CLIENT_SECRET || 'lsACyCD94FhDUtGTXi3QzcFE2uU1hqtDaKeqrdwj',
+    clientId: process.env.PIXIV_CLIENT_ID || '',
+    clientSecret: process.env.PIXIV_CLIENT_SECRET || '',
     baseUrl: 'https://app-api.pixiv.net',
     authUrl: 'https://oauth.secure.pixiv.net/auth/token',
     imageProxy: 'https://i.pximg.net',

@@ -242,6 +242,7 @@ function registerDefaultChecks(services = {}) {
                     hitRate: Math.round(stats.hitRate * 100) + '%',
                     hits: stats.hits,
                     misses: stats.misses,
+                    absenceChecks: stats.absenceChecks,
                     memoryEntries: stats.memoryEntries,
                     redisConnected: stats.redisConnected
                 }

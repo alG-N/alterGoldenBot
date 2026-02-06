@@ -90,6 +90,17 @@ export async function handleShutdown(
 
 /**
  * Run all shutdown handlers in order
+ * 
+ * Shutdown sequence:
+ * 1. Destroy Discord client (stop receiving events)
+ * 2. Run any manually registered shutdown handlers
+ * 3. Shutdown DI container (calls shutdown/destroy/close on ALL registered services)
+ * 4. Cleanup static resources (PaginationState)
+ * 
+ * The DI container handles ALL service lifecycle now — database, Redis, cache,
+ * API services, music services, handlers, repositories, and events with intervals.
+ * No manual require() + shutdown calls needed.
+ * 
  * @private
  */
 async function runShutdownSequence(client: { destroy: () => void } | null): Promise<ShutdownResult[]> {
@@ -106,7 +117,7 @@ async function runShutdownSequence(client: { destroy: () => void } | null): Prom
         }
     }
     
-    // 2. Run registered handlers
+    // 2. Run registered handlers (external code can still register custom handlers)
     for (const { name, handler } of shutdownHandlers) {
         try {
             logger.debug('Shutdown', `Running handler: ${name}`);
@@ -118,7 +129,15 @@ async function runShutdownSequence(client: { destroy: () => void } | null): Prom
         }
     }
     
-    // 3. Shutdown DI container (this calls shutdown() on all registered services)
+    // 3. Shutdown DI container — handles ALL service lifecycle:
+    //    - Database (postgres.close())
+    //    - Redis/Cache (redisCache.shutdown(), cacheService.shutdown())
+    //    - API services (googleService.shutdown(), fandomService.destroy(), etc.)
+    //    - Music services (lavalinkService.shutdown(), musicEventBus.shutdown(), etc.)
+    //    - Handlers (nhentaiHandler.destroy())
+    //    - Repositories (rule34Cache.destroy(), redditCache.destroy(), etc.)
+    //    - Events (voiceStateUpdate.destroy(), readyEvent.destroy())
+    //    - Guild services (shardBridge.shutdown(), antiRaidService.shutdown())
     try {
         logger.info('Shutdown', 'Shutting down DI container...');
         await container.shutdown();
@@ -127,41 +146,8 @@ async function runShutdownSequence(client: { destroy: () => void } | null): Prom
         logger.error('Shutdown', `Container shutdown failed: ${(error as Error).message}`);
         results.push({ name: 'DI Container', success: false, error: (error as Error).message });
     }
-    
-    // 4. Close database connections (try infrastructure first, then legacy)
-    try {
-        let infrastructure: { shutdown?: () => Promise<void> } | null = null;
-        try {
-            infrastructure = require('../infrastructure');
-        } catch {
-            infrastructure = null;
-        }
-        
-        if (infrastructure?.shutdown) {
-            await infrastructure.shutdown();
-            logger.info('Shutdown', 'Infrastructure shutdown complete');
-        } else {
-            const postgres = require('../database/postgres');
-            await postgres.close();
-            logger.info('Shutdown', 'Database connections closed');
-        }
-        results.push({ name: 'Database', success: true });
-    } catch (error) {
-        results.push({ name: 'Database', success: false, error: (error as Error).message });
-    }
-    
-    // 5. Close Redis connections
-    try {
-        const cacheService = require('../cache/CacheService');
-        const instance = cacheService.default || cacheService;
-        await instance.shutdown?.();
-        logger.info('Shutdown', 'Cache service closed');
-        results.push({ name: 'Redis', success: true });
-    } catch (error) {
-        results.push({ name: 'Redis', success: false, error: (error as Error).message });
-    }
 
-    // 6. Cleanup PaginationState instances
+    // 4. Cleanup static resources (not managed by container)
     try {
         const { PaginationState } = require('../utils/common/pagination');
         PaginationState.destroyAll();

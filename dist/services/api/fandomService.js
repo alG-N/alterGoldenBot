@@ -11,6 +11,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.POPULAR_WIKIS = exports.FandomService = exports.fandomService = void 0;
 const axios_1 = __importDefault(require("axios"));
 const CircuitBreakerRegistry_1 = require("../../core/CircuitBreakerRegistry");
+const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
 // CONSTANTS
 const REQUEST_CONFIG = {
     timeout: 10000,
@@ -72,52 +73,10 @@ const POPULAR_WIKIS = {
 exports.POPULAR_WIKIS = POPULAR_WIKIS;
 // FANDOM SERVICE CLASS
 class FandomService {
-    cache;
-    cacheExpiry = 600000; // 10 minutes
-    maxCacheSize = 200;
-    cleanupInterval = null;
+    CACHE_NS = 'api';
+    CACHE_TTL = 600; // 10 minutes in seconds
     constructor() {
-        this.cache = new Map();
-        // Auto-cleanup every 15 minutes
-        this.cleanupInterval = setInterval(() => this._cleanupCache(), 900000);
-    }
-    /**
-     * Cleanup expired cache entries
-     */
-    _cleanupCache() {
-        const now = Date.now();
-        for (const [key, entry] of this.cache) {
-            if (now > entry.expiresAt) {
-                this.cache.delete(key);
-            }
-        }
-    }
-    /**
-     * Get data from cache if not expired
-     */
-    _getFromCache(key) {
-        const entry = this.cache.get(key);
-        if (entry && Date.now() < entry.expiresAt) {
-            return entry.data;
-        }
-        this.cache.delete(key);
-        return null;
-    }
-    /**
-     * Set data in cache
-     */
-    _setCache(key, data) {
-        // Limit cache size
-        if (this.cache.size >= this.maxCacheSize) {
-            const oldestKey = this.cache.keys().next().value;
-            if (oldestKey) {
-                this.cache.delete(oldestKey);
-            }
-        }
-        this.cache.set(key, {
-            data,
-            expiresAt: Date.now() + this.cacheExpiry
-        });
+        // No local cache setup needed
     }
     /**
      * Get wiki subdomain from alias or custom name
@@ -131,8 +90,8 @@ class FandomService {
      */
     async search(wiki, query, limit = 10) {
         const subdomain = this.getWikiSubdomain(wiki);
-        const cacheKey = `search_${subdomain}_${query}`;
-        const cached = this._getFromCache(cacheKey);
+        const cacheKey = `fandom:search_${subdomain}_${query}`;
+        const cached = await CacheService_js_1.default.get(this.CACHE_NS, cacheKey);
         if (cached)
             return { ...cached, fromCache: true };
         return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('fandom', async () => {
@@ -164,7 +123,7 @@ class FandomService {
                     url: `https://${subdomain}.fandom.com/wiki/${encodeURIComponent(item.title.replace(/ /g, '_'))}`
                 }));
                 const result = { success: true, results, wiki: subdomain, query };
-                this._setCache(cacheKey, result);
+                await CacheService_js_1.default.set(this.CACHE_NS, cacheKey, result, this.CACHE_TTL);
                 return result;
             }
             catch (error) {
@@ -186,8 +145,8 @@ class FandomService {
      */
     async getArticle(wiki, title) {
         const subdomain = this.getWikiSubdomain(wiki);
-        const cacheKey = `article_${subdomain}_${title}`;
-        const cached = this._getFromCache(cacheKey);
+        const cacheKey = `fandom:article_${subdomain}_${title}`;
+        const cached = await CacheService_js_1.default.get(this.CACHE_NS, cacheKey);
         if (cached)
             return { ...cached, fromCache: true };
         return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('fandom', async () => {
@@ -237,7 +196,7 @@ class FandomService {
                         wikiName: this._formatWikiName(subdomain)
                     }
                 };
-                this._setCache(cacheKey, result);
+                await CacheService_js_1.default.set(this.CACHE_NS, cacheKey, result, this.CACHE_TTL);
                 return result;
             }
             catch (error) {
@@ -285,8 +244,8 @@ class FandomService {
      */
     async getWikiInfo(wiki) {
         const subdomain = this.getWikiSubdomain(wiki);
-        const cacheKey = `wikiinfo_${subdomain}`;
-        const cached = this._getFromCache(cacheKey);
+        const cacheKey = `fandom:wikiinfo_${subdomain}`;
+        const cached = await CacheService_js_1.default.get(this.CACHE_NS, cacheKey);
         if (cached)
             return { ...cached, fromCache: true };
         return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('fandom', async () => {
@@ -322,7 +281,7 @@ class FandomService {
                         subdomain
                     }
                 };
-                this._setCache(cacheKey, result);
+                await CacheService_js_1.default.set(this.CACHE_NS, cacheKey, result, this.CACHE_TTL);
                 return result;
             }
             catch (error) {
@@ -412,11 +371,7 @@ class FandomService {
      * Cleanup resources
      */
     destroy() {
-        if (this.cleanupInterval) {
-            clearInterval(this.cleanupInterval);
-            this.cleanupInterval = null;
-        }
-        this.cache.clear();
+        // No local resources to clean up
     }
 }
 exports.FandomService = FandomService;

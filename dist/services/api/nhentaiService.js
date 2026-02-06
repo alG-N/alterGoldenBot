@@ -11,6 +11,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.NHentaiService = exports.nhentaiService = void 0;
 const axios_1 = __importDefault(require("axios"));
 const CircuitBreakerRegistry_1 = require("../../core/CircuitBreakerRegistry");
+const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
 // TYPES & INTERFACES
 // API Configuration
 const API_BASE = 'https://nhentai.net/api';
@@ -41,39 +42,24 @@ const REQUEST_CONFIG = {
 };
 // NHENTAI SERVICE CLASS
 class NHentaiService {
-    cache;
-    cacheExpiry = 300000; // 5 minutes
-    maxCacheSize = 100;
-    _cleanupInterval = null;
+    CACHE_NS = 'api';
+    CACHE_TTL = 300; // 5 minutes in seconds
     constructor() {
-        this.cache = new Map();
-        // Auto-cleanup every 10 minutes
-        this._cleanupInterval = setInterval(() => this._cleanupCache(), 600000);
-    }
-    /**
-     * Cleanup expired cache entries
-     */
-    _cleanupCache() {
-        const now = Date.now();
-        for (const [key, entry] of this.cache) {
-            if (now > entry.expiresAt) {
-                this.cache.delete(key);
-            }
-        }
+        // No local cache setup needed — uses centralized cacheService
     }
     /**
      * Fetch gallery data by code with circuit breaker
      */
     async fetchGallery(code) {
         // Check cache first
-        const cached = this._getFromCache(`gallery_${code}`);
+        const cached = await CacheService_js_1.default.get(this.CACHE_NS, `nhentai:gallery_${code}`);
         if (cached)
             return { success: true, data: cached, fromCache: true };
         return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('nsfw', async () => {
             try {
                 const response = await axios_1.default.get(`${API_BASE}${GALLERY_ENDPOINT}/${code}`, REQUEST_CONFIG);
                 // Cache successful response
-                this._setCache(`gallery_${code}`, response.data);
+                await CacheService_js_1.default.set(this.CACHE_NS, `nhentai:gallery_${code}`, response.data, this.CACHE_TTL);
                 return { success: true, data: response.data };
             }
             catch (error) {
@@ -114,7 +100,7 @@ class NHentaiService {
                 const randomIndex = Math.floor(Math.random() * response.data.result.length);
                 const gallery = response.data.result[randomIndex];
                 if (gallery?.id) {
-                    this._setCache(`gallery_${gallery.id}`, gallery);
+                    await CacheService_js_1.default.set(this.CACHE_NS, `nhentai:gallery_${gallery.id}`, gallery, this.CACHE_TTL);
                     return { success: true, data: gallery };
                 }
             }
@@ -133,7 +119,7 @@ class NHentaiService {
                 const randomIndex = Math.floor(Math.random() * Math.min(25, response.data.result.length));
                 const gallery = response.data.result[randomIndex];
                 if (gallery?.id) {
-                    this._setCache(`gallery_${gallery.id}`, gallery);
+                    await CacheService_js_1.default.set(this.CACHE_NS, `nhentai:gallery_${gallery.id}`, gallery, this.CACHE_TTL);
                     return { success: true, data: gallery };
                 }
             }
@@ -166,8 +152,8 @@ class NHentaiService {
      * Search galleries by query with circuit breaker
      */
     async searchGalleries(query, page = 1, sort = 'popular') {
-        const cacheKey = `search_${query}_${page}_${sort}`;
-        const cached = this._getFromCache(cacheKey);
+        const cacheKey = `nhentai:search_${query}_${page}_${sort}`;
+        const cached = await CacheService_js_1.default.get(this.CACHE_NS, cacheKey);
         if (cached)
             return { success: true, data: cached, fromCache: true };
         return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('nsfw', async () => {
@@ -181,7 +167,7 @@ class NHentaiService {
                     perPage: response.data.per_page || 25,
                     totalResults: (response.data.num_pages || 1) * (response.data.per_page || 25)
                 };
-                this._setCache(cacheKey, data);
+                await CacheService_js_1.default.set(this.CACHE_NS, cacheKey, data, this.CACHE_TTL);
                 return { success: true, data };
             }
             catch (error) {
@@ -195,8 +181,8 @@ class NHentaiService {
     async getSearchSuggestions(query) {
         if (!query || query.length < 2)
             return [];
-        const cacheKey = `suggest_${query.toLowerCase()}`;
-        const cached = this._getFromCache(cacheKey);
+        const cacheKey = `nhentai:suggest_${query.toLowerCase()}`;
+        const cached = await CacheService_js_1.default.get(this.CACHE_NS, cacheKey);
         if (cached)
             return cached;
         return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('nsfw', async () => {
@@ -221,7 +207,7 @@ class NHentaiService {
                     .slice(0, 5)
                     .map(g => g.title.english || g.title.japanese || '');
                 const suggestions = [...new Set([...tagSet, ...titleMatches])].slice(0, 15);
-                this._setCache(cacheKey, suggestions);
+                await CacheService_js_1.default.set(this.CACHE_NS, cacheKey, suggestions, this.CACHE_TTL);
                 return suggestions;
             }
             catch (error) {
@@ -315,49 +301,16 @@ class NHentaiService {
         return { success: false, error: 'Failed to fetch gallery. Please try again later.', code: 'UNKNOWN' };
     }
     /**
-     * Get from cache
+     * Clear all nhentai cache entries
      */
-    _getFromCache(key) {
-        const entry = this.cache.get(key);
-        if (!entry)
-            return null;
-        if (Date.now() > entry.expiresAt) {
-            this.cache.delete(key);
-            return null;
-        }
-        return entry.data;
-    }
-    /**
-     * Set to cache
-     */
-    _setCache(key, data) {
-        // Evict oldest if cache is full
-        if (this.cache.size >= this.maxCacheSize) {
-            const oldestKey = this.cache.keys().next().value;
-            if (oldestKey) {
-                this.cache.delete(oldestKey);
-            }
-        }
-        this.cache.set(key, {
-            data,
-            expiresAt: Date.now() + this.cacheExpiry
-        });
-    }
-    /**
-     * Clear all cache
-     */
-    clearCache() {
-        this.cache.clear();
+    async clearCache() {
+        await CacheService_js_1.default.clearNamespace(this.CACHE_NS);
     }
     /**
      * Cleanup resources
      */
     destroy() {
-        if (this._cleanupInterval) {
-            clearInterval(this._cleanupInterval);
-            this._cleanupInterval = null;
-        }
-        this.cache.clear();
+        // No local resources to clean up
     }
 }
 exports.NHentaiService = NHentaiService;

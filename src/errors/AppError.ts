@@ -32,7 +32,9 @@ export interface SerializedError {
 }
 
 /**
- * Base application error class
+ * Base application error class.
+ * Retained for `instanceof` checks in catch blocks.
+ * For new error flows, prefer `Result.err(ErrorCodes.XXX)` pattern.
  */
 export class AppError extends Error {
     public readonly code: string;
@@ -41,6 +43,8 @@ export class AppError extends Error {
     public readonly timestamp: Date;
 
     /**
+     * @deprecated Use `Result.err(ErrorCodes.XXX)` instead of throwing.
+     * Retained for `instanceof` checks in catch blocks and BaseCommand validation.
      * @param message - Error message
      * @param code - Error code for programmatic handling
      * @param statusCode - HTTP-like status code
@@ -87,11 +91,13 @@ export class AppError extends Error {
 }
 
 /**
- * Validation errors (user input issues)
+ * Validation errors (user input issues).
+ * @deprecated Prefer `Result.err(ErrorCodes.VALIDATION_ERROR)`. Retained for `instanceof` checks.
  */
 export class ValidationError extends AppError {
     public readonly field: string | null;
 
+    /** @deprecated Use `Result.err(ErrorCodes.VALIDATION_ERROR)` instead. */
     constructor(message: string, field: string | null = null) {
         super(message, 'VALIDATION_ERROR', 400);
         this.field = field;
@@ -106,11 +112,13 @@ export class ValidationError extends AppError {
 }
 
 /**
- * Not found errors
+ * Not found errors.
+ * @deprecated Prefer `Result.err(ErrorCodes.NOT_FOUND)`. Retained for `instanceof` checks.
  */
 export class NotFoundError extends AppError {
     public readonly resource: string;
 
+    /** @deprecated Use `Result.err(ErrorCodes.NOT_FOUND)` instead. */
     constructor(resource: string = 'Resource') {
         super(`${resource} not found`, 'NOT_FOUND', 404);
         this.resource = resource;
@@ -125,20 +133,24 @@ export class NotFoundError extends AppError {
 }
 
 /**
- * Permission errors
+ * Permission errors.
+ * @deprecated Prefer `Result.err(ErrorCodes.PERMISSION_DENIED)`. Retained for `instanceof` checks.
  */
 export class PermissionError extends AppError {
+    /** @deprecated Use `Result.err(ErrorCodes.PERMISSION_DENIED)` instead. */
     constructor(message: string = 'You do not have permission to perform this action') {
         super(message, 'PERMISSION_DENIED', 403);
     }
 }
 
 /**
- * Rate limit errors
+ * Rate limit errors.
+ * @deprecated Prefer `Result.err(ErrorCodes.RATE_LIMITED)`. Retained for `instanceof` checks.
  */
 export class RateLimitError extends AppError {
     public readonly retryAfter: number;
 
+    /** @deprecated Use `Result.err(ErrorCodes.RATE_LIMITED)` instead. */
     constructor(retryAfter: number = 60) {
         super(`Rate limited. Try again in ${retryAfter} seconds`, 'RATE_LIMITED', 429);
         this.retryAfter = retryAfter;
@@ -153,11 +165,13 @@ export class RateLimitError extends AppError {
 }
 
 /**
- * External service errors (APIs, etc.)
+ * External service errors (APIs, etc.).
+ * @deprecated Prefer `Result.err(ErrorCodes.EXTERNAL_SERVICE_ERROR)`. Retained for `instanceof` checks.
  */
 export class ExternalServiceError extends AppError {
     public readonly service: string;
 
+    /** @deprecated Use `Result.err(ErrorCodes.EXTERNAL_SERVICE_ERROR)` instead. */
     constructor(service: string, message: string = 'External service unavailable') {
         super(`${service}: ${message}`, 'EXTERNAL_SERVICE_ERROR', 503);
         this.service = service;
@@ -172,11 +186,13 @@ export class ExternalServiceError extends AppError {
 }
 
 /**
- * Database errors
+ * Database errors.
+ * @deprecated Prefer `Result.err(ErrorCodes.DATABASE_ERROR)`. Retained for `instanceof` checks.
  */
 export class DatabaseError extends AppError {
     public readonly operation: string | null;
 
+    /** @deprecated Use `Result.err(ErrorCodes.DATABASE_ERROR)` instead. */
     constructor(message: string = 'Database operation failed', operation: string | null = null) {
         super(message, 'DATABASE_ERROR', 500);
         this.operation = operation;
@@ -191,20 +207,24 @@ export class DatabaseError extends AppError {
 }
 
 /**
- * Configuration errors
+ * Configuration errors.
+ * @deprecated Prefer `Result.err(ErrorCodes.CONFIGURATION_ERROR)`. Retained for `instanceof` checks.
  */
 export class ConfigurationError extends AppError {
+    /** @deprecated Use `Result.err(ErrorCodes.CONFIGURATION_ERROR)` instead. */
     constructor(message: string = 'Invalid configuration') {
         super(message, 'CONFIGURATION_ERROR', 500, false);
     }
 }
 
 /**
- * Timeout errors
+ * Timeout errors.
+ * @deprecated Prefer `Result.err(ErrorCodes.TIMEOUT)`. Retained for `instanceof` checks.
  */
 export class TimeoutError extends AppError {
     public readonly timeout: number | null;
 
+    /** @deprecated Use `Result.err(ErrorCodes.TIMEOUT)` instead. */
     constructor(operation: string = 'Operation', timeout: number | null = null) {
         super(`${operation} timed out${timeout ? ` after ${timeout}ms` : ''}`, 'TIMEOUT', 408);
         this.timeout = timeout;
@@ -219,11 +239,13 @@ export class TimeoutError extends AppError {
 }
 
 /**
- * Cooldown errors
+ * Cooldown errors.
+ * @deprecated Prefer `Result.err(ErrorCodes.COOLDOWN)`. Retained for `instanceof` checks.
  */
 export class CooldownError extends AppError {
     public readonly remainingMs: number;
 
+    /** @deprecated Use `Result.err(ErrorCodes.COOLDOWN)` instead. */
     constructor(remainingMs: number) {
         const seconds = Math.ceil(remainingMs / 1000);
         super(`Please wait ${seconds} seconds before using this command again`, 'COOLDOWN', 429);
@@ -237,27 +259,3 @@ export class CooldownError extends AppError {
         };
     }
 }
-
-// CommonJS compatibility export
-module.exports = {
-    AppError,
-    ValidationError,
-    NotFoundError,
-    PermissionError,
-    RateLimitError,
-    ExternalServiceError,
-    DatabaseError,
-    ConfigurationError,
-    TimeoutError,
-    CooldownError,
-};
-module.exports.AppError = AppError;
-module.exports.ValidationError = ValidationError;
-module.exports.NotFoundError = NotFoundError;
-module.exports.PermissionError = PermissionError;
-module.exports.RateLimitError = RateLimitError;
-module.exports.ExternalServiceError = ExternalServiceError;
-module.exports.DatabaseError = DatabaseError;
-module.exports.ConfigurationError = ConfigurationError;
-module.exports.TimeoutError = TimeoutError;
-module.exports.CooldownError = CooldownError;

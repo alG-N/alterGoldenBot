@@ -376,12 +376,12 @@ export const buttonHandler = {
             await interaction.deferUpdate();
 
             const userId = interaction.user.id;
-            const isFavorited = musicService.isFavorited(userId, currentTrack.url);
+            const isFavorited = await musicService.isFavorited(userId, currentTrack.url);
 
             if (isFavorited) {
-                musicService.removeFavorite(userId, currentTrack.url);
+                await musicService.removeFavorite(userId, currentTrack.url);
             } else {
-                musicService.addFavorite(userId, currentTrack);
+                await musicService.addFavorite(userId, currentTrack);
             }
 
             const options = buildNowPlayingOptions(guildId, interaction);

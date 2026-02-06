@@ -13,14 +13,14 @@
 
 import { Message } from 'discord.js';
 import queueCache, { MusicTrack, MusicQueue } from './QueueCache';
-import userMusicCache, { UserPreferences, FavoriteTrack, HistoryTrack, AddFavoriteResult } from './UserMusicCache';
+import userMusicCache, { UserPreferences, FavoriteTrack, HistoryTrack, AddFavoriteResult, UserMusicStats } from './UserMusicCache';
 import voteCache, { VoteResult, AddVoteResult, VoteSkipStatus } from './VoteCache';
 import guildMusicCache, { GuildMusicSettings, RecentlyPlayedTrack, DJLockState, CachedPlaylist } from './GuildMusicCache';
 import logger from '../../core/Logger';
 // Types
 export interface MusicCacheStats {
     queue: ReturnType<typeof queueCache.getStats>;
-    user: ReturnType<typeof userMusicCache.getStats>;
+    user: UserMusicStats;
     vote: ReturnType<typeof voteCache.getStats>;
     guild: ReturnType<typeof guildMusicCache.getStats>;
 }
@@ -192,42 +192,42 @@ class MusicCacheFacade {
         return userMusicCache.getDefaultPreferences();
     }
 
-    getPreferences(userId: string): UserPreferences {
+    async getPreferences(userId: string): Promise<UserPreferences> {
         return userMusicCache.getPreferences(userId);
     }
 
-    setPreferences(userId: string, preferences: Partial<UserPreferences>): UserPreferences {
+    async setPreferences(userId: string, preferences: Partial<UserPreferences>): Promise<UserPreferences> {
         return userMusicCache.setPreferences(userId, preferences);
     }
 
-    resetPreferences(userId: string): UserPreferences {
+    async resetPreferences(userId: string): Promise<UserPreferences> {
         return userMusicCache.resetPreferences(userId);
     }
-    getFavorites(userId: string): FavoriteTrack[] {
+    async getFavorites(userId: string): Promise<FavoriteTrack[]> {
         return userMusicCache.getFavorites(userId);
     }
 
-    addFavorite(userId: string, track: any): AddFavoriteResult {
+    async addFavorite(userId: string, track: any): Promise<AddFavoriteResult> {
         return userMusicCache.addFavorite(userId, track);
     }
 
-    removeFavorite(userId: string, trackUrl: string): FavoriteTrack[] {
+    async removeFavorite(userId: string, trackUrl: string): Promise<FavoriteTrack[]> {
         return userMusicCache.removeFavorite(userId, trackUrl);
     }
 
-    isFavorited(userId: string, trackUrl: string): boolean {
+    async isFavorited(userId: string, trackUrl: string): Promise<boolean> {
         return userMusicCache.isFavorited(userId, trackUrl);
     }
-    addToHistory(userId: string, track: any): HistoryTrack[] {
+    async addToHistory(userId: string, track: any): Promise<HistoryTrack[]> {
         return userMusicCache.addToHistory(userId, track);
     }
 
-    getHistory(userId: string, limit: number = 20): HistoryTrack[] {
+    async getHistory(userId: string, limit: number = 20): Promise<HistoryTrack[]> {
         return userMusicCache.getHistory(userId, limit);
     }
 
-    clearHistory(userId: string): void {
-        userMusicCache.clearHistory(userId);
+    async clearHistory(userId: string): Promise<void> {
+        await userMusicCache.clearHistory(userId);
     }
     addToRecentlyPlayed(guildId: string, track: MusicTrack): RecentlyPlayedTrack[] {
         return guildMusicCache.addToRecentlyPlayed(guildId, track);
@@ -287,10 +287,10 @@ class MusicCacheFacade {
         voteCache.cleanup();
         guildMusicCache.cleanup();
     }
-    getStats(): MusicCacheStats {
+    async getStats(): Promise<MusicCacheStats> {
         return {
             queue: queueCache.getStats(),
-            user: userMusicCache.getStats(),
+            user: await userMusicCache.getStats(),
             vote: voteCache.getStats(),
             guild: guildMusicCache.getStats(),
         };

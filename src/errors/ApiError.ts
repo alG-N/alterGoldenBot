@@ -18,11 +18,12 @@ export type ApiErrorCode =
 
 /**
  * Base API error - use only for catch blocks or instanceof checks.
- * For throwing errors, prefer `Result.err(ErrorCodes.XXX)` pattern.
+ * @deprecated Prefer `Result.err(ErrorCodes.XXX)` pattern for new error flows.
  */
 export class ApiError extends AppError {
     public readonly service: string | null;
 
+    /** @deprecated Use `Result.err(ErrorCodes.XXX)` instead. */
     constructor(message: string, code: ApiErrorCode = 'API_ERROR', service: string | null = null) {
         super(message, code, 400);
         this.service = service;
@@ -35,8 +36,3 @@ export class ApiError extends AppError {
         };
     }
 }
-
-// CommonJS compatibility
-module.exports = {
-    ApiError,
-};

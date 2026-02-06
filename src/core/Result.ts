@@ -183,7 +183,3 @@ export class Result<T> {
         };
     }
 }
-
-// CommonJS compatibility
-module.exports = { Result };
-module.exports.Result = Result;

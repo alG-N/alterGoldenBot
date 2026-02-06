@@ -19,15 +19,13 @@ export type VideoErrorCode =
 
 /**
  * Base video error - use only for catch blocks or instanceof checks.
- * For throwing errors, prefer `Result.err(ErrorCodes.XXX)` pattern.
+ * @deprecated Prefer `Result.err(ErrorCodes.XXX)` pattern for new error flows.
  */
 export class VideoError extends AppError {
+    /** @deprecated Use `Result.err(ErrorCodes.XXX)` instead. */
     constructor(message: string, code: VideoErrorCode = 'VIDEO_ERROR') {
         super(message, code, 400);
     }
 }
 
-// CommonJS compatibility
-module.exports = {
-    VideoError,
-};
+

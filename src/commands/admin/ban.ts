@@ -309,6 +309,3 @@ class BanCommand extends BaseCommand {
 // Export singleton instance
 const banCommand = new BanCommand();
 export default banCommand;
-
-// CommonJS compatibility
-module.exports = banCommand;

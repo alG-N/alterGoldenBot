@@ -60,6 +60,19 @@ class VoiceStateUpdateEvent extends BaseEvent_js_1.BaseEvent {
         }, POLL_INTERVAL_MS);
     }
     /**
+     * Destroy - clear polling interval for clean shutdown
+     */
+    destroy() {
+        if (this._pollInterval) {
+            clearInterval(this._pollInterval);
+            this._pollInterval = null;
+        }
+        for (const timer of this._localTimers.values()) {
+            clearTimeout(timer);
+        }
+        this._localTimers.clear();
+    }
+    /**
      * Check Redis for any expired disconnect deadlines
      */
     async _checkExpiredDeadlines() {
@@ -68,7 +81,7 @@ class VoiceStateUpdateEvent extends BaseEvent_js_1.BaseEvent {
         try {
             // Check all guilds the bot is in
             for (const [guildId, guild] of this._client.guilds.cache) {
-                const deadline = await CacheService_js_1.default.get(CACHE_NAMESPACE, `disconnect:${guildId}`);
+                const deadline = await CacheService_js_1.default.peek(CACHE_NAMESPACE, `disconnect:${guildId}`);
                 if (deadline && Date.now() >= deadline) {
                     // Deadline expired, disconnect
                     await CacheService_js_1.default.delete(CACHE_NAMESPACE, `disconnect:${guildId}`);
@@ -107,7 +120,7 @@ class VoiceStateUpdateEvent extends BaseEvent_js_1.BaseEvent {
         // Also set a local timer for immediate action on this shard
         const timer = setTimeout(async () => {
             // Double-check Redis in case another shard handled it
-            const currentDeadline = await CacheService_js_1.default.get(CACHE_NAMESPACE, `disconnect:${guildId}`);
+            const currentDeadline = await CacheService_js_1.default.peek(CACHE_NAMESPACE, `disconnect:${guildId}`);
             if (currentDeadline && Date.now() >= currentDeadline) {
                 await CacheService_js_1.default.delete(CACHE_NAMESPACE, `disconnect:${guildId}`);
                 await this._handleDisconnect(client, guildId);

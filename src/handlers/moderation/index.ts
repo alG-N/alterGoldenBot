@@ -12,7 +12,6 @@ export {
     handleMemberLeave,
     buildQuickEmbed,
     sendConfirmation,
-    formatDuration,
     TYPE_COLORS,
     TYPE_EMOJIS
 } from './ModLogHandler.js';

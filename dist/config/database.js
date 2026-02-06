@@ -10,7 +10,7 @@ exports.postgres = {
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT || '5432', 10),
     user: process.env.DB_USER || 'altergolden',
-    password: process.env.DB_PASSWORD || 'altergolden_secret',
+    password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'altergolden_db',
     // Connection pool settings (optimized for 1K+ servers)
     pool: {

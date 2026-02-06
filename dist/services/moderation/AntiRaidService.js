@@ -56,8 +56,8 @@ class AntiRaidService {
     async trackJoin(member) {
         const guildId = member.guild.id;
         const now = Date.now();
-        // Get current joins from Redis
-        const joins = await CacheService_js_1.default.get(CACHE_NAMESPACE, this._joinKey(guildId)) || [];
+        // Get current joins from Redis (may not exist — not a real miss)
+        const joins = await CacheService_js_1.default.peek(CACHE_NAMESPACE, this._joinKey(guildId)) || [];
         // Add this join
         joins.push({
             userId: member.id,
@@ -170,7 +170,7 @@ class AntiRaidService {
      * Flag an account during raid (stored in Redis)
      */
     async _flagAccount(guildId, userId) {
-        const flagged = await CacheService_js_1.default.get(CACHE_NAMESPACE, this._flaggedKey(guildId)) || [];
+        const flagged = await CacheService_js_1.default.peek(CACHE_NAMESPACE, this._flaggedKey(guildId)) || [];
         if (!flagged.includes(userId)) {
             flagged.push(userId);
             await CacheService_js_1.default.set(CACHE_NAMESPACE, this._flaggedKey(guildId), flagged, FLAGGED_ACCOUNTS_TTL);
@@ -201,20 +201,20 @@ class AntiRaidService {
      * Check if raid mode is active
      */
     async isRaidModeActive(guildId) {
-        const state = await CacheService_js_1.default.get(CACHE_NAMESPACE, this._raidModeKey(guildId));
+        const state = await CacheService_js_1.default.peek(CACHE_NAMESPACE, this._raidModeKey(guildId));
         return state?.active || false;
     }
     /**
      * Get raid mode state
      */
     async getRaidModeState(guildId) {
-        return CacheService_js_1.default.get(CACHE_NAMESPACE, this._raidModeKey(guildId));
+        return CacheService_js_1.default.peek(CACHE_NAMESPACE, this._raidModeKey(guildId));
     }
     /**
      * Get flagged accounts
      */
     async getFlaggedAccounts(guildId) {
-        return await CacheService_js_1.default.get(CACHE_NAMESPACE, this._flaggedKey(guildId)) || [];
+        return await CacheService_js_1.default.peek(CACHE_NAMESPACE, this._flaggedKey(guildId)) || [];
     }
     /**
      * Clear flagged accounts

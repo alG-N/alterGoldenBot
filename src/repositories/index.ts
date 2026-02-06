@@ -14,7 +14,6 @@ export { api, moderation, general };
 // Re-export individual repositories for convenience
 export { 
     animeRepository, 
-    cacheManager, 
     nhentaiRepository, 
     pixivCache, 
     redditCache, 

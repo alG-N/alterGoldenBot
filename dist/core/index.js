@@ -36,8 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.gracefulDegradationInstance = exports.gracefulDegradation = exports.registerDefaultChecks = exports.startHealthServer = exports.setHealthStatus = exports.getHealthStatus = exports.runHealthChecks = exports.registerHealthCheck = exports.health = exports.isSentryEnabled = exports.closeSentry = exports.flushSentry = exports.startTransaction = exports.addBreadcrumb = exports.clearSentryUser = exports.setSentryUser = exports.captureMessage = exports.captureException = exports.initializeSentry = exports.sentry = exports.interactionErrorBoundary = exports.withTimeout = exports.withErrorHandling = exports.safeAsync = exports.initializeErrorHandlers = exports.getIsShuttingDown = exports.initializeShutdownHandlers = exports.handleShutdown = exports.registerShutdownHandler = exports.BOOTSTRAP_CONFIG = exports.bootstrapHealthCheck = exports.bootstrap = exports.CLIENT_OPTIONS = exports.ActivityType = exports.getClientStats = exports.setPresence = exports.createClient = exports.CIRCUIT_CONFIGS = exports.CircuitBreakerRegistry = exports.circuitBreakerRegistry = exports.CircuitState = exports.CircuitBreaker = exports.isErrorCategory = exports.getErrorMessage = exports.ErrorCodes = exports.Result = exports.LOG_CHANNEL_ID = exports.LOG_LEVELS = exports.Logger = exports.logger = void 0;
-exports.ServiceState = exports.DegradationLevel = exports.GracefulDegradation = void 0;
+exports.ServiceState = exports.DegradationLevel = exports.GracefulDegradation = exports.gracefulDegradationInstance = exports.gracefulDegradation = exports.registerDefaultChecks = exports.startHealthServer = exports.setHealthStatus = exports.getHealthStatus = exports.runHealthChecks = exports.registerHealthCheck = exports.health = exports.isSentryEnabled = exports.closeSentry = exports.flushSentry = exports.startTransaction = exports.addBreadcrumb = exports.clearSentryUser = exports.setSentryUser = exports.captureMessage = exports.captureException = exports.initializeSentry = exports.sentry = exports.interactionErrorBoundary = exports.withTimeout = exports.withErrorHandling = exports.safeAsync = exports.initializeErrorHandlers = exports.getIsShuttingDown = exports.initializeShutdownHandlers = exports.handleShutdown = exports.registerShutdownHandler = exports.CLIENT_OPTIONS = exports.ActivityType = exports.getClientStats = exports.setPresence = exports.createClient = exports.CIRCUIT_CONFIGS = exports.CircuitBreakerRegistry = exports.circuitBreakerRegistry = exports.CircuitState = exports.CircuitBreaker = exports.isErrorCategory = exports.getErrorMessage = exports.ErrorCodes = exports.Result = exports.LOG_CHANNEL_ID = exports.LOG_LEVELS = exports.Logger = exports.logger = void 0;
 /**
  * Core Module Index
  * Central exports for core infrastructure
@@ -74,11 +73,6 @@ Object.defineProperty(exports, "setPresence", { enumerable: true, get: function 
 Object.defineProperty(exports, "getClientStats", { enumerable: true, get: function () { return Client_1.getClientStats; } });
 Object.defineProperty(exports, "ActivityType", { enumerable: true, get: function () { return Client_1.ActivityType; } });
 Object.defineProperty(exports, "CLIENT_OPTIONS", { enumerable: true, get: function () { return Client_1.CLIENT_OPTIONS; } });
-// Bootstrap
-var bootstrap_1 = require("./bootstrap");
-Object.defineProperty(exports, "bootstrap", { enumerable: true, get: function () { return bootstrap_1.bootstrap; } });
-Object.defineProperty(exports, "bootstrapHealthCheck", { enumerable: true, get: function () { return bootstrap_1.healthCheck; } });
-Object.defineProperty(exports, "BOOTSTRAP_CONFIG", { enumerable: true, get: function () { return bootstrap_1.BOOTSTRAP_CONFIG; } });
 // Shutdown
 var shutdown_1 = require("./shutdown");
 Object.defineProperty(exports, "registerShutdownHandler", { enumerable: true, get: function () { return shutdown_1.registerShutdownHandler; } });
@@ -121,63 +115,4 @@ Object.defineProperty(exports, "gracefulDegradationInstance", { enumerable: true
 Object.defineProperty(exports, "GracefulDegradation", { enumerable: true, get: function () { return GracefulDegradation_1.GracefulDegradation; } });
 Object.defineProperty(exports, "DegradationLevel", { enumerable: true, get: function () { return GracefulDegradation_1.DegradationLevel; } });
 Object.defineProperty(exports, "ServiceState", { enumerable: true, get: function () { return GracefulDegradation_1.ServiceState; } });
-// COMMONJS COMPATIBILITY
-// Re-export for CommonJS compatibility
-module.exports = {
-    // Logger
-    logger: require('./Logger').default,
-    Logger: require('./Logger').Logger,
-    LOG_CHANNEL_ID: require('./Logger').LOG_CHANNEL_ID,
-    LOG_LEVELS: require('./Logger').LOG_LEVELS,
-    // Result
-    Result: require('./Result').Result,
-    // Error Codes
-    ErrorCodes: require('./ErrorCodes').ErrorCodes,
-    getErrorMessage: require('./ErrorCodes').getErrorMessage,
-    isErrorCategory: require('./ErrorCodes').isErrorCategory,
-    // Circuit Breaker
-    CircuitBreaker: require('./CircuitBreaker').CircuitBreaker,
-    CircuitState: require('./CircuitBreaker').CircuitState,
-    circuitBreakerRegistry: require('./CircuitBreakerRegistry').circuitBreakerRegistry,
-    CircuitBreakerRegistry: require('./CircuitBreakerRegistry').CircuitBreakerRegistry,
-    CIRCUIT_CONFIGS: require('./CircuitBreakerRegistry').CIRCUIT_CONFIGS,
-    // Client
-    createClient: require('./Client').createClient,
-    setPresence: require('./Client').setPresence,
-    getClientStats: require('./Client').getClientStats,
-    ActivityType: require('./Client').ActivityType,
-    CLIENT_OPTIONS: require('./Client').CLIENT_OPTIONS,
-    // Bootstrap
-    bootstrap: require('./bootstrap').bootstrap,
-    bootstrapHealthCheck: require('./bootstrap').healthCheck,
-    BOOTSTRAP_CONFIG: require('./bootstrap').BOOTSTRAP_CONFIG,
-    // Shutdown
-    registerShutdownHandler: require('./shutdown').registerShutdownHandler,
-    handleShutdown: require('./shutdown').handleShutdown,
-    initializeShutdownHandlers: require('./shutdown').initializeShutdownHandlers,
-    getIsShuttingDown: require('./shutdown').getIsShuttingDown,
-    // Error Handler
-    initializeErrorHandlers: require('./errorHandler').initializeErrorHandlers,
-    safeAsync: require('./errorHandler').safeAsync,
-    withErrorHandling: require('./errorHandler').withErrorHandling,
-    withTimeout: require('./errorHandler').withTimeout,
-    interactionErrorBoundary: require('./errorHandler').interactionErrorBoundary,
-    // Sentry
-    sentry: require('./sentry'),
-    initializeSentry: require('./sentry').initialize,
-    captureException: require('./sentry').captureException,
-    captureMessage: require('./sentry').captureMessage,
-    // Health
-    health: require('./health'),
-    registerHealthCheck: require('./health').registerHealthCheck,
-    runHealthChecks: require('./health').runHealthChecks,
-    getHealthStatus: require('./health').getHealthStatus,
-    startHealthServer: require('./health').startHealthServer,
-    registerDefaultChecks: require('./health').registerDefaultChecks,
-    // Graceful Degradation
-    gracefulDegradation: require('./GracefulDegradation').default,
-    GracefulDegradation: require('./GracefulDegradation').GracefulDegradation,
-    DegradationLevel: require('./GracefulDegradation').DegradationLevel,
-    ServiceState: require('./GracefulDegradation').ServiceState,
-};
 //# sourceMappingURL=index.js.map

@@ -5,8 +5,6 @@
  */
 
 import { Collection, type Client as DiscordClient } from 'discord.js';
-import path from 'path';
-import fs from 'fs';
 // TYPES
 interface Command {
     data: {
@@ -29,11 +27,11 @@ class CommandRegistry {
     /**
      * Load commands from all sources
      */
-    loadCommands(): Collection<string, Command> {
+    async loadCommands(): Promise<Collection<string, Command>> {
         console.log('[CommandRegistry] Loading commands...');
 
         // Load all commands from commands/ folder
-        this._loadPresentationCommands();
+        await this._loadPresentationCommands();
 
         console.log(`[CommandRegistry] Loaded ${this.commands.size} commands`);
         return this.commands;
@@ -42,16 +40,15 @@ class CommandRegistry {
     /**
      * Load commands from commands directory
      */
-    private _loadPresentationCommands(): void {
+    private async _loadPresentationCommands(): Promise<void> {
         const categories = ['general', 'admin', 'owner', 'api', 'fun', 'music', 'video'];
 
         for (const category of categories) {
             try {
-                // eslint-disable-next-line @typescript-eslint/no-require-imports
-                const commands = require(`../../commands/${category}`);
+                const commands = await import(`../../commands/${category}/index.js`);
 
                 for (const [_name, command] of Object.entries(commands)) {
-                    const cmd = command as Command;
+                    const cmd = (command as { default?: Command }).default || command as Command;
                     if (cmd?.data?.name) {
                         this.commands.set(cmd.data.name, cmd);
                         console.log(`[CommandRegistry] Loaded: ${cmd.data.name} (${category})`);

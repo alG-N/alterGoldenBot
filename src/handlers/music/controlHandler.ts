@@ -57,7 +57,7 @@ export const controlHandler = {
 
         // Check if vote skip is needed
         const listenerCount = musicService.getListenerCount(guildId, interaction.guild);
-        const prefs = musicService.getPreferences(interaction.user.id);
+        const prefs = await musicService.getPreferences(interaction.user.id);
 
         if (prefs.voteSkipEnabled && listenerCount >= MIN_VOTES_REQUIRED) {
             return await this.handleVoteSkip(interaction, guildId);

@@ -1,8 +1,18 @@
 /**
- * Reddit Cache - User session state management
- * Note: This cache manages user state, not timed data, so doesn't extend BaseCache
+ * Reddit Cache — CacheService-backed user session state
+ *
+ * Architecture:
+ *   - In-memory Maps for fast synchronous reads (unchanged public API)
+ *   - CacheService (Redis-backed) write-through for cross-shard sharing
+ *   - Lazy hydration on miss from CacheService
+ *   - Session data auto-expires via CacheService TTL (1 hour)
+ *
+ * @module repositories/api/redditCache
  */
-// Interfaces
+
+import cacheService from '../../cache/CacheService.js';
+
+// ── Interfaces ───────────────────────────────────────────────────────
 interface RedditPost {
     id: string;
     title: string;
@@ -26,117 +36,180 @@ interface RedditPost {
 }
 
 type SortType = 'top' | 'new' | 'hot' | 'rising' | 'controversial';
-// RedditCache Class
+
+/** Bundled user session stored in CacheService */
+interface RedditSession {
+    posts: RedditPost[];
+    page: number;
+    sort: SortType;
+    nsfw: boolean;
+    galleryPages: Record<string, number>;  // `${postIndex}` → page
+    updatedAt: number;
+}
+
+// ── CacheService namespace ───────────────────────────────────────────
+const NS = 'reddit:session';
+const SESSION_TTL = 60 * 60;   // 1 hour
+const MAX_SESSIONS = 1000;
+
+function registerNamespaces(): void {
+    cacheService.registerNamespace(NS, { ttl: SESSION_TTL, maxSize: MAX_SESSIONS, useRedis: true });
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────
+function persist(userId: string, session: RedditSession): void {
+    cacheService.set(NS, userId, session, SESSION_TTL).catch(() => {});
+}
+
+function unpersist(userId: string): void {
+    cacheService.delete(NS, userId).catch(() => {});
+}
+
+// ── RedditCache Class ────────────────────────────────────────────────
 class RedditCache {
-    private userPosts: Map<string, RedditPost[]>;
-    private galleryStates: Map<string, number>;
-    private pageStates: Map<string, number>;
-    private sortStates: Map<string, SortType>;
-    private nsfwStates: Map<string, boolean>;
-    private sessionTimestamps: Map<string, number>;
-    private cleanupInterval: NodeJS.Timeout | null;
+    /** Local sync surface — keyed by userId */
+    private sessions: Map<string, RedditSession> = new Map();
 
     constructor() {
-        this.userPosts = new Map();
-        this.galleryStates = new Map();
-        this.pageStates = new Map();
-        this.sortStates = new Map();
-        this.nsfwStates = new Map();
-        this.sessionTimestamps = new Map();
-        
-        // Auto cleanup stale sessions (1 hour)
-        this.cleanupInterval = setInterval(() => this._cleanup(), 30 * 60 * 1000);
+        registerNamespaces();
     }
 
-    // Post management
+    // ── Internal session access ──────────────────────────────────────
+
+    private _getSession(userId: string): RedditSession | undefined {
+        const s = this.sessions.get(userId);
+        if (s) return s;
+
+        // Lazy hydrate from CacheService (async, won't help this call)
+        this._hydrate(userId);
+        return undefined;
+    }
+
+    private _ensureSession(userId: string): RedditSession {
+        let s = this.sessions.get(userId);
+        if (!s) {
+            s = { posts: [], page: 0, sort: 'top', nsfw: false, galleryPages: {}, updatedAt: Date.now() };
+            if (this.sessions.size >= MAX_SESSIONS) this._evictOldest();
+            this.sessions.set(userId, s);
+        }
+        return s;
+    }
+
+    private _touch(userId: string, session: RedditSession): void {
+        session.updatedAt = Date.now();
+        persist(userId, session);
+    }
+
+    // ── Post management ──────────────────────────────────────────────
+
     setPosts(userId: string, posts: RedditPost[]): void {
-        this.userPosts.set(userId, posts);
-        this.sessionTimestamps.set(userId, Date.now());
+        const s = this._ensureSession(userId);
+        s.posts = posts;
+        this._touch(userId, s);
     }
 
     getPosts(userId: string): RedditPost[] | undefined {
-        return this.userPosts.get(userId);
+        return this._getSession(userId)?.posts;
     }
 
     clearPosts(userId: string): void {
-        this.userPosts.delete(userId);
+        const s = this.sessions.get(userId);
+        if (s) {
+            s.posts = [];
+            this._touch(userId, s);
+        }
     }
 
-    // Page state management
+    // ── Page state management ────────────────────────────────────────
+
     setPage(userId: string, page: number): void {
-        this.pageStates.set(userId, page);
-        this.sessionTimestamps.set(userId, Date.now());
+        const s = this._ensureSession(userId);
+        s.page = page;
+        this._touch(userId, s);
     }
 
     getPage(userId: string): number {
-        return this.pageStates.get(userId) || 0;
+        return this._getSession(userId)?.page ?? 0;
     }
 
-    // Sort state management
+    // ── Sort state management ────────────────────────────────────────
+
     setSort(userId: string, sortBy: SortType): void {
-        this.sortStates.set(userId, sortBy);
+        const s = this._ensureSession(userId);
+        s.sort = sortBy;
+        this._touch(userId, s);
     }
 
     getSort(userId: string): SortType {
-        return this.sortStates.get(userId) || 'top';
+        return this._getSession(userId)?.sort ?? 'top';
     }
 
-    // NSFW channel state management
+    // ── NSFW channel state management ────────────────────────────────
+
     setNsfwChannel(userId: string, isNsfw: boolean): void {
-        this.nsfwStates.set(userId, isNsfw);
+        const s = this._ensureSession(userId);
+        s.nsfw = isNsfw;
+        this._touch(userId, s);
     }
 
     getNsfwChannel(userId: string): boolean {
-        return this.nsfwStates.get(userId) || false;
+        return this._getSession(userId)?.nsfw ?? false;
     }
 
-    // Gallery state management
+    // ── Gallery state management ─────────────────────────────────────
+
     setGalleryPage(userId: string, postIndex: number, page: number): void {
-        const key = `${userId}_${postIndex}`;
-        this.galleryStates.set(key, page);
+        const s = this._ensureSession(userId);
+        s.galleryPages[String(postIndex)] = page;
+        this._touch(userId, s);
     }
 
     getGalleryPage(userId: string, postIndex: number): number {
-        const key = `${userId}_${postIndex}`;
-        return this.galleryStates.get(key) || 0;
+        return this._getSession(userId)?.galleryPages[String(postIndex)] ?? 0;
     }
 
     clearGalleryStates(userId: string): void {
-        for (const key of this.galleryStates.keys()) {
-            if (key.startsWith(`${userId}_`)) {
-                this.galleryStates.delete(key);
-            }
+        const s = this.sessions.get(userId);
+        if (s) {
+            s.galleryPages = {};
+            this._touch(userId, s);
         }
     }
 
-    // Clear all user data
+    // ── Clear all user data ──────────────────────────────────────────
+
     clearAll(userId: string): void {
-        this.clearPosts(userId);
-        this.pageStates.delete(userId);
-        this.sortStates.delete(userId);
-        this.nsfwStates.delete(userId);
-        this.clearGalleryStates(userId);
-        this.sessionTimestamps.delete(userId);
-    }
-    
-    // Cleanup stale sessions (older than 1 hour)
-    private _cleanup(): void {
-        const now = Date.now();
-        const ONE_HOUR = 60 * 60 * 1000;
-        
-        for (const [userId, timestamp] of this.sessionTimestamps.entries()) {
-            if (now - timestamp > ONE_HOUR) {
-                this.clearAll(userId);
-            }
-        }
+        this.sessions.delete(userId);
+        unpersist(userId);
     }
 
-    // Destroy (for cleanup)
+    // ── Lifecycle ────────────────────────────────────────────────────
+
     destroy(): void {
-        if (this.cleanupInterval) {
-            clearInterval(this.cleanupInterval);
-            this.cleanupInterval = null;
+        this.sessions.clear();
+    }
+
+    // ── Internal helpers ─────────────────────────────────────────────
+
+    private _evictOldest(): void {
+        let oldestKey: string | null = null;
+        let oldestTime = Infinity;
+        for (const [key, session] of this.sessions) {
+            if (session.updatedAt < oldestTime) {
+                oldestTime = session.updatedAt;
+                oldestKey = key;
+            }
         }
+        if (oldestKey) this.sessions.delete(oldestKey);
+    }
+
+    private _hydrate(userId: string): void {
+        cacheService.get<RedditSession>(NS, userId).then(val => {
+            if (val && !this.sessions.has(userId)) {
+                if (this.sessions.size >= MAX_SESSIONS) this._evictOldest();
+                this.sessions.set(userId, val);
+            }
+        }).catch(() => {});
     }
 }
 

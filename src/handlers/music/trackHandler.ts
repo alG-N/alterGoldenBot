@@ -893,8 +893,8 @@ class TrackHandler {
     /**
      * Create settings embed
      */
-    createSettingsEmbed(userId: string): EmbedBuilder {
-        const prefs = musicCache.getPreferences(userId);
+    async createSettingsEmbed(userId: string): Promise<EmbedBuilder> {
+        const prefs = await musicCache.getPreferences(userId);
 
         const embed = new EmbedBuilder()
             .setColor(COLORS.info as `#${string}`)
@@ -946,8 +946,8 @@ class TrackHandler {
     /**
      * Create settings select menus
      */
-    createSettingsComponents(userId: string): ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] {
-        const prefs = musicCache.getPreferences(userId);
+    async createSettingsComponents(userId: string): Promise<ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[]> {
+        const prefs = await musicCache.getPreferences(userId);
         const rows: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
 
         // Volume select

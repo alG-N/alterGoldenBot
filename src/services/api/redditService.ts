@@ -4,6 +4,7 @@ import config from '../../config/services';
 import { withRetry } from '../../utils/common/apiUtils';
 import logger from '../../core/Logger';
 import { circuitBreakerRegistry } from '../../core/CircuitBreakerRegistry';
+import cacheService from '../../cache/CacheService';
 // TYPES & INTERFACES
 /**
  * Reddit OAuth token response
@@ -161,6 +162,10 @@ export class RedditService {
     private maxRetries: number;
     private userAgent: string;
 
+    // Redis cache for cross-shard token sharing
+    private static readonly AUTH_CACHE_NS = 'reddit_auth';
+    private static readonly AUTH_CACHE_KEY = 'oauth_token';
+
     constructor() {
         this.clientId = config.reddit.clientId;
         this.secret = config.reddit.secretKey;
@@ -175,12 +180,29 @@ export class RedditService {
 
     /**
      * Get or refresh OAuth access token
+     * Uses Redis to share tokens across shards
      */
     async getAccessToken(): Promise<string> {
+        // 1. Fast path: local in-memory token still valid
         if (this.accessToken && Date.now() < this.tokenExpiry) {
             return this.accessToken;
         }
 
+        // 2. Check Redis for a token another shard may have refreshed
+        try {
+            const cached = await cacheService.get<{ accessToken: string; tokenExpiry: number }>(
+                RedditService.AUTH_CACHE_NS, RedditService.AUTH_CACHE_KEY
+            );
+            if (cached && Date.now() < cached.tokenExpiry) {
+                this.accessToken = cached.accessToken;
+                this.tokenExpiry = cached.tokenExpiry;
+                return cached.accessToken;
+            }
+        } catch {
+            // Redis unavailable — fall through to refresh
+        }
+
+        // 3. Refresh token from Reddit API
         const auth = Buffer.from(`${this.clientId}:${this.secret}`).toString('base64');
 
         // Use retry logic for authentication
@@ -202,6 +224,18 @@ export class RedditService {
 
             this.accessToken = response.data.access_token;
             this.tokenExpiry = Date.now() + (response.data.expires_in * 1000) - 60000;
+
+            // 4. Store in Redis for other shards
+            try {
+                const ttlSeconds = Math.max(Math.floor((this.tokenExpiry - Date.now()) / 1000), 60);
+                await cacheService.set(RedditService.AUTH_CACHE_NS, RedditService.AUTH_CACHE_KEY, {
+                    accessToken: this.accessToken,
+                    tokenExpiry: this.tokenExpiry
+                }, ttlSeconds);
+            } catch {
+                // Redis unavailable — token still works locally
+            }
+
             return this.accessToken;
         }, {
             name: 'Reddit Auth',
@@ -487,8 +521,3 @@ const redditService = new RedditService();
 
 export { redditService };
 export default redditService;
-
-// CommonJS compatibility
-module.exports = redditService;
-module.exports.redditService = redditService;
-module.exports.RedditService = RedditService;

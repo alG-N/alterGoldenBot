@@ -36,7 +36,7 @@ interface ServiceConfig {
     client?: Client;
     database?: { query: (sql: string) => Promise<unknown> };
     redis?: { isConnected: boolean; client: { ping: () => Promise<unknown> } };
-    cacheService?: { getStats: () => { hitRate: number; hits: number; misses: number; memoryEntries: number; redisConnected: boolean } };
+    cacheService?: { getStats: () => { hitRate: number; hits: number; misses: number; absenceChecks: number; memoryEntries: number; redisConnected: boolean } };
     lavalink?: { getNodeStatus?: () => { ready?: boolean; nodes?: unknown[]; activeConnections?: number } };
     circuitBreakerRegistry?: { getHealth: () => { status: string; breakers: Record<string, { state: string }> }; getSummary: () => { total: number; closed: number; open: number; halfOpen: number } };
     gracefulDegradation?: { getStatus: () => { level: string; services: Record<string, unknown>; writeQueues?: Record<string, number> } };
@@ -250,6 +250,7 @@ export function registerDefaultChecks(services: ServiceConfig = {}): void {
                     hitRate: Math.round(stats.hitRate * 100) + '%',
                     hits: stats.hits,
                     misses: stats.misses,
+                    absenceChecks: stats.absenceChecks,
                     memoryEntries: stats.memoryEntries,
                     redisConnected: stats.redisConnected
                 }

@@ -6,9 +6,6 @@
 import animeRepository, { AnimeRepository } from './animeRepository';
 import type { AnimeFavourite, AnimeNotification } from './animeRepository';
 
-import cacheManager, { CacheManager } from './cacheManager';
-import type { ApiSource, SortType as CacheManagerSortType, ContentCacheEntry } from './cacheManager';
-
 import nhentaiRepository, { NHentaiRepository } from './nhentaiRepository';
 import type { NHentaiGallery, NHentaiTag, NHentaiFavourite, ToggleFavouriteResult } from './nhentaiRepository';
 
@@ -35,7 +32,6 @@ import type {
 export {
     // Instances
     animeRepository,
-    cacheManager,
     nhentaiRepository,
     pixivCache,
     redditCache,
@@ -43,7 +39,6 @@ export {
     
     // Classes
     AnimeRepository,
-    CacheManager,
     NHentaiRepository,
     PixivCache,
     RedditCache,
@@ -55,11 +50,6 @@ export type {
     // Types - Anime
     AnimeFavourite,
     AnimeNotification,
-    
-    // Types - CacheManager
-    ApiSource,
-    ContentCacheEntry,
-    CacheManagerSortType,
     
     // Types - NHentai
     NHentaiGallery,
@@ -90,7 +80,6 @@ export type {
 // Default export for CommonJS compatibility
 export default {
     animeRepository,
-    cacheManager,
     nhentaiRepository,
     pixivCache,
     redditCache,

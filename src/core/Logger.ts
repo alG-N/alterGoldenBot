@@ -98,7 +98,7 @@ interface GuildLike {
 /**
  * Log channel ID for Discord logging
  */
-export const LOG_CHANNEL_ID: string = process.env.SYSTEM_LOG_CHANNEL_ID || '1195762287729537045';
+export const LOG_CHANNEL_ID: string = process.env.SYSTEM_LOG_CHANNEL_ID || '';
 
 /**
  * Log format: 'json' for production, 'text' for development
@@ -138,6 +138,7 @@ export class Logger {
     private isProcessingQueue: boolean = false;
     private lastDiscordLog: number = 0;
     private discordLogCooldown: number = 1000; // 1 second between logs
+    private readonly MAX_DISCORD_QUEUE_SIZE = 100;
 
     constructor() {
         this.minPriority = LOG_LEVELS[MIN_LOG_LEVEL]?.priority ?? 1;
@@ -260,6 +261,10 @@ export class Logger {
      * Log to Discord channel (rate-limited)
      */
     async discord(level: LogLevel, title: string, description: string, fields: Record<string, unknown> | null = null): Promise<void> {
+        // Cap queue to prevent OOM when Discord is unreachable
+        if (this.discordLogQueue.length >= this.MAX_DISCORD_QUEUE_SIZE) {
+            this.discordLogQueue.splice(0, this.discordLogQueue.length - this.MAX_DISCORD_QUEUE_SIZE + 1);
+        }
         // Queue the log
         this.discordLogQueue.push({ level, title, description, fields });
         
@@ -776,12 +781,3 @@ export default logger;
 
 // Named exports for ESM
 export { logger };
-
-// Expose methods on module.exports for CommonJS compatibility
-// This allows both `require('Logger')` and `require('Logger').logger` to work
-module.exports = logger;
-module.exports.default = logger;
-module.exports.logger = logger;
-module.exports.Logger = Logger;
-module.exports.LOG_CHANNEL_ID = LOG_CHANNEL_ID;
-module.exports.LOG_LEVELS = LOG_LEVELS;

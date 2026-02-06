@@ -11,6 +11,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.GoogleService = exports.googleService = void 0;
 const axios_1 = __importDefault(require("axios"));
 const CircuitBreakerRegistry_1 = require("../../core/CircuitBreakerRegistry");
+const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
 // CONFIGURATION
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 const GOOGLE_CX = process.env.GOOGLE_SEARCH_CX;
@@ -21,30 +22,11 @@ const REQUEST_TIMEOUT = 10000;
  * Google Search Service with DuckDuckGo fallback
  */
 class GoogleService {
-    cache;
-    cacheExpiry;
-    maxCacheSize;
+    CACHE_NS = 'api';
+    CACHE_TTL = 300; // 5 minutes in seconds
     useDuckDuckGo;
-    cleanupInterval;
     constructor() {
-        this.cache = new Map();
-        this.cacheExpiry = 300000; // 5 minutes
-        this.maxCacheSize = 50;
         this.useDuckDuckGo = USE_DUCKDUCKGO;
-        this.cleanupInterval = null;
-        // Auto-cleanup every 10 minutes
-        this.cleanupInterval = setInterval(() => this._cleanupCache(), 600000);
-    }
-    /**
-     * Cleanup expired cache entries
-     */
-    _cleanupCache() {
-        const now = Date.now();
-        for (const [key, entry] of this.cache) {
-            if (now > entry.expiresAt) {
-                this.cache.delete(key);
-            }
-        }
     }
     /**
      * Main search method with circuit breaker protection
@@ -52,8 +34,8 @@ class GoogleService {
     async search(query, options = {}) {
         const { safeSearch = true, maxResults = 5 } = options;
         // Check cache
-        const cacheKey = `search_${query}_${safeSearch}_${maxResults}`;
-        const cached = this._getFromCache(cacheKey);
+        const cacheKey = `google:search_${query}_${safeSearch}_${maxResults}`;
+        const cached = await CacheService_js_1.default.get(this.CACHE_NS, cacheKey);
         if (cached)
             return { ...cached, fromCache: true };
         // Execute with circuit breaker
@@ -66,7 +48,7 @@ class GoogleService {
             }
         });
         if (result.success) {
-            this._setCache(cacheKey, result);
+            await CacheService_js_1.default.set(this.CACHE_NS, cacheKey, result, this.CACHE_TTL);
         }
         return result;
     }
@@ -198,36 +180,10 @@ class GoogleService {
         return this.useDuckDuckGo ? 'DuckDuckGo' : 'Google';
     }
     /**
-     * Cache management - get
-     */
-    _getFromCache(key) {
-        const entry = this.cache.get(key);
-        if (!entry || Date.now() > entry.expiresAt) {
-            this.cache.delete(key);
-            return null;
-        }
-        return entry.data;
-    }
-    /**
-     * Cache management - set
-     */
-    _setCache(key, data) {
-        if (this.cache.size >= this.maxCacheSize) {
-            const oldestKey = this.cache.keys().next().value;
-            if (oldestKey)
-                this.cache.delete(oldestKey);
-        }
-        this.cache.set(key, { data, expiresAt: Date.now() + this.cacheExpiry });
-    }
-    /**
      * Cleanup on shutdown
      */
     shutdown() {
-        if (this.cleanupInterval) {
-            clearInterval(this.cleanupInterval);
-            this.cleanupInterval = null;
-        }
-        this.cache.clear();
+        // No local resources to clean up
     }
 }
 exports.GoogleService = GoogleService;

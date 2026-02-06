@@ -38,7 +38,6 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DEVELOPER_ID = void 0;
 exports.loadMaintenanceState = loadMaintenanceState;
 exports.saveMaintenanceState = saveMaintenanceState;
 exports.enableMaintenance = enableMaintenance;
@@ -57,6 +56,7 @@ exports.getMaintenanceState = getMaintenanceState;
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const discord_js_1 = require("discord.js");
+const owner_js_1 = require("./owner.js");
 // STATE
 const MAINTENANCE_FILE = path.join(__dirname, '..', 'data', 'maintenanceState.json');
 // Default maintenance state
@@ -70,8 +70,7 @@ let maintenanceState = {
     allowedUsers: [],
     scheduledMaintenance: null
 };
-// Developer ID (can always bypass)
-exports.DEVELOPER_ID = '1128296349566251068';
+// Developer ID (imported from owner.ts — re-exported for backward compatibility)
 // STATE MANAGEMENT
 /**
  * Load maintenance state from file
@@ -120,8 +119,8 @@ function enableMaintenance(options = {}) {
     maintenanceState.estimatedEnd = options.estimatedEnd || null;
     maintenanceState.partialMode = options.partialMode || false;
     maintenanceState.disabledFeatures = options.disabledFeatures || [];
-    if (!maintenanceState.allowedUsers.includes(exports.DEVELOPER_ID)) {
-        maintenanceState.allowedUsers.push(exports.DEVELOPER_ID);
+    if (!maintenanceState.allowedUsers.includes(owner_js_1.DEVELOPER_ID)) {
+        maintenanceState.allowedUsers.push(owner_js_1.DEVELOPER_ID);
     }
     saveMaintenanceState();
     return maintenanceState;
@@ -149,7 +148,7 @@ function isInMaintenance() {
  * Check if user can bypass maintenance
  */
 function canBypassMaintenance(userId) {
-    return userId === exports.DEVELOPER_ID || maintenanceState.allowedUsers.includes(userId);
+    return userId === owner_js_1.DEVELOPER_ID || maintenanceState.allowedUsers.includes(userId);
 }
 /**
  * Check if user is allowed during maintenance
@@ -279,7 +278,6 @@ function getMaintenanceState() {
     return { ...maintenanceState };
 }
 exports.default = {
-    DEVELOPER_ID: exports.DEVELOPER_ID,
     enableMaintenance,
     disableMaintenance,
     isInMaintenance,

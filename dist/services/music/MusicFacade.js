@@ -626,32 +626,32 @@ class MusicFacade {
         }
     }
     // USER DATA (favorites, history, preferences)
-    addFavorite(userId, track) {
+    async addFavorite(userId, track) {
         return MusicCacheFacade_1.default.addFavorite(userId, track);
     }
-    removeFavorite(userId, trackUrl) {
+    async removeFavorite(userId, trackUrl) {
         return MusicCacheFacade_1.default.removeFavorite(userId, trackUrl);
     }
-    getFavorites(userId) {
+    async getFavorites(userId) {
         return MusicCacheFacade_1.default.getFavorites(userId);
     }
-    isFavorited(userId, trackUrl) {
+    async isFavorited(userId, trackUrl) {
         return MusicCacheFacade_1.default.isFavorited(userId, trackUrl);
     }
-    addToHistory(userId, track) {
-        MusicCacheFacade_1.default.addToHistory(userId, track);
+    async addToHistory(userId, track) {
+        await MusicCacheFacade_1.default.addToHistory(userId, track);
     }
-    getHistory(userId, limit) {
+    async getHistory(userId, limit) {
         return MusicCacheFacade_1.default.getHistory(userId, limit);
     }
-    clearHistory(userId) {
-        MusicCacheFacade_1.default.clearHistory(userId);
+    async clearHistory(userId) {
+        await MusicCacheFacade_1.default.clearHistory(userId);
     }
-    getPreferences(userId) {
+    async getPreferences(userId) {
         return MusicCacheFacade_1.default.getPreferences(userId);
     }
-    setPreferences(userId, prefs) {
-        MusicCacheFacade_1.default.setPreferences(userId, prefs);
+    async setPreferences(userId, prefs) {
+        await MusicCacheFacade_1.default.setPreferences(userId, prefs);
     }
     getRecentlyPlayed(guildId) {
         return MusicCacheFacade_1.default.getRecentlyPlayed(guildId);

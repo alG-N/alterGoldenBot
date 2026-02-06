@@ -6,6 +6,7 @@
 
 import axios, { AxiosError } from 'axios';
 import { circuitBreakerRegistry } from '../../core/CircuitBreakerRegistry';
+import cacheService from '../../cache/CacheService.js';
 // TYPES & INTERFACES
 /**
  * Search result item
@@ -41,11 +42,6 @@ export interface SearchOptions {
 /**
  * Cache entry
  */
-interface CacheEntry {
-    data: SearchResponse;
-    expiresAt: number;
-}
-
 /**
  * Google API response types
  */
@@ -93,33 +89,12 @@ const REQUEST_TIMEOUT = 10000;
  * Google Search Service with DuckDuckGo fallback
  */
 class GoogleService {
-    private cache: Map<string, CacheEntry>;
-    private readonly cacheExpiry: number;
-    private readonly maxCacheSize: number;
+    private readonly CACHE_NS = 'api';
+    private readonly CACHE_TTL = 300; // 5 minutes in seconds
     private readonly useDuckDuckGo: boolean;
-    private cleanupInterval: NodeJS.Timeout | null;
 
     constructor() {
-        this.cache = new Map();
-        this.cacheExpiry = 300000; // 5 minutes
-        this.maxCacheSize = 50;
         this.useDuckDuckGo = USE_DUCKDUCKGO;
-        this.cleanupInterval = null;
-
-        // Auto-cleanup every 10 minutes
-        this.cleanupInterval = setInterval(() => this._cleanupCache(), 600000);
-    }
-
-    /**
-     * Cleanup expired cache entries
-     */
-    private _cleanupCache(): void {
-        const now = Date.now();
-        for (const [key, entry] of this.cache) {
-            if (now > entry.expiresAt) {
-                this.cache.delete(key);
-            }
-        }
     }
 
     /**
@@ -129,8 +104,8 @@ class GoogleService {
         const { safeSearch = true, maxResults = 5 } = options;
 
         // Check cache
-        const cacheKey = `search_${query}_${safeSearch}_${maxResults}`;
-        const cached = this._getFromCache(cacheKey);
+        const cacheKey = `google:search_${query}_${safeSearch}_${maxResults}`;
+        const cached = await cacheService.get<SearchResponse>(this.CACHE_NS, cacheKey);
         if (cached) return { ...cached, fromCache: true };
 
         // Execute with circuit breaker
@@ -143,7 +118,7 @@ class GoogleService {
         });
 
         if (result.success) {
-            this._setCache(cacheKey, result);
+            await cacheService.set(this.CACHE_NS, cacheKey, result, this.CACHE_TTL);
         }
 
         return result;
@@ -295,37 +270,10 @@ class GoogleService {
     }
 
     /**
-     * Cache management - get
-     */
-    private _getFromCache(key: string): SearchResponse | null {
-        const entry = this.cache.get(key);
-        if (!entry || Date.now() > entry.expiresAt) {
-            this.cache.delete(key);
-            return null;
-        }
-        return entry.data;
-    }
-
-    /**
-     * Cache management - set
-     */
-    private _setCache(key: string, data: SearchResponse): void {
-        if (this.cache.size >= this.maxCacheSize) {
-            const oldestKey = this.cache.keys().next().value;
-            if (oldestKey) this.cache.delete(oldestKey);
-        }
-        this.cache.set(key, { data, expiresAt: Date.now() + this.cacheExpiry });
-    }
-
-    /**
      * Cleanup on shutdown
      */
     shutdown(): void {
-        if (this.cleanupInterval) {
-            clearInterval(this.cleanupInterval);
-            this.cleanupInterval = null;
-        }
-        this.cache.clear();
+        // No local resources to clean up
     }
 }
 
@@ -334,8 +282,3 @@ const googleService = new GoogleService();
 
 export { googleService, GoogleService };
 export default googleService;
-
-// CommonJS compatibility
-module.exports = googleService;
-module.exports.googleService = googleService;
-module.exports.GoogleService = GoogleService;

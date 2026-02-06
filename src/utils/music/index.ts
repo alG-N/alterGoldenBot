@@ -33,23 +33,6 @@ interface Validators {
 }
 // TIME UTILITIES
 /**
- * Format milliseconds to duration string
- * @param ms - Milliseconds
- * @returns Formatted duration (e.g., "1h 30m 45s")
- */
-export function formatDuration(ms: number): string {
-    if (!ms || ms <= 0) return '0s';
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const parts: string[] = [];
-    if (hours > 0) parts.push(`${hours}h`);
-    if (minutes % 60 > 0) parts.push(`${minutes % 60}m`);
-    if (seconds % 60 > 0 && hours === 0) parts.push(`${seconds % 60}s`);
-    return parts.join(' ') || '0s';
-}
-
-/**
  * Format milliseconds to time string
  * @param ms - Milliseconds
  * @returns Formatted time (e.g., "1:30:45" or "30:45")

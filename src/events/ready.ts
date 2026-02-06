@@ -13,6 +13,8 @@ import { updateDiscordMetrics, redisConnectionStatus, musicPlayersActive, musicQ
 import cacheService from '../cache/CacheService.js';
 // READY EVENT
 class ReadyEvent extends BaseEvent {
+    private _metricsInterval: ReturnType<typeof setInterval> | null = null;
+
     constructor() {
         super({
             name: Events.ClientReady,
@@ -64,7 +66,7 @@ class ReadyEvent extends BaseEvent {
             redisConnectionStatus.set(stats.redisConnected ? 1 : 0);
         };
         collectMetrics();
-        setInterval(collectMetrics, 15000); // Update every 15s
+        this._metricsInterval = setInterval(collectMetrics, 15000); // Update every 15s
         
         // Log startup to Discord
         await logger.logSystemEvent(
@@ -73,6 +75,16 @@ class ReadyEvent extends BaseEvent {
         );
         
         logger.success('Ready', '🚀 alterGolden is fully operational!');
+    }
+
+    /**
+     * Destroy - clear metrics interval for clean shutdown
+     */
+    destroy(): void {
+        if (this._metricsInterval) {
+            clearInterval(this._metricsInterval);
+            this._metricsInterval = null;
+        }
     }
 }
 

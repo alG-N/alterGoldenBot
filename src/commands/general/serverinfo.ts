@@ -55,7 +55,6 @@ class ServerInfoCommand extends BaseCommand {
         const members = guild.members.cache;
         const humans = members.filter(m => !m.user.bot).size;
         const bots = members.filter(m => m.user.bot).size;
-        const online = members.filter(m => m.presence?.status === 'online').size;
 
         // Roles
         const roles = guild.roles.cache;
@@ -99,8 +98,7 @@ class ServerInfoCommand extends BaseCommand {
                 
                 // Members
                 { name: '👥 Members', value: `Total: **${guild.memberCount}**\nHumans: ${humans}\nBots: ${bots}`, inline: true },
-                { name: '🟢 Online', value: `${online} members`, inline: true },
-                { name: '📜 Roles', value: `${roles.size} roles\nTop: ${topRole?.name || 'None'}`, inline: true },
+                { name: ' Roles', value: `${roles.size} roles\nTop: ${topRole?.name || 'None'}`, inline: true },
                 
                 // Channels
                 { name: '💬 Channels', value: `Text: ${textChannels}\nVoice: ${voiceChannels}\nCategories: ${categories}`, inline: true },
@@ -133,6 +131,3 @@ class ServerInfoCommand extends BaseCommand {
 // Export singleton instance
 const serverInfoCommand = new ServerInfoCommand();
 export default serverInfoCommand;
-
-// CommonJS compatibility
-module.exports = serverInfoCommand;

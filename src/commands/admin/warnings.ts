@@ -16,6 +16,7 @@ import {
     Message
 } from 'discord.js';
 import { BaseCommand, CommandCategory, type CommandData } from '../BaseCommand.js';
+import { formatDuration } from '../../utils/common/time.js';
 
 const WARNINGS_PER_PAGE = 5;
 
@@ -203,12 +204,7 @@ class WarningsCommand extends BaseCommand {
                 value += `**Date:** <t:${timestamp}:R>`;
 
                 if (infraction.duration_ms) {
-                    try {
-                        const { formatDuration } = require('../../utils/common/time');
-                        value += `\n**Duration:** ${formatDuration(infraction.duration_ms)}`;
-                    } catch {
-                        value += `\n**Duration:** ${Math.floor(infraction.duration_ms / 60000)} minutes`;
-                    }
+                    value += `\n**Duration:** ${formatDuration(infraction.duration_ms)}`;
                 }
 
                 if (!infraction.active) {

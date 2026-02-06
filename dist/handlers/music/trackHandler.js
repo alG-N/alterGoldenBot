@@ -637,8 +637,8 @@ class TrackHandler {
     /**
      * Create settings embed
      */
-    createSettingsEmbed(userId) {
-        const prefs = MusicCacheFacade_js_1.default.getPreferences(userId);
+    async createSettingsEmbed(userId) {
+        const prefs = await MusicCacheFacade_js_1.default.getPreferences(userId);
         const embed = new discord_js_1.EmbedBuilder()
             .setColor(exports.COLORS.info)
             .setAuthor({ name: '⚙️ Music Settings' })
@@ -678,8 +678,8 @@ class TrackHandler {
     /**
      * Create settings select menus
      */
-    createSettingsComponents(userId) {
-        const prefs = MusicCacheFacade_js_1.default.getPreferences(userId);
+    async createSettingsComponents(userId) {
+        const prefs = await MusicCacheFacade_js_1.default.getPreferences(userId);
         const rows = [];
         // Volume select
         const volumeSelect = new discord_js_1.StringSelectMenuBuilder()

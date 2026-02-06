@@ -389,6 +389,3 @@ class HelpCommand extends BaseCommand {
 // Export singleton instance
 const helpCommand = new HelpCommand();
 export default helpCommand;
-
-// CommonJS compatibility
-module.exports = helpCommand;

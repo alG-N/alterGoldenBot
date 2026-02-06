@@ -10,7 +10,8 @@ import gracefulDegradation, { ServiceState } from '../core/GracefulDegradation.j
 import { databasePoolSize, databaseQueriesTotal, databaseQueryDuration } from '../core/metrics.js';
 
 // Use require for internal modules to avoid circular dependency
-const logger = require('../core/Logger');
+const _loggerMod = require('../core/Logger');
+const logger = _loggerMod.default || _loggerMod;
 // TYPES & INTERFACES
 /**
  * Allowed table names (whitelist for SQL injection prevention)
@@ -20,18 +21,23 @@ export const ALLOWED_TABLES = [
     'moderation_logs',
     'user_data',
     'guild_user_data',
-    'afk_users',
+    'user_afk',
     'snipes',
     'playlists',
     'bot_stats',
     'command_analytics',
     'nhentai_favourites',
-    'anime_watchlist',
-    'anime_history',
     'anime_favourites',
     'anime_notifications',
     'automod_settings',
-    'mod_log_settings'
+    'mod_log_settings',
+    'mod_infractions',
+    'word_filters',
+    'warn_thresholds',
+    'raid_mode',
+    'user_music_preferences',
+    'user_music_favorites',
+    'user_music_history'
 ] as const;
 
 export type AllowedTable = typeof ALLOWED_TABLES[number];
@@ -192,7 +198,7 @@ export class PostgresDatabase {
             host: process.env.DB_HOST || 'localhost',
             port: parseInt(process.env.DB_PORT || '5432'),
             user: process.env.DB_USER || 'altergolden',
-            password: process.env.DB_PASSWORD || 'altergolden_secret',
+            password: process.env.DB_PASSWORD || '',
             database: process.env.DB_NAME || 'altergolden_db',
             
             // Connection pool settings
@@ -253,7 +259,7 @@ export class PostgresDatabase {
             host: process.env.DB_READ_HOST,
             port: parseInt(process.env.DB_READ_PORT || process.env.DB_PORT || '5432'),
             user: process.env.DB_READ_USER || process.env.DB_USER || 'altergolden',
-            password: process.env.DB_READ_PASSWORD || process.env.DB_PASSWORD || 'altergolden_secret',
+            password: process.env.DB_READ_PASSWORD || process.env.DB_PASSWORD || '',
             database: process.env.DB_NAME || 'altergolden_db',
             
             max: parseInt(process.env.DB_READ_POOL_MAX || '20'),
@@ -858,7 +864,7 @@ export async function initializeDatabase(): Promise<void> {
             SELECT table_name 
             FROM information_schema.tables 
             WHERE table_schema = 'public' 
-            AND table_name IN ('guild_settings', 'moderation_logs', 'snipes')
+            AND table_name IN ('guild_settings', 'mod_infractions', 'snipes')
         `);
         
         if (result.rows.length < 3) {
@@ -883,13 +889,3 @@ export function isDatabaseReady(): boolean {
 
 // Default export
 export default defaultInstance;
-// CommonJS COMPATIBILITY
-module.exports = defaultInstance;
-module.exports.PostgresDatabase = PostgresDatabase;
-module.exports.validateTable = validateTable;
-module.exports.validateIdentifier = validateIdentifier;
-module.exports.ALLOWED_TABLES = ALLOWED_TABLES;
-module.exports.TRANSIENT_ERROR_CODES = TRANSIENT_ERROR_CODES;
-module.exports.initializeDatabase = initializeDatabase;
-module.exports.isDatabaseReady = isDatabaseReady;
-module.exports.default = defaultInstance;

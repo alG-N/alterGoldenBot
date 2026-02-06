@@ -5,7 +5,7 @@
  * @module config/owner
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EMBED_COLORS = exports.BOOST_TIERS = exports.GUILD_FEATURES_MAP = exports.SUPPORT_GUILD_ID = exports.SYSTEM_LOG_CHANNEL_ID = exports.REPORT_CHANNEL_ID = exports.GUILD_LOG_CHANNEL_ID = exports.DEVELOPER_ID = exports.OWNER_IDS = void 0;
+exports.BOOST_TIERS = exports.GUILD_FEATURES_MAP = exports.SUPPORT_GUILD_ID = exports.SYSTEM_LOG_CHANNEL_ID = exports.REPORT_CHANNEL_ID = exports.GUILD_LOG_CHANNEL_ID = exports.DEVELOPER_ID = exports.OWNER_IDS = void 0;
 exports.isOwner = isOwner;
 exports.isDeveloper = isDeveloper;
 exports.isValidUserId = isValidUserId;
@@ -19,12 +19,12 @@ exports.OWNER_IDS = process.env.OWNER_IDS
     ];
 // Primary Developer ID (from environment or default)
 exports.DEVELOPER_ID = process.env.DEVELOPER_ID || '1128296349566251068';
-// Logging Channels
-exports.GUILD_LOG_CHANNEL_ID = '1366324387967533057';
-exports.REPORT_CHANNEL_ID = '1362826913088799001';
-exports.SYSTEM_LOG_CHANNEL_ID = '1195762287729537045';
+// Logging Channels (from environment or defaults)
+exports.GUILD_LOG_CHANNEL_ID = process.env.GUILD_LOG_CHANNEL_ID || '';
+exports.REPORT_CHANNEL_ID = process.env.REPORT_CHANNEL_ID || '';
+exports.SYSTEM_LOG_CHANNEL_ID = process.env.SYSTEM_LOG_CHANNEL_ID || '';
 // Support Server
-exports.SUPPORT_GUILD_ID = '1255091916823986207';
+exports.SUPPORT_GUILD_ID = process.env.SUPPORT_GUILD_ID || '';
 // Guild Feature Display Map
 exports.GUILD_FEATURES_MAP = {
     'ANIMATED_ICON': '🎬 Animated Icon',
@@ -48,16 +48,6 @@ exports.BOOST_TIERS = {
     emojis: ['⚪', '🥉', '🥈', '🥇', '💎'],
     names: ['None', 'Tier 1', 'Tier 2', 'Tier 3']
 };
-// Embed Colors
-exports.EMBED_COLORS = {
-    SUCCESS: 0x00FF00,
-    ERROR: 0xFF0000,
-    WARNING: 0xFFA500,
-    INFO: 0x3498DB,
-    GREY: 0x808080,
-    GUILD_JOIN: 0x00FF00,
-    GUILD_LEAVE: 0xFF0000
-};
 // Helper Functions
 function isOwner(userId) {
     return exports.OWNER_IDS.includes(userId);
@@ -77,7 +67,6 @@ exports.default = {
     SUPPORT_GUILD_ID: exports.SUPPORT_GUILD_ID,
     GUILD_FEATURES_MAP: exports.GUILD_FEATURES_MAP,
     BOOST_TIERS: exports.BOOST_TIERS,
-    EMBED_COLORS: exports.EMBED_COLORS,
     isOwner,
     isDeveloper,
     isValidUserId

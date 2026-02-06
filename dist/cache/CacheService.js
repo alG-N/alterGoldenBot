@@ -28,6 +28,10 @@ exports.DEFAULT_NAMESPACES = {
     'automod': { ttl: 60, maxSize: 5000, useRedis: true }, // AutoMod tracking - 1min
     'ratelimit': { ttl: 60, maxSize: 10000, useRedis: true }, // Rate limits - 1min
     'session': { ttl: 1800, maxSize: 500, useRedis: true }, // Sessions - 30min
+    'snipe': { ttl: 43200, maxSize: 500, useRedis: true }, // Snipe messages - 12h
+    'lockdown': { ttl: 86400, maxSize: 200, useRedis: true }, // Lockdown state - 24h
+    'antiraid': { ttl: 3600, maxSize: 500, useRedis: true }, // Anti-raid tracking - 1h
+    'voice': { ttl: 600, maxSize: 200, useRedis: true }, // Voice state tracking - 10min
     'temp': { ttl: 60, maxSize: 1000, useRedis: false }, // Temporary - 1min, memory only
 };
 /**
@@ -55,6 +59,8 @@ class CacheService {
     maxRedisFailures;
     /** Cleanup interval reference */
     _cleanupInterval;
+    /** Flag to suppress miss metric during getOrSet internal lookup */
+    _suppressMissMetric = false;
     constructor(options = {}) {
         this.memoryCache = new Map();
         this.namespaces = new Map(Object.entries(exports.DEFAULT_NAMESPACES));
@@ -63,6 +69,7 @@ class CacheService {
         this.metrics = {
             hits: 0,
             misses: 0,
+            absenceChecks: 0,
             writes: 0,
             deletes: 0,
             errors: 0,
@@ -186,7 +193,9 @@ class CacheService {
                 if (entry)
                     memNs.delete(key);
             }
-            this.metrics.misses++;
+            if (!this._suppressMissMetric) {
+                this.metrics.misses++;
+            }
             return null;
         }
         catch (error) {
@@ -194,6 +203,24 @@ class CacheService {
             logger.error('CacheService', `Get error: ${error.message}`);
             return null;
         }
+    }
+    /**
+     * Peek at a value in cache without counting a miss.
+     * Use for "existence checks" where null is a normal/expected result
+     * (e.g. checking if a channel is locked, if raid mode is active, etc.).
+     * Hits are still counted normally.
+     * @param namespace - Cache namespace
+     * @param key - Cache key
+     * @returns Cached value or null
+     */
+    async peek(namespace, key) {
+        this._suppressMissMetric = true;
+        const result = await this.get(namespace, key);
+        this._suppressMissMetric = false;
+        if (result === null) {
+            this.metrics.absenceChecks++;
+        }
+        return result;
     }
     /**
      * Set value in cache
@@ -275,7 +302,7 @@ class CacheService {
      * @returns True if key exists
      */
     async has(namespace, key) {
-        return (await this.get(namespace, key)) !== null;
+        return (await this.peek(namespace, key)) !== null;
     }
     /**
      * Get or set (cache-aside pattern)
@@ -286,10 +313,15 @@ class CacheService {
      * @returns Cached or newly fetched value
      */
     async getOrSet(namespace, key, factory, ttl) {
+        // Suppress miss metric for this internal lookup — a getOrSet "miss"
+        // is expected on first call and is immediately followed by a set().
+        this._suppressMissMetric = true;
         const cached = await this.get(namespace, key);
+        this._suppressMissMetric = false;
         if (cached !== null) {
             return cached;
         }
+        // This is a cache population, not a true miss
         const value = await factory();
         await this.set(namespace, key, value, ttl);
         return value;
@@ -364,6 +396,7 @@ class CacheService {
         const memorySize = [...this.memoryCache.values()]
             .reduce((sum, ns) => sum + ns.size, 0);
         const redisState = GracefulDegradation_js_1.default.getServiceState('redis') || 'unknown';
+        // Only count real get() hits + misses for hit rate (exclude peek absence checks)
         const totalRequests = this.metrics.hits + this.metrics.misses;
         return {
             ...this.metrics,
@@ -526,7 +559,7 @@ class CacheService {
      * Get automod warning count for a user
      */
     async getAutomodWarnCount(guildId, userId) {
-        const value = await this.get('automod', `warn:${guildId}:${userId}`);
+        const value = await this.peek('automod', `warn:${guildId}:${userId}`);
         return value ?? 0;
     }
     /**
@@ -778,7 +811,7 @@ class CacheService {
      * @returns Preserved state or null
      */
     async getPreservedQueueState(guildId) {
-        return this.get('music', `preserved:${guildId}`);
+        return this.peek('music', `preserved:${guildId}`);
     }
     /**
      * Clear preserved queue state for a guild
@@ -848,7 +881,7 @@ class CacheService {
      * @returns Deadline timestamp or null
      */
     async getInactivityDeadline(guildId) {
-        return this.get('music', `inactivity:${guildId}`);
+        return this.peek('music', `inactivity:${guildId}`);
     }
     /**
      * Clear inactivity deadline for a guild
@@ -927,7 +960,7 @@ class CacheService {
      * @param guildId - Guild ID
      */
     async isVCMonitorActive(guildId) {
-        const active = await this.get('music', `vcmonitor:${guildId}`);
+        const active = await this.peek('music', `vcmonitor:${guildId}`);
         return active === true;
     }
     /**

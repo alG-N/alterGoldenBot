@@ -68,7 +68,7 @@ class YtDlpService extends events_1.EventEmitter {
             }
             // Check if Docker is available
             try {
-                (0, child_process_1.execSync)('docker --version', {
+                (0, child_process_1.execFileSync)('docker', ['--version'], {
                     stdio: 'pipe',
                     encoding: 'utf-8',
                     windowsHide: true
@@ -80,7 +80,9 @@ class YtDlpService extends events_1.EventEmitter {
             }
             // Check if container is running
             try {
-                const result = (0, child_process_1.execSync)(`docker inspect -f "{{.State.Running}}" ${this.containerName}`, {
+                const result = (0, child_process_1.execFileSync)('docker', [
+                    'inspect', '-f', '{{.State.Running}}', this.containerName
+                ], {
                     stdio: 'pipe',
                     encoding: 'utf-8',
                     windowsHide: true
@@ -96,7 +98,7 @@ class YtDlpService extends events_1.EventEmitter {
             }
             // Try to start existing container
             try {
-                (0, child_process_1.execSync)(`docker start ${this.containerName}`, {
+                (0, child_process_1.execFileSync)('docker', ['start', this.containerName], {
                     stdio: 'pipe',
                     windowsHide: true
                 });
@@ -348,7 +350,13 @@ class YtDlpService extends events_1.EventEmitter {
     async _getVideoInfo(url) {
         return new Promise((resolve, reject) => {
             try {
-                const result = (0, child_process_1.execSync)(`docker run --rm jauderho/yt-dlp:latest --dump-single-json --no-warnings --no-check-certificate --no-playlist --skip-download "${url}"`, {
+                const result = (0, child_process_1.execFileSync)('docker', [
+                    'run', '--rm',
+                    'jauderho/yt-dlp:latest',
+                    '--dump-single-json', '--no-warnings', '--no-check-certificate',
+                    '--no-playlist', '--skip-download',
+                    url
+                ], {
                     stdio: 'pipe',
                     encoding: 'utf-8',
                     timeout: 15000,
@@ -379,7 +387,16 @@ class YtDlpService extends events_1.EventEmitter {
         }
         return new Promise((resolve, reject) => {
             try {
-                const result = (0, child_process_1.execSync)(`docker run --rm jauderho/yt-dlp:latest --dump-single-json --no-warnings --no-check-certificate --no-playlist --extractor-args "youtube:player_client=android,web" --user-agent "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36" --geo-bypass "${url}"`, {
+                const result = (0, child_process_1.execFileSync)('docker', [
+                    'run', '--rm',
+                    'jauderho/yt-dlp:latest',
+                    '--dump-single-json', '--no-warnings', '--no-check-certificate',
+                    '--no-playlist',
+                    '--extractor-args', 'youtube:player_client=android,web',
+                    '--user-agent', 'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36',
+                    '--geo-bypass',
+                    url
+                ], {
                     stdio: 'pipe',
                     encoding: 'utf-8',
                     timeout: 30000,

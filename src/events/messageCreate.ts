@@ -7,6 +7,7 @@
 import { Events, Client, Message } from 'discord.js';
 import { BaseEvent } from './BaseEvent.js';
 import { handleAutoModMessage } from '../handlers/moderation/index.js';
+import { onMessage as handleAfkMessage } from '../commands/general/afk.js';
 // TYPES
 interface AutoModResult {
     deleted?: boolean;
@@ -52,26 +53,11 @@ class MessageCreateEvent extends BaseEvent {
     /**
      * Handle AFK system
      */
-    private async _handleAfk(client: Client, message: Message): Promise<void> {
+    private async _handleAfk(_client: Client, message: Message): Promise<void> {
         try {
-            // Try presentation layer first - access default export's onMessage
-            const afkModule = await import('../commands/general/afk.js') as unknown as { default: { onMessage?: (message: Message, client: Client) => void | Promise<void> } };
-            const afkCommand = afkModule.default;
-            if (afkCommand?.onMessage) {
-                await Promise.resolve(afkCommand.onMessage(message, client));
-                return;
-            }
+            await handleAfkMessage(message, message.client);
         } catch {
-            // Fallback to old location
-            try {
-                const clientWithCommands = client as Client & { commands?: Map<string, { onMessage?: (message: Message, client: Client) => Promise<void> }> };
-                const afkCommand = clientWithCommands.commands?.get('afk');
-                if (afkCommand?.onMessage) {
-                    await afkCommand.onMessage(message, client);
-                }
-            } catch {
-                // Silent fail for AFK
-            }
+            // Silent fail for AFK
         }
     }
 }

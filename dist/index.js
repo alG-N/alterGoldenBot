@@ -57,6 +57,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.bot = void 0;
 require("dotenv/config");
+// Validate environment variables FIRST — fail fast on missing config
+const validation_js_1 = require("./config/validation.js");
+(0, validation_js_1.validateOrExit)();
 const discord_js_1 = require("discord.js");
 // Core utilities (from src/core)
 const index_js_1 = require("./core/index.js");

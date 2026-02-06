@@ -79,6 +79,76 @@ services:
       retries: 5
       start_period: 5s
 
+  # ───────────────────────────────────────────────────────────────
+  # alterGolden Bot Application
+  # ───────────────────────────────────────────────────────────────
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: altergolden-bot
+    restart: on-failure:5
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # ── Core (required) ──
+      BOT_TOKEN: ${BOT_TOKEN}
+      CLIENT_ID: ${CLIENT_ID}
+      # ── Database ──
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER:-altergolden}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-altergolden_db}
+      # ── Redis ──
+      REDIS_URL: redis://redis:6379
+      # ── Owner / Logging (optional) ──
+      OWNER_IDS: ${OWNER_IDS:-}
+      DEVELOPER_ID: ${DEVELOPER_ID:-}
+      GUILD_LOG_CHANNEL_ID: ${GUILD_LOG_CHANNEL_ID:-}
+      REPORT_CHANNEL_ID: ${REPORT_CHANNEL_ID:-}
+      SYSTEM_LOG_CHANNEL_ID: ${SYSTEM_LOG_CHANNEL_ID:-}
+      SUPPORT_GUILD_ID: ${SUPPORT_GUILD_ID:-}
+      # ── API Keys (optional) ──
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GOOGLE_SEARCH_CX: ${GOOGLE_SEARCH_CX:-}
+      STEAM_API_KEY: ${STEAM_API_KEY:-}
+      REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
+      REDDIT_SECRET_KEY: ${REDDIT_SECRET_KEY:-}
+      PIXIV_REFRESH_TOKEN: ${PIXIV_REFRESH_TOKEN:-}
+      PIXIV_CLIENT_ID: ${PIXIV_CLIENT_ID:-}
+      PIXIV_CLIENT_SECRET: ${PIXIV_CLIENT_SECRET:-}
+      RULE34_USER_ID: ${RULE34_USER_ID:-}
+      RULE34_API_KEY: ${RULE34_API_KEY:-}
+      # ── Music ──
+      LAVALINK_HOST: ${LAVALINK_HOST:-}
+      LAVALINK_PORT: ${LAVALINK_PORT:-}
+      LAVALINK_PASSWORD: ${LAVALINK_PASSWORD:-}
+      # ── Video ──
+      COBALT_URL: ${COBALT_URL:-}
+      # ── Node.js ──
+      NODE_ENV: ${NODE_ENV:-production}
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"process.exit(0)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   # ═══════════════════════════════════════════════════════════════
   # MONITORING STACK
   # ═══════════════════════════════════════════════════════════════

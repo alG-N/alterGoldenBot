@@ -109,8 +109,8 @@ class AntiRaidService {
         const guildId = member.guild.id;
         const now = Date.now();
 
-        // Get current joins from Redis
-        const joins = await cacheService.get<JoinEntry[]>(CACHE_NAMESPACE, this._joinKey(guildId)) || [];
+        // Get current joins from Redis (may not exist — not a real miss)
+        const joins = await cacheService.peek<JoinEntry[]>(CACHE_NAMESPACE, this._joinKey(guildId)) || [];
 
         // Add this join
         joins.push({
@@ -248,7 +248,7 @@ class AntiRaidService {
      * Flag an account during raid (stored in Redis)
      */
     private async _flagAccount(guildId: Snowflake, userId: Snowflake): Promise<void> {
-        const flagged = await cacheService.get<Snowflake[]>(CACHE_NAMESPACE, this._flaggedKey(guildId)) || [];
+        const flagged = await cacheService.peek<Snowflake[]>(CACHE_NAMESPACE, this._flaggedKey(guildId)) || [];
         if (!flagged.includes(userId)) {
             flagged.push(userId);
             await cacheService.set(CACHE_NAMESPACE, this._flaggedKey(guildId), flagged, FLAGGED_ACCOUNTS_TTL);
@@ -282,7 +282,7 @@ class AntiRaidService {
      * Check if raid mode is active
      */
     async isRaidModeActive(guildId: Snowflake): Promise<boolean> {
-        const state = await cacheService.get<RaidModeState>(CACHE_NAMESPACE, this._raidModeKey(guildId));
+        const state = await cacheService.peek<RaidModeState>(CACHE_NAMESPACE, this._raidModeKey(guildId));
         return state?.active || false;
     }
 
@@ -290,14 +290,14 @@ class AntiRaidService {
      * Get raid mode state
      */
     async getRaidModeState(guildId: Snowflake): Promise<RaidModeState | null> {
-        return cacheService.get<RaidModeState>(CACHE_NAMESPACE, this._raidModeKey(guildId));
+        return cacheService.peek<RaidModeState>(CACHE_NAMESPACE, this._raidModeKey(guildId));
     }
 
     /**
      * Get flagged accounts
      */
     async getFlaggedAccounts(guildId: Snowflake): Promise<Snowflake[]> {
-        return await cacheService.get<Snowflake[]>(CACHE_NAMESPACE, this._flaggedKey(guildId)) || [];
+        return await cacheService.peek<Snowflake[]>(CACHE_NAMESPACE, this._flaggedKey(guildId)) || [];
     }
 
     /**

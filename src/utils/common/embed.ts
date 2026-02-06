@@ -5,17 +5,16 @@
  */
 
 import { EmbedBuilder, ColorResolvable } from 'discord.js';
-// CONSTANTS
-/**
- * Default colors for embeds
- */
-export const EMBED_COLORS = {
-    SUCCESS: '#00FF00' as ColorResolvable,
-    ERROR: '#FF0000' as ColorResolvable,
-    WARNING: '#FFA500' as ColorResolvable,
-    INFO: '#00BFFF' as ColorResolvable,
-    PRIMARY: '#5865F2' as ColorResolvable,
-    LOADING: '#FFAA00' as ColorResolvable
+import { COLORS } from '../../constants.js';
+
+// Map canonical COLORS to ColorResolvable for embed helpers
+const EMBED_COLORS = {
+    SUCCESS: COLORS.SUCCESS as ColorResolvable,
+    ERROR: COLORS.ERROR as ColorResolvable,
+    WARNING: COLORS.WARNING as ColorResolvable,
+    INFO: COLORS.INFO as ColorResolvable,
+    PRIMARY: COLORS.PRIMARY as ColorResolvable,
+    LOADING: COLORS.WARNING as ColorResolvable, // Loading uses warning color
 } as const;
 // EMBED CREATION FUNCTIONS
 /**

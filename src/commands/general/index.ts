@@ -12,17 +12,3 @@ export { default as afk, isUserAfk, removeAfk, formatDuration, onMessage as afkO
 export { default as invite } from './invite.js';
 export { default as report, handleModal as reportHandleModal } from './report.js';
 export { default as roleinfo } from './roleinfo.js';
-
-// CommonJS compatibility for command loader
-// Handle both `module.exports = cmd` and `export default cmd` patterns
-const getCmd = (mod: { default?: unknown }) => mod.default || mod;
-module.exports = {
-    ping: getCmd(require('./ping')),
-    help: getCmd(require('./help')),
-    avatar: getCmd(require('./avatar')),
-    serverinfo: getCmd(require('./serverinfo')),
-    afk: getCmd(require('./afk')),
-    invite: getCmd(require('./invite')),
-    report: getCmd(require('./report')),
-    roleinfo: getCmd(require('./roleinfo')),
-};

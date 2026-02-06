@@ -23,14 +23,14 @@ exports.favoritesHandler = {
         }
     },
     async handleFavoritesList(interaction, userId) {
-        const favorites = MusicFacade_js_1.musicFacade.getFavorites(userId);
+        const favorites = await MusicFacade_js_1.musicFacade.getFavorites(userId);
         const page = interaction.options.getInteger('page') || 1;
         const embed = trackHandler_js_1.trackHandler.createFavoritesEmbed(favorites, userId, page);
         await interaction.reply({ embeds: [embed] });
     },
     async handleFavoritesPlay(interaction, userId) {
         const number = interaction.options.getInteger('number');
-        const favorites = MusicFacade_js_1.musicFacade.getFavorites(userId);
+        const favorites = await MusicFacade_js_1.musicFacade.getFavorites(userId);
         if (number > favorites.length) {
             await interaction.reply({
                 embeds: [trackHandler_js_1.trackHandler.createErrorEmbed(`Invalid number. You only have ${favorites.length} favorites.`)],
@@ -69,7 +69,7 @@ exports.favoritesHandler = {
     },
     async handleFavoritesRemove(interaction, userId) {
         const number = interaction.options.getInteger('number');
-        const favorites = MusicFacade_js_1.musicFacade.getFavorites(userId);
+        const favorites = await MusicFacade_js_1.musicFacade.getFavorites(userId);
         if (number > favorites.length) {
             await interaction.reply({
                 embeds: [trackHandler_js_1.trackHandler.createErrorEmbed(`Invalid number. You only have ${favorites.length} favorites.`)],
@@ -78,13 +78,13 @@ exports.favoritesHandler = {
             return;
         }
         const removed = favorites[number - 1];
-        MusicFacade_js_1.musicFacade.removeFavorite(userId, removed.url);
+        await MusicFacade_js_1.musicFacade.removeFavorite(userId, removed.url);
         await interaction.reply({
             embeds: [trackHandler_js_1.trackHandler.createInfoEmbed('💔 Removed', `Removed **${removed.title}** from favorites`, 'success')]
         });
     },
     async handleFavoritesClear(interaction, userId) {
-        const favorites = MusicFacade_js_1.musicFacade.getFavorites(userId);
+        const favorites = await MusicFacade_js_1.musicFacade.getFavorites(userId);
         if (favorites.length === 0) {
             await interaction.reply({
                 embeds: [trackHandler_js_1.trackHandler.createInfoEmbed('💖 Favorites', 'You have no favorites to clear.')],
@@ -93,7 +93,9 @@ exports.favoritesHandler = {
             return;
         }
         // Clear all favorites
-        favorites.forEach(fav => MusicFacade_js_1.musicFacade.removeFavorite(userId, fav.url));
+        for (const fav of favorites) {
+            await MusicFacade_js_1.musicFacade.removeFavorite(userId, fav.url);
+        }
         await interaction.reply({
             embeds: [trackHandler_js_1.trackHandler.createInfoEmbed('🗑️ Cleared', 'All favorites have been cleared', 'success')]
         });

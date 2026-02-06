@@ -159,6 +159,3 @@ class AvatarCommand extends BaseCommand {
 // Export singleton instance
 const avatarCommand = new AvatarCommand();
 export default avatarCommand;
-
-// CommonJS compatibility
-module.exports = avatarCommand;

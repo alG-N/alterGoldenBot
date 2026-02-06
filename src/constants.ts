@@ -48,7 +48,7 @@ export type ColorValue = typeof COLORS[ColorKey];
  */
 export const CACHE_LIMITS = {
     // Guild-related
-    MAX_GUILDS: 10000,
+    MAX_GUILDS: 2500,
     MAX_QUEUE_SIZE: 500,
     MAX_QUEUE_TRACK_DURATION: 3 * 60 * 60 * 1000, // 3 hours
     
@@ -249,15 +249,3 @@ export interface Constants {
     PATTERNS: typeof PATTERNS;
     LIMITS: typeof LIMITS;
 }
-// CommonJS COMPATIBILITY
-module.exports = {
-    COLORS,
-    CACHE_LIMITS,
-    TIMEOUTS,
-    PAGINATION,
-    RATE_LIMITS,
-    COOLDOWNS,
-    EMOJIS,
-    PATTERNS,
-    LIMITS,
-};

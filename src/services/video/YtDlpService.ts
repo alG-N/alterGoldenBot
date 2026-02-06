@@ -4,7 +4,7 @@
  * @module services/video/YtDlpService
  */
 
-import { execSync, spawn } from 'child_process';
+import { execFileSync, spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { EventEmitter } from 'events';
@@ -82,7 +82,7 @@ class YtDlpService extends EventEmitter {
 
             // Check if Docker is available
             try {
-                execSync('docker --version', { 
+                execFileSync('docker', ['--version'], { 
                     stdio: 'pipe',
                     encoding: 'utf-8',
                     windowsHide: true
@@ -94,7 +94,9 @@ class YtDlpService extends EventEmitter {
 
             // Check if container is running
             try {
-                const result = execSync(`docker inspect -f "{{.State.Running}}" ${this.containerName}`, { 
+                const result = execFileSync('docker', [
+                    'inspect', '-f', '{{.State.Running}}', this.containerName
+                ], { 
                     stdio: 'pipe',
                     encoding: 'utf-8',
                     windowsHide: true
@@ -111,7 +113,7 @@ class YtDlpService extends EventEmitter {
 
             // Try to start existing container
             try {
-                execSync(`docker start ${this.containerName}`, { 
+                execFileSync('docker', ['start', this.containerName], { 
                     stdio: 'pipe',
                     windowsHide: true
                 });
@@ -389,15 +391,18 @@ class YtDlpService extends EventEmitter {
     private async _getVideoInfo(url: string): Promise<VideoInfo | null> {
         return new Promise((resolve, reject) => {
             try {
-                const result = execSync(
-                    `docker run --rm jauderho/yt-dlp:latest --dump-single-json --no-warnings --no-check-certificate --no-playlist --skip-download "${url}"`,
-                    { 
-                        stdio: 'pipe',
-                        encoding: 'utf-8',
-                        timeout: 15000,
-                        windowsHide: true
-                    }
-                );
+                const result = execFileSync('docker', [
+                    'run', '--rm',
+                    'jauderho/yt-dlp:latest',
+                    '--dump-single-json', '--no-warnings', '--no-check-certificate',
+                    '--no-playlist', '--skip-download',
+                    url
+                ], {
+                    stdio: 'pipe',
+                    encoding: 'utf-8',
+                    timeout: 15000,
+                    windowsHide: true
+                });
                 
                 const info = JSON.parse(result);
                 resolve({
@@ -426,15 +431,21 @@ class YtDlpService extends EventEmitter {
 
         return new Promise((resolve, reject) => {
             try {
-                const result = execSync(
-                    `docker run --rm jauderho/yt-dlp:latest --dump-single-json --no-warnings --no-check-certificate --no-playlist --extractor-args "youtube:player_client=android,web" --user-agent "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36" --geo-bypass "${url}"`,
-                    { 
-                        stdio: 'pipe',
-                        encoding: 'utf-8',
-                        timeout: 30000,
-                        windowsHide: true
-                    }
-                );
+                const result = execFileSync('docker', [
+                    'run', '--rm',
+                    'jauderho/yt-dlp:latest',
+                    '--dump-single-json', '--no-warnings', '--no-check-certificate',
+                    '--no-playlist',
+                    '--extractor-args', 'youtube:player_client=android,web',
+                    '--user-agent', 'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36',
+                    '--geo-bypass',
+                    url
+                ], {
+                    stdio: 'pipe',
+                    encoding: 'utf-8',
+                    timeout: 30000,
+                    windowsHide: true
+                });
                 
                 const info = JSON.parse(result);
                 resolve({

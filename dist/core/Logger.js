@@ -13,7 +13,7 @@ const discord_js_1 = require("discord.js");
 /**
  * Log channel ID for Discord logging
  */
-exports.LOG_CHANNEL_ID = process.env.SYSTEM_LOG_CHANNEL_ID || '1195762287729537045';
+exports.LOG_CHANNEL_ID = process.env.SYSTEM_LOG_CHANNEL_ID || '';
 /**
  * Log format: 'json' for production, 'text' for development
  */
@@ -49,6 +49,7 @@ class Logger {
     isProcessingQueue = false;
     lastDiscordLog = 0;
     discordLogCooldown = 1000; // 1 second between logs
+    MAX_DISCORD_QUEUE_SIZE = 100;
     constructor() {
         this.minPriority = exports.LOG_LEVELS[MIN_LOG_LEVEL]?.priority ?? 1;
         this.format = LOG_FORMAT;
@@ -146,6 +147,10 @@ class Logger {
      * Log to Discord channel (rate-limited)
      */
     async discord(level, title, description, fields = null) {
+        // Cap queue to prevent OOM when Discord is unreachable
+        if (this.discordLogQueue.length >= this.MAX_DISCORD_QUEUE_SIZE) {
+            this.discordLogQueue.splice(0, this.discordLogQueue.length - this.MAX_DISCORD_QUEUE_SIZE + 1);
+        }
         // Queue the log
         this.discordLogQueue.push({ level, title, description, fields });
         // Process queue if not already processing

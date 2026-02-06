@@ -99,7 +99,14 @@ class DeathBattleCommand extends BaseCommand_js_1.BaseCommand {
             return;
         }
         // Create battle
-        const battle = battleService.createBattle(interaction.guild.id, player1, opponent, skillsetName, player1Hp, player2Hp);
+        const battle = await battleService.createBattle(interaction.guild.id, player1, opponent, skillsetName, player1Hp, player2Hp);
+        if (!battle) {
+            await interaction.reply({
+                embeds: [embedBuilder.buildErrorEmbed('A battle is already in progress in this server! Wait for it to finish.')],
+                ephemeral: true
+            });
+            return;
+        }
         logger?.log(`Battle started: ${player1.tag} vs ${opponent.tag} (${skillsetName})`, interaction);
         // Start countdown
         let countdown = COUNTDOWN_SECONDS;

@@ -4,7 +4,7 @@
  * @module config/bot
  */
 
-export const clientId = process.env.CLIENT_ID || '1467027746906701951';
+export const clientId = process.env.CLIENT_ID || '';
 
 export const autoDeploy = process.env.AUTO_DEPLOY !== 'false';
 

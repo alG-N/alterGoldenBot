@@ -48,7 +48,7 @@ class LockdownService {
         const cacheKey = getLockdownKey(guildId, channelId);
 
         // Check if already locked (from Redis)
-        const existingState = await cacheService.get<LockdownState>(LOCKDOWN_NAMESPACE, cacheKey);
+        const existingState = await cacheService.peek<LockdownState>(LOCKDOWN_NAMESPACE, cacheKey);
         if (existingState?.locked) {
             return { success: false, error: 'Channel is already locked', channelId, channelName: channel.name };
         }
@@ -104,7 +104,7 @@ class LockdownService {
         const cacheKey = getLockdownKey(guildId, channelId);
 
         // Check if locked (from Redis)
-        const lockState = await cacheService.get<LockdownState>(LOCKDOWN_NAMESPACE, cacheKey);
+        const lockState = await cacheService.peek<LockdownState>(LOCKDOWN_NAMESPACE, cacheKey);
         if (!lockState?.locked) {
             return { success: false, error: 'Channel is not locked', channelId, channelName: channel.name };
         }
@@ -162,7 +162,7 @@ class LockdownService {
         for (const [channelId, channel] of textChannels) {
             // Check if already locked via Redis
             const cacheKey = getLockdownKey(guild.id, channelId);
-            const existingState = await cacheService.get<LockdownState>(LOCKDOWN_NAMESPACE, cacheKey);
+            const existingState = await cacheService.peek<LockdownState>(LOCKDOWN_NAMESPACE, cacheKey);
             
             if (existingState?.locked) {
                 results.skipped.push({ success: true, channelId, channelName: channel.name });
@@ -236,7 +236,7 @@ class LockdownService {
      */
     async isChannelLocked(guildId: Snowflake, channelId: Snowflake): Promise<boolean> {
         const cacheKey = getLockdownKey(guildId, channelId);
-        const state = await cacheService.get<LockdownState>(LOCKDOWN_NAMESPACE, cacheKey);
+        const state = await cacheService.peek<LockdownState>(LOCKDOWN_NAMESPACE, cacheKey);
         return state?.locked || false;
     }
 
@@ -246,7 +246,7 @@ class LockdownService {
      */
     async getLockedChannels(guildId: Snowflake): Promise<Snowflake[]> {
         const indexKey = `index:${guildId}`;
-        const channelIds = await cacheService.get<Snowflake[]>(LOCKDOWN_NAMESPACE, indexKey);
+        const channelIds = await cacheService.peek<Snowflake[]>(LOCKDOWN_NAMESPACE, indexKey);
         return channelIds || [];
     }
 
@@ -256,7 +256,7 @@ class LockdownService {
      */
     private async _addToIndex(guildId: Snowflake, channelId: Snowflake): Promise<void> {
         const indexKey = `index:${guildId}`;
-        const current = await cacheService.get<Snowflake[]>(LOCKDOWN_NAMESPACE, indexKey) || [];
+        const current = await cacheService.peek<Snowflake[]>(LOCKDOWN_NAMESPACE, indexKey) || [];
         if (!current.includes(channelId)) {
             current.push(channelId);
             await cacheService.set(LOCKDOWN_NAMESPACE, indexKey, current, 86400);
@@ -269,7 +269,7 @@ class LockdownService {
      */
     private async _removeFromIndex(guildId: Snowflake, channelId: Snowflake): Promise<void> {
         const indexKey = `index:${guildId}`;
-        const current = await cacheService.get<Snowflake[]>(LOCKDOWN_NAMESPACE, indexKey) || [];
+        const current = await cacheService.peek<Snowflake[]>(LOCKDOWN_NAMESPACE, indexKey) || [];
         const filtered = current.filter(id => id !== channelId);
         if (filtered.length > 0) {
             await cacheService.set(LOCKDOWN_NAMESPACE, indexKey, filtered, 86400);

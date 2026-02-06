@@ -96,6 +96,3 @@ class PingCommand extends BaseCommand {
 // Export singleton instance
 const pingCommand = new PingCommand();
 export default pingCommand;
-
-// CommonJS compatibility
-module.exports = pingCommand;

@@ -25,12 +25,8 @@ import {
 import { COLORS, TIMEOUTS, EMOJIS } from '../constants';
 import { AppError, ValidationError, PermissionError } from '../errors';
 import { trackCommand, commandsActive, commandErrorsTotal } from '../core/metrics';
-
-// Helper to get default export from require()
-const getDefault = <T>(mod: { default?: T } | T): T => (mod as { default?: T }).default || mod as T;
-
-// Use require for Logger to avoid circular dependency
-const logger = getDefault(require('../core/Logger'));
+import { isOwner } from '../config/owner';
+import { logger } from '../core/Logger';
 // TYPES & INTERFACES
 /**
  * Command categories enum
@@ -263,7 +259,6 @@ export abstract class BaseCommand {
 
         // Owner only check
         if (this.ownerOnly) {
-            const { isOwner } = require('../config/owner');
             if (!isOwner(interaction.user.id)) {
                 throw new PermissionError('This command is restricted to bot owners');
             }
@@ -493,8 +488,3 @@ export abstract class BaseCommand {
         return this.safeReply(interaction, { embeds: [embed], ephemeral });
     }
 }
-// CommonJS COMPATIBILITY
-module.exports = {
-    BaseCommand,
-    CommandCategory,
-};

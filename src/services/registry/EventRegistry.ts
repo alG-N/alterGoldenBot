@@ -4,8 +4,6 @@
  * @module services/registry/EventRegistry
  */
 
-import path from 'path';
-import fs from 'fs';
 import type { Client as DiscordClient } from 'discord.js';
 // TYPES
 interface Event {
@@ -20,11 +18,11 @@ class EventRegistry {
     /**
      * Load events from presentation layer
      */
-    loadEvents(): Map<string, Event> {
+    async loadEvents(): Promise<Map<string, Event>> {
         console.log('[EventRegistry] Loading events...');
 
         // Load presentation layer events
-        this._loadPresentationEvents();
+        await this._loadPresentationEvents();
 
         console.log(`[EventRegistry] Loaded ${this.events.size} events`);
         return this.events;
@@ -33,13 +31,12 @@ class EventRegistry {
     /**
      * Load events from events directory
      */
-    private _loadPresentationEvents(): void {
+    private async _loadPresentationEvents(): Promise<void> {
         const eventFiles = ['ready', 'messageCreate', 'messageUpdate', 'guildCreate', 'guildDelete', 'guildMemberAdd', 'guildMemberRemove', 'voiceStateUpdate'];
 
         for (const eventFile of eventFiles) {
             try {
-                // eslint-disable-next-line @typescript-eslint/no-require-imports
-                const mod = require(`../../events/${eventFile}`);
+                const mod = await import(`../../events/${eventFile}.js`);
                 const event = (mod.default || mod) as Event;
 
                 if (event?.name) {

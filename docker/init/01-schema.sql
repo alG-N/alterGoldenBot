@@ -41,83 +41,8 @@ CREATE TRIGGER update_guild_settings_timestamp
 
 -- ==========================================
 -- AUTOMOD SETTINGS TABLE
+-- Defined in 03-moderation.sql (canonical source)
 -- ==========================================
-CREATE TABLE IF NOT EXISTS automod_settings (
-    guild_id VARCHAR(20) PRIMARY KEY,
-    enabled BOOLEAN DEFAULT false,
-    
-    -- Filter/Bad Words
-    filter_enabled BOOLEAN DEFAULT false,
-    filtered_words TEXT[] DEFAULT '{}',
-    
-    -- Spam Protection
-    spam_enabled BOOLEAN DEFAULT false,
-    spam_threshold INTEGER DEFAULT 5,
-    spam_interval INTEGER DEFAULT 5000,
-    spam_window_ms INTEGER DEFAULT 5000,
-    spam_action VARCHAR(20) DEFAULT 'warn',
-    spam_mute_duration_ms INTEGER DEFAULT 300000,
-    
-    -- Duplicate Messages
-    duplicate_enabled BOOLEAN DEFAULT false,
-    duplicate_threshold INTEGER DEFAULT 3,
-    duplicate_window_ms INTEGER DEFAULT 60000,
-    duplicate_action VARCHAR(20) DEFAULT 'warn',
-    
-    -- Links Protection
-    links_enabled BOOLEAN DEFAULT false,
-    links_whitelist TEXT[] DEFAULT '{}',
-    links_action VARCHAR(20) DEFAULT 'delete',
-    
-    -- Mention Spam
-    mention_enabled BOOLEAN DEFAULT false,
-    mention_limit INTEGER DEFAULT 5,
-    mention_action VARCHAR(20) DEFAULT 'warn',
-    
-    -- Caps Lock
-    caps_enabled BOOLEAN DEFAULT false,
-    caps_percent INTEGER DEFAULT 70,
-    caps_percentage INTEGER DEFAULT 70,
-    caps_min_length INTEGER DEFAULT 10,
-    caps_action VARCHAR(20) DEFAULT 'warn',
-    
-    -- Discord Invites
-    invites_enabled BOOLEAN DEFAULT false,
-    invites_whitelist TEXT[] DEFAULT '{}',
-    invites_action VARCHAR(20) DEFAULT 'delete',
-    
-    -- New Account Protection
-    new_account_enabled BOOLEAN DEFAULT false,
-    new_account_age_hours INTEGER DEFAULT 24,
-    new_account_action VARCHAR(20) DEFAULT 'kick',
-    
-    -- Raid Protection
-    raid_enabled BOOLEAN DEFAULT false,
-    raid_join_threshold INTEGER DEFAULT 10,
-    raid_window_ms INTEGER DEFAULT 10000,
-    raid_action VARCHAR(20) DEFAULT 'kick',
-    raid_auto_unlock_ms INTEGER DEFAULT 300000,
-    
-    -- Ignored Channels/Roles
-    ignored_channels TEXT[] DEFAULT '{}',
-    ignored_roles TEXT[] DEFAULT '{}',
-    log_channel_id VARCHAR(20),
-    
-    -- Warn Settings
-    auto_warn BOOLEAN DEFAULT false,
-    mute_duration INTEGER DEFAULT 300000,
-    default_action VARCHAR(20) DEFAULT 'warn',
-    warn_threshold INTEGER DEFAULT 3,
-    warn_action VARCHAR(20) DEFAULT 'mute',
-    warn_reset_hours INTEGER DEFAULT 24,
-    
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TRIGGER update_automod_settings_timestamp
-    BEFORE UPDATE ON automod_settings
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- ==========================================
 -- MODERATION LOGS TABLE
@@ -325,6 +250,22 @@ CREATE TABLE IF NOT EXISTS anime_notifications (
 CREATE TRIGGER update_anime_notifications_timestamp
     BEFORE UPDATE ON anime_notifications
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- ==========================================
+-- NHENTAI FAVOURITES TABLE
+-- ==========================================
+CREATE TABLE IF NOT EXISTS nhentai_favourites (
+    user_id VARCHAR(20) NOT NULL,
+    gallery_id INTEGER NOT NULL,
+    gallery_title TEXT NOT NULL,
+    num_pages INTEGER DEFAULT 0,
+    tags TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, gallery_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_nhentai_favourites_user 
+    ON nhentai_favourites(user_id);
 
 -- ==========================================
 -- INITIAL DATA

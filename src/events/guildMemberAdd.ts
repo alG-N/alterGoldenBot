@@ -7,12 +7,9 @@
 import { Events, Client, GuildMember, EmbedBuilder, Guild, TextChannel } from 'discord.js';
 import { BaseEvent } from './BaseEvent.js';
 import { handleMemberJoin } from '../handlers/moderation/index.js';
-
-const getDefault = <T>(mod: { default?: T } | T): T => (mod as { default?: T }).default || mod as T;
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const AntiRaidService = getDefault(require('../services/moderation/AntiRaidService'));
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const moderationConfig = getDefault(require('../config/features/moderation'));
+import antiRaidService from '../services/moderation/AntiRaidService.js';
+import moderationConfig from '../config/features/moderation/index.js';
+import { ModLogRepository } from '../repositories/moderation/index.js';
 // TYPES
 interface RaidResult {
     isRaid: boolean;
@@ -55,11 +52,11 @@ class GuildMemberAddEvent extends BaseEvent {
      */
     private async _handleAntiRaid(client: Client, member: GuildMember): Promise<void> {
         try {
-            const result: RaidResult = await AntiRaidService.trackJoin(member);
+            const result: RaidResult = await antiRaidService.trackJoin(member);
             
             // If raid detected and not already in raid mode, activate
-            if (result.isRaid && !(await AntiRaidService.isRaidModeActive(member.guild.id))) {
-                await AntiRaidService.activateRaidMode(
+            if (result.isRaid && !(await antiRaidService.isRaidModeActive(member.guild.id))) {
+                await antiRaidService.activateRaidMode(
                     member.guild.id,
                     'system',
                     `Auto-detected: ${result.triggers.join(', ')}`
@@ -72,7 +69,7 @@ class GuildMemberAddEvent extends BaseEvent {
             // Handle suspicious new account during raid
             if (result.isSuspicious && result.triggers.includes('raid_mode_active')) {
                 // Check account age
-                const ageCheck: AgeCheckResult = AntiRaidService.checkAccountAge(member);
+                const ageCheck: AgeCheckResult = (antiRaidService as any).checkAccountAge(member);
                 
                 if (ageCheck.isSuspicious) {
                     // Take action based on config
@@ -91,7 +88,6 @@ class GuildMemberAddEvent extends BaseEvent {
      */
     private async _notifyRaidDetected(client: Client, guild: Guild, result: RaidResult): Promise<void> {
         try {
-            const { ModLogRepository } = await import('../repositories/moderation/index.js');
             const settings: ModLogSettings | null = await ModLogRepository.get(guild.id);
             
             if (!settings?.log_channel_id) return;
@@ -133,10 +129,10 @@ class GuildMemberAddEvent extends BaseEvent {
             case 'kick':
                 try {
                     await member.kick(`Anti-raid: Account too new (${ageCheck.accountAgeDays} days old)`);
-                    AntiRaidService.updateStats(member.guild.id, 'kick');
+                    (antiRaidService as any).updateStats(member.guild.id, 'kick');
                 } catch {
                     // Failed to kick, just flag
-                    AntiRaidService.updateStats(member.guild.id, 'flag');
+                    (antiRaidService as any).updateStats(member.guild.id, 'flag');
                 }
                 break;
                 
@@ -146,15 +142,15 @@ class GuildMemberAddEvent extends BaseEvent {
                         reason: `Anti-raid: Account too new (${ageCheck.accountAgeDays} days old)`,
                         deleteMessageSeconds: 0
                     });
-                    AntiRaidService.updateStats(member.guild.id, 'ban');
+                    (antiRaidService as any).updateStats(member.guild.id, 'ban');
                 } catch {
-                    AntiRaidService.updateStats(member.guild.id, 'flag');
+                    (antiRaidService as any).updateStats(member.guild.id, 'flag');
                 }
                 break;
                 
             case 'flag':
             default:
-                AntiRaidService.updateStats(member.guild.id, 'flag');
+                (antiRaidService as any).updateStats(member.guild.id, 'flag');
                 break;
         }
     }

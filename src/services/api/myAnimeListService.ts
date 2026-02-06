@@ -5,6 +5,7 @@
  */
 
 import { circuitBreakerRegistry } from '../../core/CircuitBreakerRegistry';
+import cacheService from '../../cache/CacheService.js';
 // TYPES & INTERFACES
 // Jikan API v4 (unofficial MAL API)
 const JIKAN_BASE = 'https://api.jikan.moe/v4';
@@ -23,11 +24,6 @@ const MEDIA_TYPE_CONFIG: Record<MediaType, MediaTypeConfig> = {
     webnovel: { endpoint: 'manga', typeFilter: 'webnovel' },
     oneshot: { endpoint: 'manga', typeFilter: 'oneshot' }
 };
-
-interface CacheEntry<T> {
-    data: T;
-    expiresAt: number;
-}
 
 export interface MALTitle {
     romaji: string | null;
@@ -302,28 +298,55 @@ interface JikanSingleResponse<T> {
 }
 // MYANIMEIST SERVICE CLASS
 class MyAnimeListService {
-    private cache: Map<string, CacheEntry<unknown>>;
-    private readonly cacheExpiry: number = 300000; // 5 minutes
-    private readonly maxCacheSize: number = 100;
+    private readonly CACHE_NS = 'api';
+    private readonly CACHE_TTL = 300; // 5 minutes in seconds
     private readonly rateLimitDelay: number = 400; // Jikan has rate limiting
-    private lastRequest: number = 0;
+    private readonly RATE_LIMIT_KEY = 'mal_ratelimit:last_request';
+    private readonly RATE_LIMIT_TTL = 2; // seconds — just long enough for cross-shard coordination
+    private lastRequest: number = 0; // Local fallback when Redis unavailable
 
     constructor() {
-        this.cache = new Map();
+        // No local cache setup needed
     }
 
     /**
-     * Rate-limited fetch with circuit breaker
+     * Get last request timestamp from Redis (shard-safe) with local fallback
+     */
+    private async _getLastRequest(): Promise<number> {
+        try {
+            const ts = await cacheService.get<number>(this.CACHE_NS, this.RATE_LIMIT_KEY);
+            if (ts !== null) return ts;
+        } catch {
+            // Redis unavailable — fall through to local
+        }
+        return this.lastRequest;
+    }
+
+    /**
+     * Store last request timestamp in Redis (shard-safe) with local fallback
+     */
+    private async _setLastRequest(timestamp: number): Promise<void> {
+        this.lastRequest = timestamp; // Always update local as fallback
+        try {
+            await cacheService.set(this.CACHE_NS, this.RATE_LIMIT_KEY, timestamp, this.RATE_LIMIT_TTL);
+        } catch {
+            // Redis unavailable — local fallback already set
+        }
+    }
+
+    /**
+     * Rate-limited fetch with circuit breaker (shard-safe via Redis)
      */
     private async _rateLimitedFetch(url: string): Promise<Response> {
         const now = Date.now();
-        const timeSinceLastRequest = now - this.lastRequest;
+        const lastReq = await this._getLastRequest();
+        const timeSinceLastRequest = now - lastReq;
 
         if (timeSinceLastRequest < this.rateLimitDelay) {
             await new Promise(r => setTimeout(r, this.rateLimitDelay - timeSinceLastRequest));
         }
 
-        this.lastRequest = Date.now();
+        await this._setLastRequest(Date.now());
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -349,8 +372,8 @@ class MyAnimeListService {
      */
     async searchMedia(query: string, mediaType: MediaType = 'anime'): Promise<MALAnimeData | MALMangaData | null> {
         const config = MEDIA_TYPE_CONFIG[mediaType] || MEDIA_TYPE_CONFIG.anime;
-        const cacheKey = `search_${mediaType}_${query.toLowerCase()}`;
-        const cached = this._getFromCache<MALAnimeData | MALMangaData>(cacheKey);
+        const cacheKey = `mal:search_${mediaType}_${query.toLowerCase()}`;
+        const cached = await cacheService.get<MALAnimeData | MALMangaData>(this.CACHE_NS, cacheKey);
         if (cached) return cached;
 
         return circuitBreakerRegistry.execute('anime', async () => {
@@ -375,7 +398,7 @@ class MyAnimeListService {
                 const media = config.endpoint === 'manga'
                     ? this._transformMangaData(data.data[0] as JikanMangaData, mediaType)
                     : this._transformAnimeData(data.data[0] as JikanAnimeData);
-                this._setCache(cacheKey, media);
+                await cacheService.set(this.CACHE_NS, cacheKey, media, this.CACHE_TTL);
 
                 return media;
             } catch (error) {
@@ -451,8 +474,8 @@ class MyAnimeListService {
      * Get anime by ID with circuit breaker
      */
     async getAnimeById(malId: number): Promise<MALAnimeData | null> {
-        const cacheKey = `anime_${malId}`;
-        const cached = this._getFromCache<MALAnimeData>(cacheKey);
+        const cacheKey = `mal:anime_${malId}`;
+        const cached = await cacheService.get<MALAnimeData>(this.CACHE_NS, cacheKey);
         if (cached) return cached;
 
         return circuitBreakerRegistry.execute('anime', async () => {
@@ -465,7 +488,7 @@ class MyAnimeListService {
 
                 const data = await response.json() as JikanSingleResponse<JikanAnimeData>;
                 const anime = this._transformAnimeData(data.data);
-                this._setCache(cacheKey, anime);
+                await cacheService.set(this.CACHE_NS, cacheKey, anime, this.CACHE_TTL);
 
                 return anime;
             } catch (error) {
@@ -637,33 +660,6 @@ class MyAnimeListService {
         };
     }
 
-    /**
-     * Get from cache
-     */
-    private _getFromCache<T>(key: string): T | null {
-        const entry = this.cache.get(key) as CacheEntry<T> | undefined;
-        if (!entry || Date.now() > entry.expiresAt) {
-            this.cache.delete(key);
-            return null;
-        }
-        return entry.data;
-    }
-
-    /**
-     * Set to cache
-     */
-    private _setCache<T>(key: string, data: T): void {
-        if (this.cache.size >= this.maxCacheSize) {
-            const oldestKey = this.cache.keys().next().value;
-            if (oldestKey) {
-                this.cache.delete(oldestKey);
-            }
-        }
-        this.cache.set(key, {
-            data,
-            expiresAt: Date.now() + this.cacheExpiry
-        });
-    }
 }
 
 // Export singleton instance
@@ -671,8 +667,3 @@ const myAnimeListService = new MyAnimeListService();
 
 export { myAnimeListService, MyAnimeListService };
 export default myAnimeListService;
-
-// CommonJS compatibility
-module.exports = myAnimeListService;
-module.exports.myAnimeListService = myAnimeListService;
-module.exports.MyAnimeListService = MyAnimeListService;

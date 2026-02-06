@@ -22,6 +22,14 @@ class Rule34Cache {
     SESSION_DURATION;
     AUTOCOMPLETE_CACHE_DURATION;
     HISTORY_MAX_SIZE;
+    // ── Map size caps (prevent OOM) ──
+    MAX_SEARCH_CACHE = 500;
+    MAX_SESSIONS = 1000;
+    MAX_AUTOCOMPLETE = 500;
+    MAX_USER_BLACKLISTS = 5000;
+    MAX_USER_PREFERENCES = 5000;
+    MAX_USER_FAVORITES = 5000;
+    MAX_USER_HISTORY = 5000;
     cleanupInterval;
     constructor() {
         // Search result cache
@@ -47,6 +55,22 @@ class Rule34Cache {
         this.cleanupInterval = setInterval(() => this._cleanup(), 5 * 60 * 1000);
     }
     /**
+     * Evict oldest entries from a Map when it exceeds maxSize.
+     * Uses insertion-order (Map iteration order) as a simple LRU proxy.
+     */
+    _evictOldest(map, maxSize) {
+        if (map.size <= maxSize)
+            return;
+        const excess = map.size - maxSize;
+        const iter = map.keys();
+        for (let i = 0; i < excess; i++) {
+            const { value, done } = iter.next();
+            if (done)
+                break;
+            map.delete(value);
+        }
+    }
+    /**
      * Create or update user session
      */
     setSession(userId, sessionData) {
@@ -57,6 +81,7 @@ class Rule34Cache {
             updatedAt: Date.now()
         };
         this.userSessions.set(userId, session);
+        this._evictOldest(this.userSessions, this.MAX_SESSIONS);
         return session;
     }
     /**
@@ -101,6 +126,7 @@ class Rule34Cache {
             ...data,
             timestamp: Date.now()
         });
+        this._evictOldest(this.searchCache, this.MAX_SEARCH_CACHE);
     }
     /**
      * Get cached search results
@@ -136,6 +162,7 @@ class Rule34Cache {
         const newTags = Array.isArray(tags) ? tags : [tags];
         const updated = [...new Set([...current, ...newTags])];
         this.userBlacklists.set(userId, updated);
+        this._evictOldest(this.userBlacklists, this.MAX_USER_BLACKLISTS);
         return updated;
     }
     /**
@@ -192,6 +219,7 @@ class Rule34Cache {
         const current = this.getPreferences(userId);
         const updated = { ...current, ...preferences };
         this.userPreferences.set(userId, updated);
+        this._evictOldest(this.userPreferences, this.MAX_USER_PREFERENCES);
         return updated;
     }
     /**
@@ -209,6 +237,7 @@ class Rule34Cache {
             suggestions,
             timestamp: Date.now()
         });
+        this._evictOldest(this.autocompleteCache, this.MAX_AUTOCOMPLETE);
     }
     /**
      * Get cached autocomplete suggestions
@@ -248,6 +277,7 @@ class Rule34Cache {
             favorites.pop();
         }
         this.userFavorites.set(userId, favorites);
+        this._evictOldest(this.userFavorites, this.MAX_USER_FAVORITES);
         return { success: true, favorites };
     }
     /**
@@ -282,6 +312,7 @@ class Rule34Cache {
             history = history.slice(0, this.HISTORY_MAX_SIZE);
         }
         this.viewHistory.set(userId, history);
+        this._evictOldest(this.viewHistory, this.MAX_USER_HISTORY);
         return history;
     }
     /**

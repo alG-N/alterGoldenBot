@@ -48,7 +48,7 @@ exports.controlHandler = {
             return;
         // Check if vote skip is needed
         const listenerCount = MusicFacade_js_1.musicFacade.getListenerCount(guildId, interaction.guild);
-        const prefs = MusicFacade_js_1.musicFacade.getPreferences(interaction.user.id);
+        const prefs = await MusicFacade_js_1.musicFacade.getPreferences(interaction.user.id);
         if (prefs.voteSkipEnabled && listenerCount >= MIN_VOTES_REQUIRED) {
             return await this.handleVoteSkip(interaction, guildId);
         }

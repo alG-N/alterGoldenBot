@@ -58,18 +58,23 @@ exports.ALLOWED_TABLES = [
     'moderation_logs',
     'user_data',
     'guild_user_data',
-    'afk_users',
+    'user_afk',
     'snipes',
     'playlists',
     'bot_stats',
     'command_analytics',
     'nhentai_favourites',
-    'anime_watchlist',
-    'anime_history',
     'anime_favourites',
     'anime_notifications',
     'automod_settings',
-    'mod_log_settings'
+    'mod_log_settings',
+    'mod_infractions',
+    'word_filters',
+    'warn_thresholds',
+    'raid_mode',
+    'user_music_preferences',
+    'user_music_favorites',
+    'user_music_history'
 ];
 /**
  * PostgreSQL error codes that indicate transient failures
@@ -149,7 +154,7 @@ class PostgresDatabase {
             host: process.env.DB_HOST || 'localhost',
             port: parseInt(process.env.DB_PORT || '5432'),
             user: process.env.DB_USER || 'altergolden',
-            password: process.env.DB_PASSWORD || 'altergolden_secret',
+            password: process.env.DB_PASSWORD || '',
             database: process.env.DB_NAME || 'altergolden_db',
             // Connection pool settings
             max: parseInt(process.env.DB_POOL_MAX || '15'),
@@ -200,7 +205,7 @@ class PostgresDatabase {
             host: process.env.DB_READ_HOST,
             port: parseInt(process.env.DB_READ_PORT || process.env.DB_PORT || '5432'),
             user: process.env.DB_READ_USER || process.env.DB_USER || 'altergolden',
-            password: process.env.DB_READ_PASSWORD || process.env.DB_PASSWORD || 'altergolden_secret',
+            password: process.env.DB_READ_PASSWORD || process.env.DB_PASSWORD || '',
             database: process.env.DB_NAME || 'altergolden_db',
             max: parseInt(process.env.DB_READ_POOL_MAX || '20'),
             min: parseInt(process.env.DB_READ_POOL_MIN || '2'),
@@ -678,7 +683,7 @@ async function initializeDatabase() {
             SELECT table_name 
             FROM information_schema.tables 
             WHERE table_schema = 'public' 
-            AND table_name IN ('guild_settings', 'moderation_logs', 'snipes')
+            AND table_name IN ('guild_settings', 'mod_infractions', 'snipes')
         `);
         if (result.rows.length < 3) {
             console.warn('⚠️ [Database] Some tables missing. Ensure 01-schema.sql has been executed.');

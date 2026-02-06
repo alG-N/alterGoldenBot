@@ -41,6 +41,7 @@ interface MemoryCacheEntry<T = unknown> {
 export interface CacheMetrics {
     hits: number;
     misses: number;
+    absenceChecks: number;
     writes: number;
     deletes: number;
     errors: number;
@@ -85,6 +86,10 @@ export const DEFAULT_NAMESPACES: Record<string, NamespaceConfig> = {
     'automod': { ttl: 60, maxSize: 5000, useRedis: true },     // AutoMod tracking - 1min
     'ratelimit': { ttl: 60, maxSize: 10000, useRedis: true },  // Rate limits - 1min
     'session': { ttl: 1800, maxSize: 500, useRedis: true },    // Sessions - 30min
+    'snipe': { ttl: 43200, maxSize: 500, useRedis: true },     // Snipe messages - 12h
+    'lockdown': { ttl: 86400, maxSize: 200, useRedis: true },  // Lockdown state - 24h
+    'antiraid': { ttl: 3600, maxSize: 500, useRedis: true },   // Anti-raid tracking - 1h
+    'voice': { ttl: 600, maxSize: 200, useRedis: true },       // Voice state tracking - 10min
     'temp': { ttl: 60, maxSize: 1000, useRedis: false },       // Temporary - 1min, memory only
 };
 
@@ -121,6 +126,9 @@ export class CacheService {
     /** Cleanup interval reference */
     private _cleanupInterval: NodeJS.Timeout;
 
+    /** Flag to suppress miss metric during getOrSet internal lookup */
+    private _suppressMissMetric: boolean = false;
+
     constructor(options: CacheServiceOptions = {}) {
         this.memoryCache = new Map();
         this.namespaces = new Map(Object.entries(DEFAULT_NAMESPACES));
@@ -130,6 +138,7 @@ export class CacheService {
         this.metrics = {
             hits: 0,
             misses: 0,
+            absenceChecks: 0,
             writes: 0,
             deletes: 0,
             errors: 0,
@@ -273,13 +282,34 @@ export class CacheService {
                 if (entry) memNs.delete(key);
             }
 
-            this.metrics.misses++;
+            if (!this._suppressMissMetric) {
+                this.metrics.misses++;
+            }
             return null;
         } catch (error) {
             this.metrics.errors++;
             logger.error('CacheService', `Get error: ${(error as Error).message}`);
             return null;
         }
+    }
+
+    /**
+     * Peek at a value in cache without counting a miss.
+     * Use for "existence checks" where null is a normal/expected result
+     * (e.g. checking if a channel is locked, if raid mode is active, etc.).
+     * Hits are still counted normally.
+     * @param namespace - Cache namespace
+     * @param key - Cache key
+     * @returns Cached value or null
+     */
+    async peek<T = unknown>(namespace: string, key: string): Promise<T | null> {
+        this._suppressMissMetric = true;
+        const result = await this.get<T>(namespace, key);
+        this._suppressMissMetric = false;
+        if (result === null) {
+            this.metrics.absenceChecks++;
+        }
+        return result;
     }
 
     /**
@@ -368,7 +398,7 @@ export class CacheService {
      * @returns True if key exists
      */
     async has(namespace: string, key: string): Promise<boolean> {
-        return (await this.get(namespace, key)) !== null;
+        return (await this.peek(namespace, key)) !== null;
     }
 
     /**
@@ -385,11 +415,17 @@ export class CacheService {
         factory: CacheFactory<T>, 
         ttl?: number
     ): Promise<T> {
+        // Suppress miss metric for this internal lookup — a getOrSet "miss"
+        // is expected on first call and is immediately followed by a set().
+        this._suppressMissMetric = true;
         const cached = await this.get<T>(namespace, key);
+        this._suppressMissMetric = false;
+
         if (cached !== null) {
             return cached;
         }
 
+        // This is a cache population, not a true miss
         const value = await factory();
         await this.set(namespace, key, value, ttl);
         return value;
@@ -472,6 +508,7 @@ export class CacheService {
         
         const redisState = gracefulDegradation.getServiceState('redis') || 'unknown';
         
+        // Only count real get() hits + misses for hit rate (exclude peek absence checks)
         const totalRequests = this.metrics.hits + this.metrics.misses;
         
         return {
@@ -663,7 +700,7 @@ export class CacheService {
      * Get automod warning count for a user
      */
     async getAutomodWarnCount(guildId: string, userId: string): Promise<number> {
-        const value = await this.get<number>('automod', `warn:${guildId}:${userId}`);
+        const value = await this.peek<number>('automod', `warn:${guildId}:${userId}`);
         return value ?? 0;
     }
 
@@ -956,7 +993,7 @@ export class CacheService {
      * @returns Preserved state or null
      */
     async getPreservedQueueState<T = unknown>(guildId: string): Promise<T | null> {
-        return this.get<T>('music', `preserved:${guildId}`);
+        return this.peek<T>('music', `preserved:${guildId}`);
     }
 
     /**
@@ -1032,7 +1069,7 @@ export class CacheService {
      * @returns Deadline timestamp or null
      */
     async getInactivityDeadline(guildId: string): Promise<number | null> {
-        return this.get<number>('music', `inactivity:${guildId}`);
+        return this.peek<number>('music', `inactivity:${guildId}`);
     }
 
     /**
@@ -1116,7 +1153,7 @@ export class CacheService {
      * @param guildId - Guild ID
      */
     async isVCMonitorActive(guildId: string): Promise<boolean> {
-        const active = await this.get<boolean>('music', `vcmonitor:${guildId}`);
+        const active = await this.peek<boolean>('music', `vcmonitor:${guildId}`);
         return active === true;
     }
 
@@ -1165,8 +1202,3 @@ const cacheService = new CacheService();
 
 // Default export
 export default cacheService;
-// CommonJS COMPATIBILITY
-module.exports = cacheService;
-module.exports.CacheService = CacheService;
-module.exports.DEFAULT_NAMESPACES = DEFAULT_NAMESPACES;
-module.exports.default = cacheService;

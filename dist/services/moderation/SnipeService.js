@@ -87,8 +87,8 @@ async function trackDeletedMessage(message) {
     const guildId = message.guild.id;
     const limit = await GuildSettingsService_js_1.default.getSnipeLimit(guildId);
     const cacheKey = getSnipeKey(guildId);
-    // Get existing messages from Redis
-    const existingMessages = await CacheService_js_1.default.get(SNIPE_NAMESPACE, cacheKey) || [];
+    // Get existing messages from Redis (may not exist — not a real miss)
+    const existingMessages = await CacheService_js_1.default.peek(SNIPE_NAMESPACE, cacheKey) || [];
     // Store attachment info
     const attachments = [];
     if (message.attachments.size > 0) {
@@ -148,7 +148,7 @@ async function trackDeletedMessage(message) {
  */
 async function getDeletedMessages(guildId, channelId) {
     const cacheKey = getSnipeKey(guildId);
-    const messages = await CacheService_js_1.default.get(SNIPE_NAMESPACE, cacheKey) || [];
+    const messages = await CacheService_js_1.default.peek(SNIPE_NAMESPACE, cacheKey) || [];
     if (channelId) {
         return messages.filter(m => m.channel.id === channelId);
     }
@@ -169,7 +169,7 @@ async function getMessage(guildId, index = 0, channelId) {
 async function clearMessages(guildId, channelId) {
     const cacheKey = getSnipeKey(guildId);
     if (channelId) {
-        const messages = await CacheService_js_1.default.get(SNIPE_NAMESPACE, cacheKey) || [];
+        const messages = await CacheService_js_1.default.peek(SNIPE_NAMESPACE, cacheKey) || [];
         const before = messages.length;
         const filtered = messages.filter(m => m.channel.id !== channelId);
         if (filtered.length > 0) {
@@ -180,7 +180,7 @@ async function clearMessages(guildId, channelId) {
         }
         return before - filtered.length;
     }
-    const messages = await CacheService_js_1.default.get(SNIPE_NAMESPACE, cacheKey) || [];
+    const messages = await CacheService_js_1.default.peek(SNIPE_NAMESPACE, cacheKey) || [];
     const count = messages.length;
     await CacheService_js_1.default.delete(SNIPE_NAMESPACE, cacheKey);
     return count;

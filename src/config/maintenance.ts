@@ -1,13 +1,29 @@
 /**
  * Maintenance Configuration
- * Based on FumoBOT's maintenance system
+ * Persistence via CacheService (Redis) instead of synchronous file I/O.
+ * Falls back to in-memory-only state when Redis is unavailable.
+ *
  * @module config/maintenance
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
 import { EmbedBuilder } from 'discord.js';
-// TYPES
+import { DEVELOPER_ID } from './owner.js';
+
+// Lazy-load cacheService to avoid circular dependency at module init
+const getDefault = <T>(mod: { default?: T } | T): T => (mod as { default?: T }).default || mod as T;
+let _cacheService: typeof import('../cache/CacheService').default | null = null;
+const getCacheService = () => {
+    if (!_cacheService) {
+        try { _cacheService = getDefault(require('../cache/CacheService')); } catch { /* not ready */ }
+    }
+    return _cacheService;
+};
+
+// Redis key for persistent maintenance state
+const REDIS_KEY = 'altergolden:maintenance:state';
+const REDIS_NS = 'session'; // Long-lived namespace
+
+// ── Types ────────────────────────────────────────────────────────────
 interface ScheduledMaintenance {
     startTime: number;
     reason: string;
@@ -43,10 +59,8 @@ interface MaintenanceStatus {
     partialMode?: boolean;
     disabledFeatures?: string[];
 }
-// STATE
-const MAINTENANCE_FILE = path.join(__dirname, '..', 'data', 'maintenanceState.json');
 
-// Default maintenance state
+// ── State ────────────────────────────────────────────────────────────
 let maintenanceState: MaintenanceState = {
     enabled: false,
     reason: 'Scheduled maintenance',
@@ -58,47 +72,47 @@ let maintenanceState: MaintenanceState = {
     scheduledMaintenance: null
 };
 
-// Developer ID (can always bypass)
-export const DEVELOPER_ID = '1128296349566251068';
-// STATE MANAGEMENT
+// ── Persistence (non-blocking, fire-and-forget) ──────────────────────
+
 /**
- * Load maintenance state from file
+ * Persist current state to Redis (fire-and-forget).
+ * Uses CacheService with a 30-day TTL — maintenance state is long-lived.
  */
-export function loadMaintenanceState(): MaintenanceState {
+function persistState(): void {
+    const cs = getCacheService();
+    if (cs) {
+        cs.set(REDIS_NS, REDIS_KEY, maintenanceState, 30 * 24 * 3600).catch(() => {});
+    }
+}
+
+/**
+ * Load maintenance state from Redis.
+ * Called once at startup after CacheService is initialized.
+ */
+export async function loadMaintenanceState(): Promise<MaintenanceState> {
     try {
-        const dir = path.dirname(MAINTENANCE_FILE);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        
-        if (fs.existsSync(MAINTENANCE_FILE)) {
-            const data = JSON.parse(fs.readFileSync(MAINTENANCE_FILE, 'utf8'));
-            maintenanceState = { ...maintenanceState, ...data };
+        const cs = getCacheService();
+        if (cs) {
+            const data = await cs.get<MaintenanceState>(REDIS_NS, REDIS_KEY);
+            if (data) {
+                maintenanceState = { ...maintenanceState, ...data };
+            }
         }
     } catch (error) {
-        console.error('[Maintenance] Failed to load state:', (error as Error).message);
+        console.error('[Maintenance] Failed to load state from Redis:', (error as Error).message);
     }
     return maintenanceState;
 }
 
 /**
- * Save maintenance state to file
+ * Save maintenance state (public alias — fire-and-forget to Redis)
  */
 export function saveMaintenanceState(): void {
-    try {
-        const dir = path.dirname(MAINTENANCE_FILE);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        fs.writeFileSync(MAINTENANCE_FILE, JSON.stringify(maintenanceState, null, 2));
-    } catch (error) {
-        console.error('[Maintenance] Failed to save state:', (error as Error).message);
-    }
+    persistState();
 }
 
-// Initialize on load
-loadMaintenanceState();
-// MAINTENANCE CONTROL
+// ── Maintenance Control ──────────────────────────────────────────────
+
 /**
  * Enable maintenance mode
  */
@@ -109,12 +123,12 @@ export function enableMaintenance(options: MaintenanceOptions = {}): Maintenance
     maintenanceState.estimatedEnd = options.estimatedEnd || null;
     maintenanceState.partialMode = options.partialMode || false;
     maintenanceState.disabledFeatures = options.disabledFeatures || [];
-    
+
     if (!maintenanceState.allowedUsers.includes(DEVELOPER_ID)) {
         maintenanceState.allowedUsers.push(DEVELOPER_ID);
     }
-    
-    saveMaintenanceState();
+
+    persistState();
     return maintenanceState;
 }
 
@@ -128,8 +142,8 @@ export function disableMaintenance(): MaintenanceState {
     maintenanceState.estimatedEnd = null;
     maintenanceState.partialMode = false;
     maintenanceState.disabledFeatures = [];
-    
-    saveMaintenanceState();
+
+    persistState();
     return maintenanceState;
 }
 
@@ -163,14 +177,16 @@ export function isFeatureDisabled(featureName: string): boolean {
     if (!maintenanceState.partialMode) return true; // All features disabled
     return maintenanceState.disabledFeatures.includes(featureName);
 }
-// USER MANAGEMENT
+
+// ── User Management ──────────────────────────────────────────────────
+
 /**
  * Add user to bypass list
  */
 export function addBypassUser(userId: string): void {
     if (!maintenanceState.allowedUsers.includes(userId)) {
         maintenanceState.allowedUsers.push(userId);
-        saveMaintenanceState();
+        persistState();
     }
 }
 
@@ -179,9 +195,11 @@ export function addBypassUser(userId: string): void {
  */
 export function removeBypassUser(userId: string): void {
     maintenanceState.allowedUsers = maintenanceState.allowedUsers.filter(id => id !== userId);
-    saveMaintenanceState();
+    persistState();
 }
-// SCHEDULING
+
+// ── Scheduling ───────────────────────────────────────────────────────
+
 /**
  * Schedule future maintenance
  */
@@ -192,7 +210,7 @@ export function scheduleMaintenance(startTime: number, options: Partial<Schedule
         estimatedDuration: options.estimatedDuration || null,
         ...options
     };
-    saveMaintenanceState();
+    persistState();
     return maintenanceState.scheduledMaintenance;
 }
 
@@ -201,9 +219,11 @@ export function scheduleMaintenance(startTime: number, options: Partial<Schedule
  */
 export function cancelScheduledMaintenance(): void {
     maintenanceState.scheduledMaintenance = null;
-    saveMaintenanceState();
+    persistState();
 }
-// STATUS & DISPLAY
+
+// ── Status & Display ─────────────────────────────────────────────────
+
 /**
  * Get maintenance status for display
  */
@@ -242,7 +262,7 @@ export function getMaintenanceStatus(): MaintenanceStatus {
  */
 export function createMaintenanceEmbed(): EmbedBuilder {
     const status = getMaintenanceStatus();
-    
+
     const embed = new EmbedBuilder()
         .setColor(0xFFA500)
         .setTitle('🚧 Maintenance Mode')
@@ -285,7 +305,6 @@ export function getMaintenanceState(): MaintenanceState {
 }
 
 export default {
-    DEVELOPER_ID,
     enableMaintenance,
     disableMaintenance,
     isInMaintenance,

@@ -8,6 +8,7 @@
 import { Events, Client, VoiceState, VoiceBasedChannel } from 'discord.js';
 import { BaseEvent } from './BaseEvent.js';
 import cacheService from '../cache/CacheService.js';
+import { musicFacade } from '../services/music/MusicFacade.js';
 
 // Cache namespace for voice disconnect deadlines
 const CACHE_NAMESPACE = 'voice';
@@ -61,6 +62,20 @@ class VoiceStateUpdateEvent extends BaseEvent {
             await this._checkExpiredDeadlines();
         }, POLL_INTERVAL_MS);
     }
+
+    /**
+     * Destroy - clear polling interval for clean shutdown
+     */
+    destroy(): void {
+        if (this._pollInterval) {
+            clearInterval(this._pollInterval);
+            this._pollInterval = null;
+        }
+        for (const timer of this._localTimers.values()) {
+            clearTimeout(timer);
+        }
+        this._localTimers.clear();
+    }
     
     /**
      * Check Redis for any expired disconnect deadlines
@@ -71,7 +86,7 @@ class VoiceStateUpdateEvent extends BaseEvent {
         try {
             // Check all guilds the bot is in
             for (const [guildId, guild] of this._client.guilds.cache) {
-                const deadline = await cacheService.get<number>(CACHE_NAMESPACE, `disconnect:${guildId}`);
+                const deadline = await cacheService.peek<number>(CACHE_NAMESPACE, `disconnect:${guildId}`);
                 
                 if (deadline && Date.now() >= deadline) {
                     // Deadline expired, disconnect
@@ -118,7 +133,7 @@ class VoiceStateUpdateEvent extends BaseEvent {
         // Also set a local timer for immediate action on this shard
         const timer = setTimeout(async () => {
             // Double-check Redis in case another shard handled it
-            const currentDeadline = await cacheService.get<number>(CACHE_NAMESPACE, `disconnect:${guildId}`);
+            const currentDeadline = await cacheService.peek<number>(CACHE_NAMESPACE, `disconnect:${guildId}`);
             if (currentDeadline && Date.now() >= currentDeadline) {
                 await cacheService.delete(CACHE_NAMESPACE, `disconnect:${guildId}`);
                 await this._handleDisconnect(client, guildId);
@@ -149,12 +164,6 @@ class VoiceStateUpdateEvent extends BaseEvent {
      */
     private async _handleDisconnect(client: Client, guildId: string): Promise<void> {
         try {
-            // Use MusicFacade - the refactored music service
-            const getDefault = <T>(mod: { default?: T } | T): T => (mod as { default?: T }).default || mod as T;
-            // eslint-disable-next-line @typescript-eslint/no-require-imports
-            const musicFacadeModule = getDefault(require('../services/music/MusicFacade'));
-            const musicFacade = musicFacadeModule?.musicFacade || musicFacadeModule;
-            
             if (musicFacade?.cleanup) {
                 await musicFacade.cleanup(guildId);
             }

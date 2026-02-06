@@ -5,9 +5,16 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
+COPY tsconfig.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install ALL dependencies (including devDependencies for TypeScript compilation)
+RUN npm ci
+
+# Copy source code
+COPY src ./src
+
+# Compile TypeScript to JavaScript
+RUN npx tsc
 
 # Production stage
 FROM node:20-alpine
@@ -17,12 +24,12 @@ RUN apk add --no-cache ffmpeg
 
 WORKDIR /app
 
-# Copy node_modules from builder
-COPY --from=builder /app/node_modules ./node_modules
-
-# Copy application code
+# Copy package files and install production dependencies only
 COPY package*.json ./
-COPY src ./src
+RUN npm ci --only=production
+
+# Copy compiled JavaScript from builder
+COPY --from=builder /app/dist ./dist
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
@@ -42,4 +49,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE 3000
 
 # Start the bot
-CMD ["node", "src/index.js"]
+CMD ["node", "dist/index.js"]

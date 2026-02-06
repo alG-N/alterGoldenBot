@@ -176,6 +176,7 @@ class Rule34Service {
     private readonly auth: Rule34Auth;
     private readonly headers: Record<string, string>;
     private translationCache: Map<string, string>;
+    private readonly MAX_TRANSLATION_CACHE = 2000;
 
     constructor() {
         this.auth = {
@@ -507,12 +508,28 @@ class Rule34Service {
 
         if (commonTranslations[lowerTag]) {
             this.translationCache.set(tag, commonTranslations[lowerTag]);
+            this._evictTranslationCache();
             return commonTranslations[lowerTag];
         }
 
         const formatted = tag.trim().replace(/\s+/g, '_').toLowerCase();
         this.translationCache.set(tag, formatted);
+        this._evictTranslationCache();
         return formatted;
+    }
+
+    /**
+     * Evict oldest entries from translationCache when it exceeds cap
+     */
+    private _evictTranslationCache(): void {
+        if (this.translationCache.size <= this.MAX_TRANSLATION_CACHE) return;
+        const excess = this.translationCache.size - this.MAX_TRANSLATION_CACHE;
+        const iter = this.translationCache.keys();
+        for (let i = 0; i < excess; i++) {
+            const { value, done } = iter.next();
+            if (done) break;
+            this.translationCache.delete(value);
+        }
     }
     private _buildSearchQuery(query: string, options: BuildQueryOptions): string {
         const {
@@ -782,8 +799,3 @@ const rule34Service = new Rule34Service();
 
 export { rule34Service, Rule34Service };
 export default rule34Service;
-
-// CommonJS compatibility
-module.exports = rule34Service;
-module.exports.rule34Service = rule34Service;
-module.exports.Rule34Service = Rule34Service;

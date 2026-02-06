@@ -99,14 +99,17 @@ class PixivService {
     clientSecret;
     baseHeaders;
     proxies;
+    // Redis cache namespace for cross-shard token sharing
+    static AUTH_CACHE_NS = 'pixiv_auth';
+    static AUTH_CACHE_KEY = 'oauth_token';
     constructor() {
         this.auth = {
             accessToken: null,
             refreshToken: process.env.PIXIV_REFRESH_TOKEN,
             expiresAt: 0
         };
-        this.clientId = process.env.PIXIV_CLIENT_ID || 'MOBrBDS8blbauoSck0ZfDbtuzpyT';
-        this.clientSecret = process.env.PIXIV_CLIENT_SECRET || 'lsACyCD94FhDUtGTXi3QzcFE2uU1hqtDaKeqrdwj';
+        this.clientId = process.env.PIXIV_CLIENT_ID || '';
+        this.clientSecret = process.env.PIXIV_CLIENT_SECRET || '';
         this.baseHeaders = {
             'User-Agent': 'PixivAndroidApp/5.0.234 (Android 11; Pixel 5)',
             'App-OS': 'android',
@@ -117,11 +120,27 @@ class PixivService {
     }
     /**
      * Authenticate with Pixiv API
+     * Uses Redis to share tokens across shards — only one shard refreshes at a time
      */
     async authenticate() {
+        // 1. Fast path: local in-memory token still valid
         if (this.auth.accessToken && Date.now() < this.auth.expiresAt) {
             return this.auth.accessToken;
         }
+        // 2. Check Redis for a token another shard may have refreshed
+        try {
+            const cached = await CacheService_1.default.get(PixivService.AUTH_CACHE_NS, PixivService.AUTH_CACHE_KEY);
+            if (cached && Date.now() < cached.expiresAt) {
+                this.auth.accessToken = cached.accessToken;
+                this.auth.refreshToken = cached.refreshToken;
+                this.auth.expiresAt = cached.expiresAt;
+                return cached.accessToken;
+            }
+        }
+        catch {
+            // Redis unavailable — fall through to refresh
+        }
+        // 3. Refresh token from Pixiv API (circuit-breaker protected)
         return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('pixiv', async () => {
             try {
                 const response = await fetch('https://oauth.secure.pixiv.net/auth/token', {
@@ -145,6 +164,18 @@ class PixivService {
                 this.auth.accessToken = data.access_token;
                 this.auth.refreshToken = data.refresh_token;
                 this.auth.expiresAt = Date.now() + (data.expires_in * 1000) - 60000;
+                // 4. Store in Redis for other shards (TTL = token lifetime)
+                try {
+                    const ttlSeconds = Math.max(Math.floor((this.auth.expiresAt - Date.now()) / 1000), 60);
+                    await CacheService_1.default.set(PixivService.AUTH_CACHE_NS, PixivService.AUTH_CACHE_KEY, {
+                        accessToken: this.auth.accessToken,
+                        refreshToken: this.auth.refreshToken,
+                        expiresAt: this.auth.expiresAt
+                    }, ttlSeconds);
+                }
+                catch {
+                    // Redis unavailable — token still works locally
+                }
                 return data.access_token;
             }
             catch (error) {

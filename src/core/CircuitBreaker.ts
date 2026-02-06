@@ -5,6 +5,7 @@
  */
 
 import { EventEmitter } from 'events';
+import logger from './Logger.js';
 // TYPES & INTERFACES
 /**
  * Circuit Breaker States
@@ -298,7 +299,7 @@ export class CircuitBreaker extends EventEmitter {
             to: newState
         });
 
-        console.log(`[CircuitBreaker:${this.name}] State changed: ${oldState} → ${newState}`);
+        logger.info('CircuitBreaker', `[${this.name}] State changed: ${oldState} → ${newState}`);
     }
 
     /**
@@ -388,8 +389,3 @@ export class CircuitBreaker extends EventEmitter {
         };
     }
 }
-
-// CommonJS compatibility
-module.exports = CircuitBreaker;
-module.exports.CircuitBreaker = CircuitBreaker;
-module.exports.CircuitState = CircuitState;

@@ -26,7 +26,7 @@ class LockdownService {
         const channelId = channel.id;
         const cacheKey = getLockdownKey(guildId, channelId);
         // Check if already locked (from Redis)
-        const existingState = await CacheService_js_1.default.get(LOCKDOWN_NAMESPACE, cacheKey);
+        const existingState = await CacheService_js_1.default.peek(LOCKDOWN_NAMESPACE, cacheKey);
         if (existingState?.locked) {
             return { success: false, error: 'Channel is already locked', channelId, channelName: channel.name };
         }
@@ -75,7 +75,7 @@ class LockdownService {
         const channelId = channel.id;
         const cacheKey = getLockdownKey(guildId, channelId);
         // Check if locked (from Redis)
-        const lockState = await CacheService_js_1.default.get(LOCKDOWN_NAMESPACE, cacheKey);
+        const lockState = await CacheService_js_1.default.peek(LOCKDOWN_NAMESPACE, cacheKey);
         if (!lockState?.locked) {
             return { success: false, error: 'Channel is not locked', channelId, channelName: channel.name };
         }
@@ -120,7 +120,7 @@ class LockdownService {
         for (const [channelId, channel] of textChannels) {
             // Check if already locked via Redis
             const cacheKey = getLockdownKey(guild.id, channelId);
-            const existingState = await CacheService_js_1.default.get(LOCKDOWN_NAMESPACE, cacheKey);
+            const existingState = await CacheService_js_1.default.peek(LOCKDOWN_NAMESPACE, cacheKey);
             if (existingState?.locked) {
                 results.skipped.push({ success: true, channelId, channelName: channel.name });
                 continue;
@@ -182,7 +182,7 @@ class LockdownService {
      */
     async isChannelLocked(guildId, channelId) {
         const cacheKey = getLockdownKey(guildId, channelId);
-        const state = await CacheService_js_1.default.get(LOCKDOWN_NAMESPACE, cacheKey);
+        const state = await CacheService_js_1.default.peek(LOCKDOWN_NAMESPACE, cacheKey);
         return state?.locked || false;
     }
     /**
@@ -191,7 +191,7 @@ class LockdownService {
      */
     async getLockedChannels(guildId) {
         const indexKey = `index:${guildId}`;
-        const channelIds = await CacheService_js_1.default.get(LOCKDOWN_NAMESPACE, indexKey);
+        const channelIds = await CacheService_js_1.default.peek(LOCKDOWN_NAMESPACE, indexKey);
         return channelIds || [];
     }
     /**
@@ -200,7 +200,7 @@ class LockdownService {
      */
     async _addToIndex(guildId, channelId) {
         const indexKey = `index:${guildId}`;
-        const current = await CacheService_js_1.default.get(LOCKDOWN_NAMESPACE, indexKey) || [];
+        const current = await CacheService_js_1.default.peek(LOCKDOWN_NAMESPACE, indexKey) || [];
         if (!current.includes(channelId)) {
             current.push(channelId);
             await CacheService_js_1.default.set(LOCKDOWN_NAMESPACE, indexKey, current, 86400);
@@ -212,7 +212,7 @@ class LockdownService {
      */
     async _removeFromIndex(guildId, channelId) {
         const indexKey = `index:${guildId}`;
-        const current = await CacheService_js_1.default.get(LOCKDOWN_NAMESPACE, indexKey) || [];
+        const current = await CacheService_js_1.default.peek(LOCKDOWN_NAMESPACE, indexKey) || [];
         const filtered = current.filter(id => id !== channelId);
         if (filtered.length > 0) {
             await CacheService_js_1.default.set(LOCKDOWN_NAMESPACE, indexKey, filtered, 86400);

@@ -19,6 +19,11 @@
  */
 
 import 'dotenv/config';
+
+// Validate environment variables FIRST — fail fast on missing config
+import { validateOrExit } from './config/validation.js';
+validateOrExit();
+
 import { REST, Routes, Events, Client, Interaction, ChatInputCommandInteraction, AutocompleteInteraction, ButtonInteraction, ModalSubmitInteraction, StringSelectMenuInteraction } from 'discord.js';
 import http from 'http';
 
@@ -109,10 +114,10 @@ class AlterGoldenBot {
             await this.bootServices();
 
             // Load commands
-            this.loadCommands();
+            await this.loadCommands();
 
             // Load events
-            this.loadEvents();
+            await this.loadEvents();
 
             // Setup interaction listener
             this.setupInteractionListener();
@@ -125,7 +130,7 @@ class AlterGoldenBot {
 
             // Initialize Lavalink BEFORE login
             if (music.enabled) {
-                this.initializeLavalink();
+                await this.initializeLavalink();
             }
 
             // Connect to Discord
@@ -137,7 +142,7 @@ class AlterGoldenBot {
                 logger.initialize(this.client);
                 
                 // Register health checks now that services are ready
-                this.registerHealthChecks();
+                await this.registerHealthChecks();
                 health.setStatus('healthy');
                 
                 // Initialize Snipe Service
@@ -207,11 +212,13 @@ class AlterGoldenBot {
     /**
      * Register health checks for all services
      */
-    private registerHealthChecks(): void {
-        // Handle ESM default export for LavalinkService
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const lavalinkModule = music.enabled ? require('./services/music/LavalinkService') : null;
-        const lavalinkService = lavalinkModule?.default || lavalinkModule;
+    private async registerHealthChecks(): Promise<void> {
+        // Dynamic import LavalinkService
+        let lavalinkService: { getNodeStatus?: () => { ready?: boolean; nodes?: unknown[]; activeConnections?: number } } | undefined;
+        if (music.enabled) {
+            const lavalinkModule = await import('./services/music/LavalinkService.js');
+            lavalinkService = lavalinkModule.default as unknown as typeof lavalinkService;
+        }
         
         health.registerDefaultChecks({
             client: this.client,
@@ -225,9 +232,9 @@ class AlterGoldenBot {
     /**
      * Load all commands
      */
-    private loadCommands(): void {
+    private async loadCommands(): Promise<void> {
         // Load all commands from commands/ folder
-        commandReg.loadCommands();
+        await commandReg.loadCommands();
         
         // Attach to client for easy access
         this.client.commands = commandReg.commands;
@@ -238,9 +245,9 @@ class AlterGoldenBot {
     /**
      * Load all events
      */
-    private loadEvents(): void {
+    private async loadEvents(): Promise<void> {
         // Load all events
-        eventReg.loadEvents();
+        await eventReg.loadEvents();
         
         // Register with client
         eventReg.registerWithClient(this.client);
@@ -344,10 +351,10 @@ class AlterGoldenBot {
     /**
      * Initialize Lavalink music service
      */
-    private initializeLavalink(): void {
+    private async initializeLavalink(): Promise<void> {
         try {
-            // eslint-disable-next-line @typescript-eslint/no-require-imports
-            const lavalinkService = require('./services/music/LavalinkService').default;
+            const lavalinkModule = await import('./services/music/LavalinkService.js');
+            const lavalinkService = lavalinkModule.default as unknown as { preInitialize: (client: unknown) => void; finalize: () => void };
             lavalinkService.preInitialize(this.client);
             lavalinkService.finalize();
             logger.info('Lavalink', 'Music service pre-initialized');

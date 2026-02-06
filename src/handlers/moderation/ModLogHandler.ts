@@ -17,6 +17,7 @@ import {
     PartialUser
 } from 'discord.js';
 import { logger } from '../../core/Logger.js';
+import { formatDuration } from '../../utils/common/time.js';
 
 const getDefault = <T>(mod: { default?: T } | T): T => (mod as { default?: T }).default || mod as T;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -141,22 +142,7 @@ export async function handleMemberLeave(member: GuildMember): Promise<void> {
     }
 }
 
-/**
- * Format duration for display
- * @param ms - Duration in milliseconds
- * @returns Formatted duration string
- */
-export function formatDuration(ms: number): string {
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-    
-    if (days > 0) return `${days}d ${hours % 24}h`;
-    if (hours > 0) return `${hours}h ${minutes % 60}m`;
-    if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
-    return `${seconds}s`;
-}
+// formatDuration imported from utils/common/time.ts (canonical source)
 
 /**
  * Build a quick mod action embed

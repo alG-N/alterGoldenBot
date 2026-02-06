@@ -48,7 +48,8 @@ interface SkillsetService {
 }
 
 interface BattleService {
-    createBattle: (guildId: string, p1: User, p2: User, skillset: string, hp1: number, hp2: number) => Battle;
+    createBattle: (guildId: string, p1: User, p2: User, skillset: string, hp1: number, hp2: number) => Promise<Battle | null>;
+    isBattleActive: (guildId: string) => Promise<boolean>;
     executeRound: (battle: Battle) => RoundResult;
     endBattle: (battleId: string) => Promise<void>;
     getBattleHistory: (guildId: string) => Promise<BattleHistoryEntry[] | null>;
@@ -184,7 +185,7 @@ class DeathBattleCommand extends BaseCommand {
         }
 
         // Create battle
-        const battle = battleService!.createBattle(
+        const battle = await battleService!.createBattle(
             interaction.guild!.id,
             player1,
             opponent,
@@ -192,6 +193,14 @@ class DeathBattleCommand extends BaseCommand {
             player1Hp,
             player2Hp
         );
+
+        if (!battle) {
+            await interaction.reply({
+                embeds: [embedBuilder!.buildErrorEmbed('A battle is already in progress in this server! Wait for it to finish.')],
+                ephemeral: true
+            });
+            return;
+        }
 
         logger?.log(`Battle started: ${player1.tag} vs ${opponent.tag} (${skillsetName})`, interaction);
 

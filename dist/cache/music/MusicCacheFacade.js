@@ -147,35 +147,35 @@ class MusicCacheFacade {
     getDefaultPreferences() {
         return UserMusicCache_1.default.getDefaultPreferences();
     }
-    getPreferences(userId) {
+    async getPreferences(userId) {
         return UserMusicCache_1.default.getPreferences(userId);
     }
-    setPreferences(userId, preferences) {
+    async setPreferences(userId, preferences) {
         return UserMusicCache_1.default.setPreferences(userId, preferences);
     }
-    resetPreferences(userId) {
+    async resetPreferences(userId) {
         return UserMusicCache_1.default.resetPreferences(userId);
     }
-    getFavorites(userId) {
+    async getFavorites(userId) {
         return UserMusicCache_1.default.getFavorites(userId);
     }
-    addFavorite(userId, track) {
+    async addFavorite(userId, track) {
         return UserMusicCache_1.default.addFavorite(userId, track);
     }
-    removeFavorite(userId, trackUrl) {
+    async removeFavorite(userId, trackUrl) {
         return UserMusicCache_1.default.removeFavorite(userId, trackUrl);
     }
-    isFavorited(userId, trackUrl) {
+    async isFavorited(userId, trackUrl) {
         return UserMusicCache_1.default.isFavorited(userId, trackUrl);
     }
-    addToHistory(userId, track) {
+    async addToHistory(userId, track) {
         return UserMusicCache_1.default.addToHistory(userId, track);
     }
-    getHistory(userId, limit = 20) {
+    async getHistory(userId, limit = 20) {
         return UserMusicCache_1.default.getHistory(userId, limit);
     }
-    clearHistory(userId) {
-        UserMusicCache_1.default.clearHistory(userId);
+    async clearHistory(userId) {
+        await UserMusicCache_1.default.clearHistory(userId);
     }
     addToRecentlyPlayed(guildId, track) {
         return GuildMusicCache_1.default.addToRecentlyPlayed(guildId, track);
@@ -226,10 +226,10 @@ class MusicCacheFacade {
         VoteCache_1.default.cleanup();
         GuildMusicCache_1.default.cleanup();
     }
-    getStats() {
+    async getStats() {
         return {
             queue: QueueCache_1.default.getStats(),
-            user: UserMusicCache_1.default.getStats(),
+            user: await UserMusicCache_1.default.getStats(),
             vote: VoteCache_1.default.getStats(),
             guild: GuildMusicCache_1.default.getStats(),
         };

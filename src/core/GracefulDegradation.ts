@@ -6,6 +6,7 @@
  */
 
 import { EventEmitter } from 'events';
+import logger from './Logger.js';
 
 // Helper to get default export from require()
 const getDefault = <T>(mod: { default?: T } | T): T => (mod as { default?: T }).default || mod as T;
@@ -187,7 +188,7 @@ export class GracefulDegradation extends EventEmitter {
         this.registerService('discord', { critical: true });
         
         this.initialized = true;
-        console.log('[GracefulDegradation] Initialized');
+        logger.info('GracefulDegradation', 'Initialized');
     }
 
     /**
@@ -252,7 +253,7 @@ export class GracefulDegradation extends EventEmitter {
                 reason
             });
 
-            console.log(`[GracefulDegradation] ${serviceName}: ${previousState} → ${state}${reason ? ` (${reason})` : ''}`);
+            logger.info('GracefulDegradation', `${serviceName}: ${previousState} → ${state}${reason ? ` (${reason})` : ''}`);
         }
     }
 
@@ -322,7 +323,7 @@ export class GracefulDegradation extends EventEmitter {
                 newLevel: this.level
             });
 
-            console.log(`[GracefulDegradation] System level: ${previousLevel} → ${this.level}`);
+            logger.info('GracefulDegradation', `System level: ${previousLevel} → ${this.level}`);
         }
     }
 
@@ -444,7 +445,7 @@ export class GracefulDegradation extends EventEmitter {
             if (dropped) {
                 await this._removeFromRedisQueue(dropped);
             }
-            console.warn('[GracefulDegradation] Write queue full, dropping oldest entry');
+            logger.warn('GracefulDegradation', 'Write queue full, dropping oldest entry');
         }
 
         const entry: QueuedWrite = {
@@ -479,7 +480,7 @@ export class GracefulDegradation extends EventEmitter {
                 await redis.expire(WRITE_QUEUE_KEY, 86400);
             }
         } catch (error) {
-            console.error('[GracefulDegradation] Failed to persist write to Redis:', (error as Error).message);
+            logger.error('GracefulDegradation', `Failed to persist write to Redis: ${(error as Error).message}`);
         }
     }
 
@@ -496,7 +497,7 @@ export class GracefulDegradation extends EventEmitter {
                 await redis.lrem(WRITE_QUEUE_KEY, 1, JSON.stringify(entry));
             }
         } catch (error) {
-            console.error('[GracefulDegradation] Failed to remove write from Redis:', (error as Error).message);
+            logger.error('GracefulDegradation', `Failed to remove write from Redis: ${(error as Error).message}`);
         }
     }
 
@@ -510,7 +511,7 @@ export class GracefulDegradation extends EventEmitter {
             // Use provided Redis client or fall back to getCacheService()
             const redis = redisClient ?? getCacheService()?.getRedis();
             if (!redis) {
-                console.log('[GracefulDegradation] Redis not available, skipping queue recovery');
+                logger.info('GracefulDegradation', 'Redis not available, skipping queue recovery');
                 return 0;
             }
 
@@ -536,10 +537,10 @@ export class GracefulDegradation extends EventEmitter {
                 }
             }
 
-            console.log(`[GracefulDegradation] Recovered ${recovered} queued writes from Redis`);
+            logger.info('GracefulDegradation', `Recovered ${recovered} queued writes from Redis`);
             return recovered;
         } catch (error) {
-            console.error('[GracefulDegradation] Failed to recover write queue:', (error as Error).message);
+            logger.error('GracefulDegradation', `Failed to recover write queue: ${(error as Error).message}`);
             return 0;
         }
     }
@@ -552,7 +553,7 @@ export class GracefulDegradation extends EventEmitter {
         const pending = this.writeQueue.filter(w => w.serviceName === serviceName);
         if (pending.length === 0) return;
 
-        console.log(`[GracefulDegradation] Processing ${pending.length} queued writes for ${serviceName}`);
+        logger.info('GracefulDegradation', `Processing ${pending.length} queued writes for ${serviceName}`);
 
         for (const item of pending) {
             try {
@@ -572,7 +573,7 @@ export class GracefulDegradation extends EventEmitter {
                     const idx = this.writeQueue.indexOf(item);
                     if (idx > -1) this.writeQueue.splice(idx, 1);
                     await this._removeFromRedisQueue(item);
-                    console.error(`[GracefulDegradation] Failed to process queued write after 3 retries:`, (error as Error).message);
+                    logger.error('GracefulDegradation', `Failed to process queued write after 3 retries: ${(error as Error).message}`);
                 }
             }
         }
@@ -694,7 +695,7 @@ export class GracefulDegradation extends EventEmitter {
         // Note: writeQueue in Redis is preserved for recovery on restart
         this.writeQueue = [];
         this.initialized = false;
-        console.log('[GracefulDegradation] Shutdown complete (Redis queue preserved)');
+        logger.info('GracefulDegradation', 'Shutdown complete (Redis queue preserved)');
     }
 
     /**
@@ -706,10 +707,10 @@ export class GracefulDegradation extends EventEmitter {
             const redis = cacheService?.getRedis();
             if (redis) {
                 await redis.del(WRITE_QUEUE_KEY);
-                console.log('[GracefulDegradation] Redis write queue cleared');
+                logger.info('GracefulDegradation', 'Redis write queue cleared');
             }
         } catch (error) {
-            console.error('[GracefulDegradation] Failed to clear Redis queue:', (error as Error).message);
+            logger.error('GracefulDegradation', `Failed to clear Redis queue: ${(error as Error).message}`);
         }
     }
 }

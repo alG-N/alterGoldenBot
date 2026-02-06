@@ -94,7 +94,7 @@ exports.playHandler = {
                 return;
             }
             // Check duration
-            const prefs = MusicFacade_js_1.musicFacade.getPreferences(userId);
+            const prefs = await MusicFacade_js_1.musicFacade.getPreferences(userId);
             if (trackData.lengthSeconds > prefs.maxTrackDuration) {
                 return await this.handleLongTrackConfirmation(interaction, trackData, guildId, prefs.maxTrackDuration);
             }
@@ -112,7 +112,7 @@ exports.playHandler = {
                 MusicFacade_js_1.musicFacade.addTrack(guildId, trackData);
             }
             // Add to user history
-            MusicFacade_js_1.musicFacade.addToHistory(userId, trackData);
+            await MusicFacade_js_1.musicFacade.addToHistory(userId, trackData);
             // Start playing if nothing is playing
             if (!currentTrack) {
                 const queue = MusicFacade_js_1.musicFacade.getQueueList(guildId);

@@ -325,12 +325,12 @@ exports.buttonHandler = {
             }
             await interaction.deferUpdate();
             const userId = interaction.user.id;
-            const isFavorited = MusicFacade_js_1.musicFacade.isFavorited(userId, currentTrack.url);
+            const isFavorited = await MusicFacade_js_1.musicFacade.isFavorited(userId, currentTrack.url);
             if (isFavorited) {
-                MusicFacade_js_1.musicFacade.removeFavorite(userId, currentTrack.url);
+                await MusicFacade_js_1.musicFacade.removeFavorite(userId, currentTrack.url);
             }
             else {
-                MusicFacade_js_1.musicFacade.addFavorite(userId, currentTrack);
+                await MusicFacade_js_1.musicFacade.addFavorite(userId, currentTrack);
             }
             const options = buildNowPlayingOptions(guildId, interaction);
             const embed = trackHandler_js_1.trackHandler.createNowPlayingEmbed(currentTrack, options);

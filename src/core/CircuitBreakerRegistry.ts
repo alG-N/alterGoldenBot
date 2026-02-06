@@ -11,6 +11,7 @@ import {
     CircuitBreakerMetrics,
     CircuitState 
 } from './CircuitBreaker';
+import logger from './Logger.js';
 // TYPES & INTERFACES
 /**
  * Registry health status
@@ -231,7 +232,7 @@ export class CircuitBreakerRegistry {
         }
 
         this.initialized = true;
-        console.log(`[CircuitBreakerRegistry] Initialized ${this.breakers.size} circuit breakers`);
+        logger.info('CircuitBreakerRegistry', `Initialized ${this.breakers.size} circuit breakers`);
     }
 
     /**
@@ -239,7 +240,7 @@ export class CircuitBreakerRegistry {
      */
     register(name: string, config: CircuitBreakerOptions = {}): CircuitBreaker {
         if (this.breakers.has(name)) {
-            console.warn(`[CircuitBreakerRegistry] Breaker '${name}' already exists, returning existing`);
+            logger.warn('CircuitBreakerRegistry', `Breaker '${name}' already exists, returning existing`);
             return this.breakers.get(name)!;
         }
 
@@ -248,9 +249,9 @@ export class CircuitBreakerRegistry {
         // Log state changes
         breaker.on('stateChange', ({ name, from, to }: { name: string; from: string; to: string }) => {
             if (to === 'OPEN') {
-                console.warn(`[CircuitBreakerRegistry] ⚠️ Circuit '${name}' OPENED - service degraded`);
+                logger.warn('CircuitBreakerRegistry', `⚠️ Circuit '${name}' OPENED - service degraded`);
             } else if (to === 'CLOSED' && from === 'HALF_OPEN') {
-                console.log(`[CircuitBreakerRegistry] ✅ Circuit '${name}' recovered`);
+                logger.info('CircuitBreakerRegistry', `✅ Circuit '${name}' recovered`);
             }
         });
 
@@ -271,7 +272,7 @@ export class CircuitBreakerRegistry {
     async execute<T>(name: string, fn: () => Promise<T>): Promise<T> {
         const breaker = this.breakers.get(name);
         if (!breaker) {
-            console.warn(`[CircuitBreakerRegistry] Breaker '${name}' not found, executing without protection`);
+            logger.warn('CircuitBreakerRegistry', `Breaker '${name}' not found, executing without protection`);
             return fn();
         }
         return breaker.execute(fn);
@@ -321,7 +322,7 @@ export class CircuitBreakerRegistry {
         for (const breaker of this.breakers.values()) {
             breaker.reset();
         }
-        console.log('[CircuitBreakerRegistry] All circuits reset');
+        logger.info('CircuitBreakerRegistry', 'All circuits reset');
     }
 
     /**
@@ -371,9 +372,3 @@ const circuitBreakerRegistry = new CircuitBreakerRegistry();
 
 export { circuitBreakerRegistry };
 export default circuitBreakerRegistry;
-
-// CommonJS compatibility
-module.exports = circuitBreakerRegistry;
-module.exports.CircuitBreakerRegistry = CircuitBreakerRegistry;
-module.exports.CIRCUIT_CONFIGS = CIRCUIT_CONFIGS;
-module.exports.circuitBreakerRegistry = circuitBreakerRegistry;

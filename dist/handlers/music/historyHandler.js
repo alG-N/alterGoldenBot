@@ -21,14 +21,14 @@ exports.historyHandler = {
         }
     },
     async handleHistoryList(interaction, userId) {
-        const history = MusicFacade_js_1.musicFacade.getHistory(userId, 100);
+        const history = await MusicFacade_js_1.musicFacade.getHistory(userId, 100);
         const page = interaction.options.getInteger('page') || 1;
         const embed = trackHandler_js_1.trackHandler.createHistoryEmbed(history, userId, page);
         await interaction.reply({ embeds: [embed] });
     },
     async handleHistoryPlay(interaction, userId) {
         const number = interaction.options.getInteger('number');
-        const history = MusicFacade_js_1.musicFacade.getHistory(userId, 100);
+        const history = await MusicFacade_js_1.musicFacade.getHistory(userId, 100);
         if (number > history.length) {
             await interaction.reply({
                 embeds: [trackHandler_js_1.trackHandler.createErrorEmbed(`Invalid number. History only has ${history.length} items.`)],
@@ -66,7 +66,7 @@ exports.historyHandler = {
         await interaction.editReply({ embeds: [embed] });
     },
     async handleHistoryClear(interaction, userId) {
-        MusicFacade_js_1.musicFacade.clearHistory(userId);
+        await MusicFacade_js_1.musicFacade.clearHistory(userId);
         await interaction.reply({
             embeds: [trackHandler_js_1.trackHandler.createInfoEmbed('🗑️ Cleared', 'Listening history cleared', 'success')]
         });

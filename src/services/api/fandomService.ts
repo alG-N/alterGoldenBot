@@ -6,15 +6,11 @@
 
 import axios, { AxiosRequestConfig } from 'axios';
 import { circuitBreakerRegistry } from '../../core/CircuitBreakerRegistry';
+import cacheService from '../../cache/CacheService.js';
 // TYPES & INTERFACES
 interface RequestConfig extends AxiosRequestConfig {
     timeout: number;
     headers: Record<string, string>;
-}
-
-interface CacheEntry<T> {
-    data: T;
-    expiresAt: number;
 }
 
 export interface SearchResult {
@@ -205,57 +201,11 @@ const POPULAR_WIKIS: Record<string, string> = {
 };
 // FANDOM SERVICE CLASS
 class FandomService {
-    private cache: Map<string, CacheEntry<unknown>>;
-    private readonly cacheExpiry: number = 600000; // 10 minutes
-    private readonly maxCacheSize: number = 200;
-    private cleanupInterval: NodeJS.Timeout | null = null;
+    private readonly CACHE_NS = 'api';
+    private readonly CACHE_TTL = 600; // 10 minutes in seconds
 
     constructor() {
-        this.cache = new Map();
-
-        // Auto-cleanup every 15 minutes
-        this.cleanupInterval = setInterval(() => this._cleanupCache(), 900000);
-    }
-
-    /**
-     * Cleanup expired cache entries
-     */
-    private _cleanupCache(): void {
-        const now = Date.now();
-        for (const [key, entry] of this.cache) {
-            if (now > entry.expiresAt) {
-                this.cache.delete(key);
-            }
-        }
-    }
-
-    /**
-     * Get data from cache if not expired
-     */
-    private _getFromCache<T>(key: string): T | null {
-        const entry = this.cache.get(key) as CacheEntry<T> | undefined;
-        if (entry && Date.now() < entry.expiresAt) {
-            return entry.data;
-        }
-        this.cache.delete(key);
-        return null;
-    }
-
-    /**
-     * Set data in cache
-     */
-    private _setCache<T>(key: string, data: T): void {
-        // Limit cache size
-        if (this.cache.size >= this.maxCacheSize) {
-            const oldestKey = this.cache.keys().next().value;
-            if (oldestKey) {
-                this.cache.delete(oldestKey);
-            }
-        }
-        this.cache.set(key, {
-            data,
-            expiresAt: Date.now() + this.cacheExpiry
-        });
+        // No local cache setup needed
     }
 
     /**
@@ -271,9 +221,9 @@ class FandomService {
      */
     async search(wiki: string, query: string, limit: number = 10): Promise<SearchResponse> {
         const subdomain = this.getWikiSubdomain(wiki);
-        const cacheKey = `search_${subdomain}_${query}`;
+        const cacheKey = `fandom:search_${subdomain}_${query}`;
 
-        const cached = this._getFromCache<SearchResponse>(cacheKey);
+        const cached = await cacheService.get<SearchResponse>(this.CACHE_NS, cacheKey);
         if (cached) return { ...cached, fromCache: true };
 
         return circuitBreakerRegistry.execute('fandom', async () => {
@@ -312,7 +262,7 @@ class FandomService {
                 }));
 
                 const result: SearchResponse = { success: true, results, wiki: subdomain, query };
-                this._setCache(cacheKey, result);
+                await cacheService.set(this.CACHE_NS, cacheKey, result, this.CACHE_TTL);
 
                 return result;
             } catch (error) {
@@ -337,9 +287,9 @@ class FandomService {
      */
     async getArticle(wiki: string, title: string): Promise<ArticleResponse> {
         const subdomain = this.getWikiSubdomain(wiki);
-        const cacheKey = `article_${subdomain}_${title}`;
+        const cacheKey = `fandom:article_${subdomain}_${title}`;
 
-        const cached = this._getFromCache<ArticleResponse>(cacheKey);
+        const cached = await cacheService.get<ArticleResponse>(this.CACHE_NS, cacheKey);
         if (cached) return { ...cached, fromCache: true };
 
         return circuitBreakerRegistry.execute('fandom', async () => {
@@ -397,7 +347,7 @@ class FandomService {
                     }
                 };
 
-                this._setCache(cacheKey, result);
+                await cacheService.set(this.CACHE_NS, cacheKey, result, this.CACHE_TTL);
                 return result;
             } catch (error) {
                 console.error('[Fandom Article Error]', (error as Error).message);
@@ -452,9 +402,9 @@ class FandomService {
      */
     async getWikiInfo(wiki: string): Promise<WikiInfoResponse> {
         const subdomain = this.getWikiSubdomain(wiki);
-        const cacheKey = `wikiinfo_${subdomain}`;
+        const cacheKey = `fandom:wikiinfo_${subdomain}`;
 
-        const cached = this._getFromCache<WikiInfoResponse>(cacheKey);
+        const cached = await cacheService.get<WikiInfoResponse>(this.CACHE_NS, cacheKey);
         if (cached) return { ...cached, fromCache: true };
 
         return circuitBreakerRegistry.execute('fandom', async () => {
@@ -497,7 +447,7 @@ class FandomService {
                     }
                 };
 
-                this._setCache(cacheKey, result);
+                await cacheService.set(this.CACHE_NS, cacheKey, result, this.CACHE_TTL);
                 return result;
             } catch (error) {
                 console.error('[Fandom Wiki Info Error]', (error as Error).message);
@@ -603,11 +553,7 @@ class FandomService {
      * Cleanup resources
      */
     destroy(): void {
-        if (this.cleanupInterval) {
-            clearInterval(this.cleanupInterval);
-            this.cleanupInterval = null;
-        }
-        this.cache.clear();
+        // No local resources to clean up
     }
 }
 
@@ -616,9 +562,3 @@ const fandomService = new FandomService();
 
 export { fandomService, FandomService, POPULAR_WIKIS };
 export default fandomService;
-
-// CommonJS compatibility
-module.exports = fandomService;
-module.exports.fandomService = fandomService;
-module.exports.FandomService = FandomService;
-module.exports.POPULAR_WIKIS = POPULAR_WIKIS;

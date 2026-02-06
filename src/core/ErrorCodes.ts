@@ -216,10 +216,3 @@ export function getErrorMessage(code: string, _locale: string = 'en'): string {
 export function isErrorCategory(code: string, category: ErrorCategory): boolean {
     return ERROR_CATEGORIES[category]?.includes(code as ErrorCode) || false;
 }
-
-// CommonJS compatibility
-module.exports = {
-    ErrorCodes,
-    getErrorMessage,
-    isErrorCategory
-};

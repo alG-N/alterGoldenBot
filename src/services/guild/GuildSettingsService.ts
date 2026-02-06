@@ -7,8 +7,9 @@
 import type { GuildMember, Snowflake, Role } from 'discord.js';
 import cacheService from '../../cache/CacheService.js';
 
-// Use require for CommonJS database module
-const db = require('../../database/postgres.js') as {
+// Use require for database module
+const _dbMod = require('../../database/postgres.js');
+const db = (_dbMod.default || _dbMod) as {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[] }>;
     getOne: (sql: string, params?: unknown[]) => Promise<unknown>;
     insert: (table: string, data: Record<string, unknown>) => Promise<unknown>;

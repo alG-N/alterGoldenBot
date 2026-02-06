@@ -146,6 +146,41 @@ async function runShutdownSequence(client) {
     catch (error) {
         results.push({ name: 'PaginationState', success: false, error: error.message });
     }
+    // 7. Cleanup interval-bearing services (prevent timer leaks)
+    const intervalServices = [
+        { name: 'Rule34Cache', path: '../repositories/api/rule34Cache', method: 'destroy' },
+        { name: 'CacheManager (API)', path: '../repositories/api/cacheManager', method: 'destroy' },
+        { name: 'RedditCache', path: '../repositories/api/redditCache', method: 'destroy' },
+        { name: 'NHentaiHandler', path: '../handlers/api/nhentaiHandler', method: 'destroy' },
+        { name: 'VideoDownloadService', path: '../services/video/VideoDownloadService', method: 'destroy' },
+        { name: 'VoiceStateUpdate', path: '../events/voiceStateUpdate', method: 'destroy' },
+        { name: 'AntiRaidService', path: '../services/moderation/AntiRaidService', method: 'shutdown' },
+        { name: 'MusicEventBus', path: '../services/music/events/MusicEventBus', method: 'shutdown' },
+        { name: 'VoiceConnectionService', path: '../services/music/voice/VoiceConnectionService', method: 'shutdownAll' },
+    ];
+    for (const { name, path, method } of intervalServices) {
+        try {
+            const mod = require(path);
+            const instance = mod.default || mod;
+            if (typeof instance[method] === 'function') {
+                await instance[method]();
+            }
+            else if (typeof instance === 'object') {
+                // Some modules export the class, try to find the singleton
+                for (const key of Object.keys(mod)) {
+                    if (mod[key] && typeof mod[key][method] === 'function') {
+                        await mod[key][method]();
+                        break;
+                    }
+                }
+            }
+            results.push({ name, success: true });
+        }
+        catch (error) {
+            // Silent — service may not have been initialized
+            results.push({ name, success: false, error: error.message });
+        }
+    }
     return results;
 }
 /**

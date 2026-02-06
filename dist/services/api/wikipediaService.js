@@ -11,6 +11,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.WikipediaService = exports.wikipediaService = void 0;
 const axios_1 = __importDefault(require("axios"));
 const CircuitBreakerRegistry_1 = require("../../core/CircuitBreakerRegistry");
+const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
 // CONFIGURATION
 const LANGUAGE_ENDPOINTS = {
     en: { api: 'https://en.wikipedia.org/w/api.php', rest: 'https://en.wikipedia.org/api/rest_v1' },
@@ -28,27 +29,11 @@ const REQUEST_CONFIG = {
 };
 // WIKIPEDIA SERVICE CLASS
 class WikipediaService {
-    cache;
-    cacheExpiry;
-    maxCacheSize;
+    CACHE_NS = 'api';
+    CACHE_TTL = 600; // 10 minutes in seconds
     defaultLanguage;
-    cleanupInterval;
     constructor() {
-        this.cache = new Map();
-        this.cacheExpiry = 600000; // 10 minutes
-        this.maxCacheSize = 100;
         this.defaultLanguage = 'en';
-        this.cleanupInterval = null;
-        // Auto-cleanup every 15 minutes
-        this.cleanupInterval = setInterval(() => this._cleanupCache(), 900000);
-    }
-    _cleanupCache() {
-        const now = Date.now();
-        for (const [key, entry] of this.cache) {
-            if (now > entry.expiresAt) {
-                this.cache.delete(key);
-            }
-        }
     }
     _getEndpoints(language) {
         return LANGUAGE_ENDPOINTS[language] || LANGUAGE_ENDPOINTS.en;
@@ -60,8 +45,8 @@ class WikipediaService {
         const { language = this.defaultLanguage, limit = 5 } = options;
         const endpoints = this._getEndpoints(language);
         // Check cache
-        const cacheKey = `search_${language}_${query}`;
-        const cached = this._getFromCache(cacheKey);
+        const cacheKey = `wiki:search_${language}_${query}`;
+        const cached = await CacheService_js_1.default.get(this.CACHE_NS, cacheKey);
         if (cached)
             return { ...cached, fromCache: true };
         return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('wikipedia', async () => {
@@ -86,7 +71,7 @@ class WikipediaService {
                     url: urls[i] || ''
                 }));
                 const result = { success: true, results, query: searchTerm };
-                this._setCache(cacheKey, result);
+                await CacheService_js_1.default.set(this.CACHE_NS, cacheKey, result, this.CACHE_TTL);
                 return result;
             }
             catch (error) {
@@ -101,8 +86,8 @@ class WikipediaService {
     async getArticleSummary(title, language = 'en') {
         const endpoints = this._getEndpoints(language);
         // Check cache
-        const cacheKey = `article_${language}_${title}`;
-        const cached = this._getFromCache(cacheKey);
+        const cacheKey = `wiki:article_${language}_${title}`;
+        const cached = await CacheService_js_1.default.get(this.CACHE_NS, cacheKey);
         if (cached)
             return { ...cached, fromCache: true };
         return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('wikipedia', async () => {
@@ -126,7 +111,7 @@ class WikipediaService {
                     coordinates: data.coordinates || null
                 };
                 const result = { success: true, article };
-                this._setCache(cacheKey, result);
+                await CacheService_js_1.default.set(this.CACHE_NS, cacheKey, result, this.CACHE_TTL);
                 return result;
             }
             catch (error) {
@@ -229,36 +214,10 @@ class WikipediaService {
         });
     }
     /**
-     * Cache management - get
-     */
-    _getFromCache(key) {
-        const entry = this.cache.get(key);
-        if (!entry || Date.now() > entry.expiresAt) {
-            this.cache.delete(key);
-            return null;
-        }
-        return entry.data;
-    }
-    /**
-     * Cache management - set
-     */
-    _setCache(key, data) {
-        if (this.cache.size >= this.maxCacheSize) {
-            const oldestKey = this.cache.keys().next().value;
-            if (oldestKey)
-                this.cache.delete(oldestKey);
-        }
-        this.cache.set(key, { data, expiresAt: Date.now() + this.cacheExpiry });
-    }
-    /**
      * Cleanup on shutdown
      */
     shutdown() {
-        if (this.cleanupInterval) {
-            clearInterval(this.cleanupInterval);
-            this.cleanupInterval = null;
-        }
-        this.cache.clear();
+        // No local resources to clean up
     }
 }
 exports.WikipediaService = WikipediaService;

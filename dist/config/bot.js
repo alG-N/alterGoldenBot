@@ -6,7 +6,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.presence = exports.autoDeploy = exports.clientId = void 0;
-exports.clientId = process.env.CLIENT_ID || '1467027746906701951';
+exports.clientId = process.env.CLIENT_ID || '';
 exports.autoDeploy = process.env.AUTO_DEPLOY !== 'false';
 exports.presence = {
     status: 'online',

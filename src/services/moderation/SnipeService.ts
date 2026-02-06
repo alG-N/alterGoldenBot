@@ -117,8 +117,8 @@ async function trackDeletedMessage(message: Message): Promise<void> {
     const limit = await GuildSettingsService.getSnipeLimit(guildId);
     const cacheKey = getSnipeKey(guildId);
 
-    // Get existing messages from Redis
-    const existingMessages = await cacheService.get<TrackedMessage[]>(SNIPE_NAMESPACE, cacheKey) || [];
+    // Get existing messages from Redis (may not exist — not a real miss)
+    const existingMessages = await cacheService.peek<TrackedMessage[]>(SNIPE_NAMESPACE, cacheKey) || [];
 
     // Store attachment info
     const attachments: TrackedAttachment[] = [];
@@ -183,7 +183,7 @@ async function trackDeletedMessage(message: Message): Promise<void> {
  */
 export async function getDeletedMessages(guildId: Snowflake, channelId?: Snowflake): Promise<TrackedMessage[]> {
     const cacheKey = getSnipeKey(guildId);
-    const messages = await cacheService.get<TrackedMessage[]>(SNIPE_NAMESPACE, cacheKey) || [];
+    const messages = await cacheService.peek<TrackedMessage[]>(SNIPE_NAMESPACE, cacheKey) || [];
 
     if (channelId) {
         return messages.filter(m => m.channel.id === channelId);
@@ -209,7 +209,7 @@ export async function clearMessages(guildId: Snowflake, channelId?: Snowflake): 
     const cacheKey = getSnipeKey(guildId);
 
     if (channelId) {
-        const messages = await cacheService.get<TrackedMessage[]>(SNIPE_NAMESPACE, cacheKey) || [];
+        const messages = await cacheService.peek<TrackedMessage[]>(SNIPE_NAMESPACE, cacheKey) || [];
         const before = messages.length;
         const filtered = messages.filter(m => m.channel.id !== channelId);
         
@@ -222,7 +222,7 @@ export async function clearMessages(guildId: Snowflake, channelId?: Snowflake): 
         return before - filtered.length;
     }
 
-    const messages = await cacheService.get<TrackedMessage[]>(SNIPE_NAMESPACE, cacheKey) || [];
+    const messages = await cacheService.peek<TrackedMessage[]>(SNIPE_NAMESPACE, cacheKey) || [];
     const count = messages.length;
     await cacheService.delete(SNIPE_NAMESPACE, cacheKey);
     return count;

@@ -44,13 +44,37 @@ const createDefaultEffects = () => ({
     namedBuffs: [],
     armor: 1.0,
 });
+// Battle lock TTL: 10 minutes max (battles should never last this long)
+const BATTLE_LOCK_TTL = 600;
 // BATTLE SERVICE CLASS
 class BattleService {
     activeBattles = new Map();
     /**
-     * Create a new battle between two players
+     * Check if a battle is already active in a guild (checks both local Map and Redis lock)
      */
-    createBattle(guildId, player1, player2, skillsetName, player1Hp, player2Hp) {
+    async isBattleActive(guildId) {
+        // Fast path: check local Map first
+        if (this.activeBattles.has(guildId))
+            return true;
+        // Cross-shard check: Redis lock
+        try {
+            const lock = await CacheService_js_1.default.get('temp', `battle:active:${guildId}`);
+            return lock !== null && lock !== undefined;
+        }
+        catch {
+            // Redis unavailable — fall back to local-only check
+            return false;
+        }
+    }
+    /**
+     * Create a new battle between two players.
+     * Returns null if a battle is already active in this guild.
+     */
+    async createBattle(guildId, player1, player2, skillsetName, player1Hp, player2Hp) {
+        // Prevent duplicate battles (local + cross-shard)
+        if (await this.isBattleActive(guildId)) {
+            return null;
+        }
         const skillset = SkillsetService_js_1.default.getSkillset(skillsetName);
         const battle = {
             player1,
@@ -78,6 +102,13 @@ class BattleService {
             history: [],
         };
         this.activeBattles.set(guildId, battle);
+        // Set Redis lock for cross-shard awareness
+        try {
+            await CacheService_js_1.default.set('temp', `battle:active:${guildId}`, true, BATTLE_LOCK_TTL);
+        }
+        catch {
+            // Redis unavailable — local Map is still set, continue normally
+        }
         return battle;
     }
     /**
@@ -90,7 +121,7 @@ class BattleService {
      * Get battle history by guild ID (from Redis/cache)
      */
     async getBattleHistory(guildId) {
-        return CacheService_js_1.default.get('temp', `battle:history:${guildId}`);
+        return CacheService_js_1.default.peek('temp', `battle:history:${guildId}`);
     }
     /**
      * Save battle history when battle ends (to Redis/cache with 10min TTL)
@@ -99,7 +130,7 @@ class BattleService {
         await CacheService_js_1.default.set('temp', `battle:history:${guildId}`, history, 600); // 10 min TTL
     }
     /**
-     * Remove a battle and clear its interval
+     * Remove a battle and clear its interval + Redis lock
      */
     async removeBattle(guildId) {
         const battle = this.activeBattles.get(guildId);
@@ -111,6 +142,13 @@ class BattleService {
             await this.saveBattleHistory(guildId, battle.history);
         }
         this.activeBattles.delete(guildId);
+        // Clear Redis lock for cross-shard awareness
+        try {
+            await CacheService_js_1.default.delete('temp', `battle:active:${guildId}`);
+        }
+        catch {
+            // Redis unavailable — lock will expire via TTL
+        }
     }
     /**
      * Calculate damage based on HP scaling (LOWERED for longer battles)

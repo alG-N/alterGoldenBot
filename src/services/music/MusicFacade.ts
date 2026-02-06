@@ -223,6 +223,7 @@ export class MusicFacade {
     }
     // PLAYBACK OPERATIONS (delegated to PlaybackService)
     async playTrack(guildId: string, track: Track): Promise<Track> {
+        // Cast: QueueCache returns typed queue but runtime adds dynamic fields (isReplacing, textChannel)
         const queue = musicCache.getQueue(guildId) as any;
         
         // Set replacing flag if a track is already playing
@@ -242,6 +243,7 @@ export class MusicFacade {
         try {
             await player.playTrack({ track: { encoded } });
             // Track metrics - track played
+            // Cast: Track.info may have sourceName from Lavalink but not declared in our TrackInfo interface
             const source = (track as any)?.info?.sourceName || 'unknown';
             musicTracksPlayedTotal.inc({ source });
             this.updateMetrics();
@@ -379,6 +381,7 @@ export class MusicFacade {
     // VOICE CONNECTION OPERATIONS
     async connect(interaction: ChatInputCommandInteraction): Promise<any> {
         const guildId = interaction.guild!.id;
+        // Cast: interaction.member is GuildMember | APIInteractionGuildMember — need .voice.channel
         const member = interaction.member as any;
         const voiceChannel = member?.voice?.channel;
 
@@ -417,6 +420,7 @@ export class MusicFacade {
         const player = playbackService.getPlayer(guildId);
         if (!player) return;
 
+        // Cast: QueueService.get() returns typed queue but we need dynamic textChannel field
         const queue = queueService.get(guildId) as any;
         if (queue) {
             queue.eventsBound = true;
@@ -542,6 +546,7 @@ export class MusicFacade {
     // AUTO-PLAY
     async handleQueueEnd(guildId: string, providedLastTrack: Track | null = null): Promise<void> {
         const lastTrack = providedLastTrack || this.getCurrentTrack(guildId);
+        // Cast: queue has runtime-added autoPlay, textChannel, lastPlayedTracks fields
         const queue = musicCache.getQueue(guildId) as any;
 
         // Check auto-play
@@ -557,6 +562,7 @@ export class MusicFacade {
                     // Store in history
                     const trackInfo = lastTrack.info || lastTrack;
                     if (!queue.lastPlayedTracks) queue.lastPlayedTracks = [];
+                    // Cast: trackInfo is Track.info|Track — title access needs unification
                     queue.lastPlayedTracks.push((trackInfo as any).title);
                     if (queue.lastPlayedTracks.length > 10) queue.lastPlayedTracks.shift();
 
@@ -566,6 +572,7 @@ export class MusicFacade {
 
                     // Notify
                     if (queue?.textChannel) {
+                        // Cast: trackHandler methods (createAutoPlayEmbed, createInfoEmbed) not in its TS interface
                         const autoPlayEmbed = (trackHandler as any).createAutoPlayEmbed?.(similarTrack) ||
                             (trackHandler as any).createInfoEmbed?.('🎵 Auto-Play', `Now playing: **${similarTrack.info?.title}**`);
                         await queue.textChannel.send({ embeds: [autoPlayEmbed] }).catch(() => {});
@@ -584,6 +591,7 @@ export class MusicFacade {
         await this.disableNowPlayingControls(guildId);
 
         if (queue?.textChannel) {
+            // Cast: trackHandler methods not in TS interface (createQueueFinishedEmbed, createInfoEmbed)
             const finishedEmbed = (trackHandler as any).createQueueFinishedEmbed?.(lastTrack) ||
                 (trackHandler as any).createInfoEmbed?.('Queue Finished', 'All songs have been played!') ||
                 { description: '✅ Queue finished!' };
@@ -599,6 +607,7 @@ export class MusicFacade {
     }
 
     toggleAutoPlay(guildId: string): boolean {
+        // Cast: queue has runtime autoPlay/loopMode fields not in typed interface
         const queue = musicCache.getQueue(guildId) as any;
         if (!queue) return false;
 
@@ -644,6 +653,7 @@ export class MusicFacade {
     }
 
     hasEnoughSkipVotes(guildId: string): boolean {
+        // Cast: hasEnoughSkipVotes returns boolean | { success } depending on implementation
         const result = musicCache.hasEnoughSkipVotes(guildId) as any;
         if (typeof result === 'boolean') return result;
         return result?.success ?? false;
@@ -689,6 +699,7 @@ export class MusicFacade {
                 }))
             }));
 
+            // Cast: manually-constructed component objects don't match MessageActionRowComponentData
             await message.edit({ components: disabledRows as any });
         } catch (error: any) {
             if (error.code === 10008) {
@@ -698,6 +709,7 @@ export class MusicFacade {
     }
 
     async sendNowPlayingEmbed(guildId: string): Promise<void> {
+        // Cast: queue has runtime textChannel, isPaused fields not in typed interface
         const queue = musicCache.getQueue(guildId) as any;
         if (!queue?.textChannel) return;
 
@@ -711,6 +723,7 @@ export class MusicFacade {
             const listenerCount = this.getListenerCount(guildId, queue.textChannel?.guild);
             const voteSkipStatus = musicCache.getVoteSkipStatus(guildId, listenerCount);
 
+            // Cast: trackHandler methods (createNowPlayingEmbed, createControlButtons) not in TS interface
             const embed = (trackHandler as any).createNowPlayingEmbed(currentTrack, {
                 volume: this.getVolume(guildId),
                 isPaused: queue.isPaused || false,
@@ -748,6 +761,7 @@ export class MusicFacade {
         const currentTrack = this.getCurrentTrack(guildId);
         if (!currentTrack) return;
 
+        // Cast: queue has runtime textChannel, isPaused fields not in typed interface
         const queue = musicCache.getQueue(guildId) as any;
         if (!queue) return;
 
@@ -756,6 +770,7 @@ export class MusicFacade {
             const listenerCount = this.getListenerCount(guildId, queue.textChannel?.guild);
             const voteSkipStatus = musicCache.getVoteSkipStatus(guildId, listenerCount);
 
+            // Cast: trackHandler methods (createNowPlayingEmbed, createControlButtons) not in TS interface
             const embed = (trackHandler as any).createNowPlayingEmbed(currentTrack, {
                 volume: this.getVolume(guildId),
                 isPaused: queue.isPaused || false,
@@ -788,40 +803,40 @@ export class MusicFacade {
         }
     }
     // USER DATA (favorites, history, preferences)
-    addFavorite(userId: string, track: Track): any {
+    async addFavorite(userId: string, track: Track): Promise<any> {
         return musicCache.addFavorite(userId, track);
     }
 
-    removeFavorite(userId: string, trackUrl: string): any {
+    async removeFavorite(userId: string, trackUrl: string): Promise<any> {
         return musicCache.removeFavorite(userId, trackUrl);
     }
 
-    getFavorites(userId: string): any[] {
+    async getFavorites(userId: string): Promise<any[]> {
         return musicCache.getFavorites(userId);
     }
 
-    isFavorited(userId: string, trackUrl: string): boolean {
+    async isFavorited(userId: string, trackUrl: string): Promise<boolean> {
         return musicCache.isFavorited(userId, trackUrl);
     }
 
-    addToHistory(userId: string, track: Track): void {
-        musicCache.addToHistory(userId, track);
+    async addToHistory(userId: string, track: Track): Promise<void> {
+        await musicCache.addToHistory(userId, track);
     }
 
-    getHistory(userId: string, limit?: number): any[] {
+    async getHistory(userId: string, limit?: number): Promise<any[]> {
         return musicCache.getHistory(userId, limit);
     }
 
-    clearHistory(userId: string): void {
-        musicCache.clearHistory(userId);
+    async clearHistory(userId: string): Promise<void> {
+        await musicCache.clearHistory(userId);
     }
 
-    getPreferences(userId: string): any {
+    async getPreferences(userId: string): Promise<any> {
         return musicCache.getPreferences(userId);
     }
 
-    setPreferences(userId: string, prefs: any): void {
-        musicCache.setPreferences(userId, prefs);
+    async setPreferences(userId: string, prefs: any): Promise<void> {
+        await musicCache.setPreferences(userId, prefs);
     }
 
     getRecentlyPlayed(guildId: string): any[] {
@@ -905,6 +920,7 @@ export class MusicFacade {
     }
 
     // Expose transitionMutex for backward compatibility
+    // Cast: transitionMutex is a private field on PlaybackService — exposed for legacy compat
     get transitionMutex(): any {
         return (playbackService as any).transitionMutex;
     }

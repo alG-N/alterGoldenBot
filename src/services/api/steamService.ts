@@ -453,7 +453,3 @@ const steamService = new SteamService();
 
 export { steamService };
 export default steamService;
-
-// CommonJS compatibility
-module.exports = steamService;
-module.exports.SteamService = SteamService;

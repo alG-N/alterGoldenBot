@@ -16,13 +16,13 @@ export const OWNER_IDS: string[] = process.env.OWNER_IDS
 // Primary Developer ID (from environment or default)
 export const DEVELOPER_ID = process.env.DEVELOPER_ID || '1128296349566251068';
 
-// Logging Channels
-export const GUILD_LOG_CHANNEL_ID = '1366324387967533057';
-export const REPORT_CHANNEL_ID = '1362826913088799001';
-export const SYSTEM_LOG_CHANNEL_ID = '1195762287729537045';
+// Logging Channels (from environment or defaults)
+export const GUILD_LOG_CHANNEL_ID = process.env.GUILD_LOG_CHANNEL_ID || '';
+export const REPORT_CHANNEL_ID = process.env.REPORT_CHANNEL_ID || '';
+export const SYSTEM_LOG_CHANNEL_ID = process.env.SYSTEM_LOG_CHANNEL_ID || '';
 
 // Support Server
-export const SUPPORT_GUILD_ID = '1255091916823986207';
+export const SUPPORT_GUILD_ID = process.env.SUPPORT_GUILD_ID || '';
 
 // Guild Feature Display Map
 export const GUILD_FEATURES_MAP: Record<string, string> = {
@@ -49,17 +49,6 @@ export const BOOST_TIERS = {
     names: ['None', 'Tier 1', 'Tier 2', 'Tier 3']
 };
 
-// Embed Colors
-export const EMBED_COLORS = {
-    SUCCESS: 0x00FF00,
-    ERROR: 0xFF0000,
-    WARNING: 0xFFA500,
-    INFO: 0x3498DB,
-    GREY: 0x808080,
-    GUILD_JOIN: 0x00FF00,
-    GUILD_LEAVE: 0xFF0000
-} as const;
-
 // Helper Functions
 export function isOwner(userId: string): boolean {
     return OWNER_IDS.includes(userId);
@@ -82,7 +71,6 @@ export default {
     SUPPORT_GUILD_ID,
     GUILD_FEATURES_MAP,
     BOOST_TIERS,
-    EMBED_COLORS,
     isOwner,
     isDeveloper,
     isValidUserId

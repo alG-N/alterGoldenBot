@@ -364,6 +364,16 @@ class VideoDownloadService extends EventEmitter {
         }, config.TEMP_FILE_CLEANUP_INTERVAL || 600000);
     }
 
+    /**
+     * Destroy - clear cleanup interval for clean shutdown
+     */
+    destroy(): void {
+        if (this.cleanupIntervalId) {
+            clearInterval(this.cleanupIntervalId);
+            this.cleanupIntervalId = null;
+        }
+    }
+
     deleteFile(filePath: string | null, delay: number = config.FILE_DELETE_DELAY || 5000): void {
         if (!filePath) return;
         

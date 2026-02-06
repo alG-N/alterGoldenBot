@@ -7,7 +7,6 @@ import { EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 import type { 
     GuildMember, 
     TextChannel, 
-    VoiceBasedChannel,
     ChatInputCommandInteraction,
     ButtonInteraction
 } from 'discord.js';
@@ -36,7 +35,6 @@ interface RateLimitCheckResult {
 interface ValidationResult {
     valid: boolean;
     error?: string;
-    channel?: VoiceBasedChannel;
 }
 
 interface ModerateResult {
@@ -274,59 +272,6 @@ function botCanModerate(botMember: GuildMember, target: GuildMember): ModerateRe
 
     return { allowed: true };
 }
-// Voice Channel Checks
-/**
- * Check if user is in voice channel
- */
-function checkVoiceChannel(member: GuildMember | null): ValidationResult {
-    const voiceChannel = member?.voice?.channel;
-    
-    if (!voiceChannel) {
-        return { valid: false, error: 'Join a voice channel first.' };
-    }
-    
-    return { valid: true, channel: voiceChannel };
-}
-
-/**
- * Check if user is in same voice channel as bot
- */
-function checkSameVoiceChannel(member: GuildMember | null, botChannelId: string | null): ValidationResult {
-    if (!botChannelId) {
-        return { valid: true };
-    }
-
-    const memberChannelId = member?.voice?.channel?.id;
-    if (memberChannelId !== botChannelId) {
-        return { 
-            valid: false, 
-            error: 'You must be in the same voice channel as the bot.' 
-        };
-    }
-
-    return { valid: true };
-}
-
-/**
- * Check voice permissions
- */
-function checkVoicePermissions(voiceChannel: VoiceBasedChannel | null): ValidationResult {
-    if (!voiceChannel) {
-        return { valid: false, error: 'Invalid voice channel.' };
-    }
-
-    const permissions = voiceChannel.permissionsFor(voiceChannel.guild.members.me!);
-    
-    if (!permissions?.has(PermissionFlagsBits.Connect)) {
-        return { valid: false, error: 'I don\'t have permission to connect to this channel.' };
-    }
-
-    if (!permissions?.has(PermissionFlagsBits.Speak)) {
-        return { valid: false, error: 'I don\'t have permission to speak in this channel.' };
-    }
-
-    return { valid: true };
-}
 // URL Validation
 /**
  * Validate URL for video downloads
@@ -532,11 +477,6 @@ export {
     canModerate,
     botCanModerate,
     validators,
-    
-    // Voice Checks
-    checkVoiceChannel,
-    checkSameVoiceChannel,
-    checkVoicePermissions,
     
     // URL Validation
     validateVideoUrl,

@@ -25,7 +25,7 @@ export const historyHandler = {
     },
 
     async handleHistoryList(interaction: ChatInputCommandInteraction, userId: string): Promise<void> {
-        const history = musicService.getHistory(userId, 100) as Track[];
+        const history = await musicService.getHistory(userId, 100) as Track[];
         const page = interaction.options.getInteger('page') || 1;
 
         const embed = trackHandler.createHistoryEmbed(history, userId, page);
@@ -34,7 +34,7 @@ export const historyHandler = {
 
     async handleHistoryPlay(interaction: ChatInputCommandInteraction, userId: string): Promise<void> {
         const number = interaction.options.getInteger('number')!;
-        const history = musicService.getHistory(userId, 100) as Track[];
+        const history = await musicService.getHistory(userId, 100) as Track[];
 
         if (number > history.length) {
             await interaction.reply({
@@ -81,7 +81,7 @@ export const historyHandler = {
     },
 
     async handleHistoryClear(interaction: ChatInputCommandInteraction, userId: string): Promise<void> {
-        musicService.clearHistory(userId);
+        await musicService.clearHistory(userId);
         await interaction.reply({
             embeds: [trackHandler.createInfoEmbed('🗑️ Cleared', 'Listening history cleared', 'success')]
         });

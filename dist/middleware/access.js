@@ -13,9 +13,6 @@ exports.isServerAdmin = isServerAdmin;
 exports.isServerOwner = isServerOwner;
 exports.canModerate = canModerate;
 exports.botCanModerate = botCanModerate;
-exports.checkVoiceChannel = checkVoiceChannel;
-exports.checkSameVoiceChannel = checkSameVoiceChannel;
-exports.checkVoicePermissions = checkVoicePermissions;
 exports.validateVideoUrl = validateVideoUrl;
 exports.checkNSFW = checkNSFW;
 exports.checkAccess = checkAccess;
@@ -226,49 +223,6 @@ function botCanModerate(botMember, target) {
         return { allowed: false, reason: 'My role is not higher than the target\'s role.' };
     }
     return { allowed: true };
-}
-// Voice Channel Checks
-/**
- * Check if user is in voice channel
- */
-function checkVoiceChannel(member) {
-    const voiceChannel = member?.voice?.channel;
-    if (!voiceChannel) {
-        return { valid: false, error: 'Join a voice channel first.' };
-    }
-    return { valid: true, channel: voiceChannel };
-}
-/**
- * Check if user is in same voice channel as bot
- */
-function checkSameVoiceChannel(member, botChannelId) {
-    if (!botChannelId) {
-        return { valid: true };
-    }
-    const memberChannelId = member?.voice?.channel?.id;
-    if (memberChannelId !== botChannelId) {
-        return {
-            valid: false,
-            error: 'You must be in the same voice channel as the bot.'
-        };
-    }
-    return { valid: true };
-}
-/**
- * Check voice permissions
- */
-function checkVoicePermissions(voiceChannel) {
-    if (!voiceChannel) {
-        return { valid: false, error: 'Invalid voice channel.' };
-    }
-    const permissions = voiceChannel.permissionsFor(voiceChannel.guild.members.me);
-    if (!permissions?.has(discord_js_1.PermissionFlagsBits.Connect)) {
-        return { valid: false, error: 'I don\'t have permission to connect to this channel.' };
-    }
-    if (!permissions?.has(discord_js_1.PermissionFlagsBits.Speak)) {
-        return { valid: false, error: 'I don\'t have permission to speak in this channel.' };
-    }
-    return { valid: true };
 }
 // URL Validation
 /**

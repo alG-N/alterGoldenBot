@@ -4,9 +4,13 @@
  * Handles all API interactions with MyAnimeList using Jikan API v4
  * @module services/api/myAnimeListService
  */
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MyAnimeListService = exports.myAnimeListService = void 0;
 const CircuitBreakerRegistry_1 = require("../../core/CircuitBreakerRegistry");
+const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
 // TYPES & INTERFACES
 // Jikan API v4 (unofficial MAL API)
 const JIKAN_BASE = 'https://api.jikan.moe/v4';
@@ -19,24 +23,52 @@ const MEDIA_TYPE_CONFIG = {
 };
 // MYANIMEIST SERVICE CLASS
 class MyAnimeListService {
-    cache;
-    cacheExpiry = 300000; // 5 minutes
-    maxCacheSize = 100;
+    CACHE_NS = 'api';
+    CACHE_TTL = 300; // 5 minutes in seconds
     rateLimitDelay = 400; // Jikan has rate limiting
-    lastRequest = 0;
+    RATE_LIMIT_KEY = 'mal_ratelimit:last_request';
+    RATE_LIMIT_TTL = 2; // seconds — just long enough for cross-shard coordination
+    lastRequest = 0; // Local fallback when Redis unavailable
     constructor() {
-        this.cache = new Map();
+        // No local cache setup needed
     }
     /**
-     * Rate-limited fetch with circuit breaker
+     * Get last request timestamp from Redis (shard-safe) with local fallback
+     */
+    async _getLastRequest() {
+        try {
+            const ts = await CacheService_js_1.default.get(this.CACHE_NS, this.RATE_LIMIT_KEY);
+            if (ts !== null)
+                return ts;
+        }
+        catch {
+            // Redis unavailable — fall through to local
+        }
+        return this.lastRequest;
+    }
+    /**
+     * Store last request timestamp in Redis (shard-safe) with local fallback
+     */
+    async _setLastRequest(timestamp) {
+        this.lastRequest = timestamp; // Always update local as fallback
+        try {
+            await CacheService_js_1.default.set(this.CACHE_NS, this.RATE_LIMIT_KEY, timestamp, this.RATE_LIMIT_TTL);
+        }
+        catch {
+            // Redis unavailable — local fallback already set
+        }
+    }
+    /**
+     * Rate-limited fetch with circuit breaker (shard-safe via Redis)
      */
     async _rateLimitedFetch(url) {
         const now = Date.now();
-        const timeSinceLastRequest = now - this.lastRequest;
+        const lastReq = await this._getLastRequest();
+        const timeSinceLastRequest = now - lastReq;
         if (timeSinceLastRequest < this.rateLimitDelay) {
             await new Promise(r => setTimeout(r, this.rateLimitDelay - timeSinceLastRequest));
         }
-        this.lastRequest = Date.now();
+        await this._setLastRequest(Date.now());
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
         try {
@@ -60,8 +92,8 @@ class MyAnimeListService {
      */
     async searchMedia(query, mediaType = 'anime') {
         const config = MEDIA_TYPE_CONFIG[mediaType] || MEDIA_TYPE_CONFIG.anime;
-        const cacheKey = `search_${mediaType}_${query.toLowerCase()}`;
-        const cached = this._getFromCache(cacheKey);
+        const cacheKey = `mal:search_${mediaType}_${query.toLowerCase()}`;
+        const cached = await CacheService_js_1.default.get(this.CACHE_NS, cacheKey);
         if (cached)
             return cached;
         return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('anime', async () => {
@@ -81,7 +113,7 @@ class MyAnimeListService {
                 const media = config.endpoint === 'manga'
                     ? this._transformMangaData(data.data[0], mediaType)
                     : this._transformAnimeData(data.data[0]);
-                this._setCache(cacheKey, media);
+                await CacheService_js_1.default.set(this.CACHE_NS, cacheKey, media, this.CACHE_TTL);
                 return media;
             }
             catch (error) {
@@ -145,8 +177,8 @@ class MyAnimeListService {
      * Get anime by ID with circuit breaker
      */
     async getAnimeById(malId) {
-        const cacheKey = `anime_${malId}`;
-        const cached = this._getFromCache(cacheKey);
+        const cacheKey = `mal:anime_${malId}`;
+        const cached = await CacheService_js_1.default.get(this.CACHE_NS, cacheKey);
         if (cached)
             return cached;
         return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('anime', async () => {
@@ -156,7 +188,7 @@ class MyAnimeListService {
                     return null;
                 const data = await response.json();
                 const anime = this._transformAnimeData(data.data);
-                this._setCache(cacheKey, anime);
+                await CacheService_js_1.default.set(this.CACHE_NS, cacheKey, anime, this.CACHE_TTL);
                 return anime;
             }
             catch (error) {
@@ -318,32 +350,6 @@ class MyAnimeListService {
             month: date.getMonth() + 1,
             day: date.getDate()
         };
-    }
-    /**
-     * Get from cache
-     */
-    _getFromCache(key) {
-        const entry = this.cache.get(key);
-        if (!entry || Date.now() > entry.expiresAt) {
-            this.cache.delete(key);
-            return null;
-        }
-        return entry.data;
-    }
-    /**
-     * Set to cache
-     */
-    _setCache(key, data) {
-        if (this.cache.size >= this.maxCacheSize) {
-            const oldestKey = this.cache.keys().next().value;
-            if (oldestKey) {
-                this.cache.delete(oldestKey);
-            }
-        }
-        this.cache.set(key, {
-            data,
-            expiresAt: Date.now() + this.cacheExpiry
-        });
     }
 }
 exports.MyAnimeListService = MyAnimeListService;

@@ -122,7 +122,7 @@ export const playHandler = {
             }
 
             // Check duration
-            const prefs = musicService.getPreferences(userId);
+            const prefs = await musicService.getPreferences(userId);
             if (trackData.lengthSeconds > prefs.maxTrackDuration) {
                 return await this.handleLongTrackConfirmation(interaction, trackData, guildId, prefs.maxTrackDuration);
             }
@@ -142,7 +142,7 @@ export const playHandler = {
             }
 
             // Add to user history
-            musicService.addToHistory(userId, trackData);
+            await musicService.addToHistory(userId, trackData);
 
             // Start playing if nothing is playing
             if (!currentTrack) {

@@ -27,7 +27,7 @@ export const favoritesHandler = {
     },
 
     async handleFavoritesList(interaction: ChatInputCommandInteraction, userId: string): Promise<void> {
-        const favorites = musicService.getFavorites(userId) as Track[];
+        const favorites = await musicService.getFavorites(userId) as Track[];
         const page = interaction.options.getInteger('page') || 1;
 
         const embed = trackHandler.createFavoritesEmbed(favorites, userId, page);
@@ -36,7 +36,7 @@ export const favoritesHandler = {
 
     async handleFavoritesPlay(interaction: ChatInputCommandInteraction, userId: string): Promise<void> {
         const number = interaction.options.getInteger('number')!;
-        const favorites = musicService.getFavorites(userId) as Track[];
+        const favorites = await musicService.getFavorites(userId) as Track[];
 
         if (number > favorites.length) {
             await interaction.reply({
@@ -84,7 +84,7 @@ export const favoritesHandler = {
 
     async handleFavoritesRemove(interaction: ChatInputCommandInteraction, userId: string): Promise<void> {
         const number = interaction.options.getInteger('number')!;
-        const favorites = musicService.getFavorites(userId) as Track[];
+        const favorites = await musicService.getFavorites(userId) as Track[];
 
         if (number > favorites.length) {
             await interaction.reply({
@@ -95,7 +95,7 @@ export const favoritesHandler = {
         }
 
         const removed = favorites[number - 1];
-        musicService.removeFavorite(userId, removed.url);
+        await musicService.removeFavorite(userId, removed.url);
 
         await interaction.reply({
             embeds: [trackHandler.createInfoEmbed('💔 Removed', `Removed **${removed.title}** from favorites`, 'success')]
@@ -103,7 +103,7 @@ export const favoritesHandler = {
     },
 
     async handleFavoritesClear(interaction: ChatInputCommandInteraction, userId: string): Promise<void> {
-        const favorites = musicService.getFavorites(userId) as Track[];
+        const favorites = await musicService.getFavorites(userId) as Track[];
         if (favorites.length === 0) {
             await interaction.reply({
                 embeds: [trackHandler.createInfoEmbed('💖 Favorites', 'You have no favorites to clear.')],
@@ -113,7 +113,9 @@ export const favoritesHandler = {
         }
 
         // Clear all favorites
-        favorites.forEach(fav => musicService.removeFavorite(userId, fav.url));
+        for (const fav of favorites) {
+            await musicService.removeFavorite(userId, fav.url);
+        }
 
         await interaction.reply({
             embeds: [trackHandler.createInfoEmbed('🗑️ Cleared', 'All favorites have been cleared', 'success')]

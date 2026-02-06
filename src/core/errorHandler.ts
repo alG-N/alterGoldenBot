@@ -176,12 +176,17 @@ export async function withTimeout<T>(
     timeout: number, 
     context: string = 'Operation'
 ): Promise<T> {
-    return Promise.race([
-        fn(),
-        new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error(`${context} timed out after ${timeout}ms`)), timeout)
-        )
-    ]);
+    let timer: NodeJS.Timeout;
+    try {
+        return await Promise.race([
+            fn(),
+            new Promise<never>((_, reject) => {
+                timer = setTimeout(() => reject(new Error(`${context} timed out after ${timeout}ms`)), timeout);
+            })
+        ]);
+    } finally {
+        clearTimeout(timer!);
+    }
 }
 
 /**
