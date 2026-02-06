@@ -10,9 +10,9 @@ import type {
     ChatInputCommandInteraction,
     ButtonInteraction
 } from 'discord.js';
-import { COLORS, EMOJIS } from '../constants';
-import cacheService from '../cache/CacheService';
-import { isBlockedHost } from './urlValidator';
+import { COLORS, EMOJIS } from '../constants.js';
+import cacheService from '../cache/CacheService.js';
+import { isBlockedHost } from './urlValidator.js';
 // Types & Interfaces
 interface RateLimiterOptions {
     cooldownSeconds?: number;

@@ -4,9 +4,13 @@
  * Prevents cascading failures by failing fast when a service is unavailable
  * @module core/CircuitBreaker
  */
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CircuitBreaker = exports.CircuitState = void 0;
 const events_1 = require("events");
+const Logger_js_1 = __importDefault(require("./Logger.js"));
 // TYPES & INTERFACES
 /**
  * Circuit Breaker States
@@ -196,7 +200,7 @@ class CircuitBreaker extends events_1.EventEmitter {
             from: oldState,
             to: newState
         });
-        console.log(`[CircuitBreaker:${this.name}] State changed: ${oldState} → ${newState}`);
+        Logger_js_1.default.info('CircuitBreaker', `[${this.name}] State changed: ${oldState} → ${newState}`);
     }
     /**
      * Manually trip the circuit
@@ -279,8 +283,4 @@ class CircuitBreaker extends events_1.EventEmitter {
     }
 }
 exports.CircuitBreaker = CircuitBreaker;
-// CommonJS compatibility
-module.exports = CircuitBreaker;
-module.exports.CircuitBreaker = CircuitBreaker;
-module.exports.CircuitState = exports.CircuitState;
 //# sourceMappingURL=CircuitBreaker.js.map

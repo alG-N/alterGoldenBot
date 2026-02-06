@@ -13,7 +13,7 @@ exports.checkSameVoiceChannel = checkSameVoiceChannel;
 exports.checkVoicePermissions = checkVoicePermissions;
 exports.checkVoiceChannelSync = checkVoiceChannelSync;
 exports.checkVoicePermissionsSync = checkVoicePermissionsSync;
-const trackHandler_1 = __importDefault(require("../handlers/music/trackHandler"));
+const trackHandler_js_1 = __importDefault(require("../handlers/music/trackHandler.js"));
 const discord_js_1 = require("discord.js");
 // Validators
 const validators = {
@@ -66,7 +66,7 @@ async function checkVoiceChannel(interaction) {
     const member = interaction.member;
     if (!member?.voice?.channel) {
         await interaction.reply({
-            embeds: [trackHandler_1.default.createInfoEmbed("❌ No Voice Channel", "Join a voice channel first.")],
+            embeds: [trackHandler_js_1.default.createInfoEmbed("❌ No Voice Channel", "Join a voice channel first.")],
             flags: discord_js_1.MessageFlags.Ephemeral,
         });
         return false;
@@ -108,14 +108,14 @@ async function checkVoicePermissions(interaction) {
     const voiceChannel = member.voice?.channel;
     if (!voiceChannel) {
         await interaction.reply({
-            embeds: [trackHandler_1.default.createInfoEmbed("❌ No Voice Channel", "Join a voice channel first.")],
+            embeds: [trackHandler_js_1.default.createInfoEmbed("❌ No Voice Channel", "Join a voice channel first.")],
             flags: discord_js_1.MessageFlags.Ephemeral,
         });
         return false;
     }
     if (!validators.hasVoicePermissions(voiceChannel)) {
         await interaction.reply({
-            embeds: [trackHandler_1.default.createInfoEmbed("❌ Missing Permissions", "I don't have permission to connect or speak in your voice channel.")],
+            embeds: [trackHandler_js_1.default.createInfoEmbed("❌ Missing Permissions", "I don't have permission to connect or speak in your voice channel.")],
             flags: discord_js_1.MessageFlags.Ephemeral,
         });
         return false;

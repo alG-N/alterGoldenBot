@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 import * as dotenv from 'dotenv';
-import { circuitBreakerRegistry } from '../../core/CircuitBreakerRegistry';
+import { circuitBreakerRegistry } from '../../core/CircuitBreakerRegistry.js';
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 // TYPES & INTERFACES

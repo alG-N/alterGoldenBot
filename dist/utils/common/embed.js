@@ -5,7 +5,6 @@
  * @module utils/common/embed
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EMBED_COLORS = void 0;
 exports.createErrorEmbed = createErrorEmbed;
 exports.createSuccessEmbed = createSuccessEmbed;
 exports.createWarningEmbed = createWarningEmbed;
@@ -17,17 +16,15 @@ exports.stripHtml = stripHtml;
 exports.formatFieldValue = formatFieldValue;
 exports.createProgressBar = createProgressBar;
 const discord_js_1 = require("discord.js");
-// CONSTANTS
-/**
- * Default colors for embeds
- */
-exports.EMBED_COLORS = {
-    SUCCESS: '#00FF00',
-    ERROR: '#FF0000',
-    WARNING: '#FFA500',
-    INFO: '#00BFFF',
-    PRIMARY: '#5865F2',
-    LOADING: '#FFAA00'
+const constants_js_1 = require("../../constants.js");
+// Map canonical COLORS to ColorResolvable for embed helpers
+const EMBED_COLORS = {
+    SUCCESS: constants_js_1.COLORS.SUCCESS,
+    ERROR: constants_js_1.COLORS.ERROR,
+    WARNING: constants_js_1.COLORS.WARNING,
+    INFO: constants_js_1.COLORS.INFO,
+    PRIMARY: constants_js_1.COLORS.PRIMARY,
+    LOADING: constants_js_1.COLORS.WARNING, // Loading uses warning color
 };
 // EMBED CREATION FUNCTIONS
 /**
@@ -38,7 +35,7 @@ exports.EMBED_COLORS = {
  */
 function createErrorEmbed(title, description, footerText = null) {
     const embed = new discord_js_1.EmbedBuilder()
-        .setColor(exports.EMBED_COLORS.ERROR)
+        .setColor(EMBED_COLORS.ERROR)
         .setTitle(`❌ ${title}`)
         .setDescription(description)
         .setTimestamp();
@@ -53,7 +50,7 @@ function createErrorEmbed(title, description, footerText = null) {
  * @param description - Success description
  * @param color - Optional custom color
  */
-function createSuccessEmbed(title, description, color = exports.EMBED_COLORS.SUCCESS) {
+function createSuccessEmbed(title, description, color = EMBED_COLORS.SUCCESS) {
     return new discord_js_1.EmbedBuilder()
         .setColor(color)
         .setTitle(`✅ ${title}`)
@@ -67,7 +64,7 @@ function createSuccessEmbed(title, description, color = exports.EMBED_COLORS.SUC
  */
 function createWarningEmbed(title, description) {
     return new discord_js_1.EmbedBuilder()
-        .setColor(exports.EMBED_COLORS.WARNING)
+        .setColor(EMBED_COLORS.WARNING)
         .setTitle(`⚠️ ${title}`)
         .setDescription(description)
         .setTimestamp();
@@ -79,7 +76,7 @@ function createWarningEmbed(title, description) {
  */
 function createInfoEmbed(title, description) {
     return new discord_js_1.EmbedBuilder()
-        .setColor(exports.EMBED_COLORS.INFO)
+        .setColor(EMBED_COLORS.INFO)
         .setTitle(`ℹ️ ${title}`)
         .setDescription(description)
         .setTimestamp();
@@ -92,7 +89,7 @@ function createInfoEmbed(title, description) {
  */
 function createLoadingEmbed(title, description, thumbnailUrl = null) {
     const embed = new discord_js_1.EmbedBuilder()
-        .setColor(exports.EMBED_COLORS.LOADING)
+        .setColor(EMBED_COLORS.LOADING)
         .setTitle(`⏳ ${title}`)
         .setDescription(description)
         .setTimestamp();

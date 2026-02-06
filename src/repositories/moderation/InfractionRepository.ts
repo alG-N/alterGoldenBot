@@ -3,7 +3,7 @@
  * Database operations for mod infractions/cases
  */
 
-import db from '../../database/postgres';
+import db from '../../database/postgres.js';
 // Interfaces
 type InfractionType = 'warn' | 'mute' | 'kick' | 'ban' | 'unban' | 'unmute' | 'note';
 

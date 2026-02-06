@@ -12,8 +12,8 @@ exports.registerShutdownHandler = registerShutdownHandler;
 exports.handleShutdown = handleShutdown;
 exports.initializeShutdownHandlers = initializeShutdownHandlers;
 exports.getIsShuttingDown = getIsShuttingDown;
-const Logger_1 = __importDefault(require("./Logger"));
-const container_1 = __importDefault(require("../container"));
+const Logger_js_1 = __importDefault(require("./Logger.js"));
+const container_js_1 = __importDefault(require("../container.js"));
 // STATE
 const shutdownHandlers = [];
 let isShuttingDown = false;
@@ -28,7 +28,7 @@ function registerShutdownHandler(name, handler, priority = 100) {
     shutdownHandlers.push({ name, handler, priority });
     // Sort by priority
     shutdownHandlers.sort((a, b) => a.priority - b.priority);
-    Logger_1.default.debug('Shutdown', `Registered shutdown handler: ${name} (priority: ${priority})`);
+    Logger_js_1.default.debug('Shutdown', `Registered shutdown handler: ${name} (priority: ${priority})`);
 }
 /**
  * Handle graceful shutdown
@@ -39,12 +39,12 @@ function registerShutdownHandler(name, handler, priority = 100) {
 async function handleShutdown(signal, client = null, options = {}) {
     // Prevent multiple shutdown attempts
     if (isShuttingDown) {
-        Logger_1.default.warn('Shutdown', 'Shutdown already in progress...');
+        Logger_js_1.default.warn('Shutdown', 'Shutdown already in progress...');
         return;
     }
     isShuttingDown = true;
     const { timeout = 15000 } = options;
-    Logger_1.default.info('Shutdown', `Received ${signal}, initiating graceful shutdown...`);
+    Logger_js_1.default.info('Shutdown', `Received ${signal}, initiating graceful shutdown...`);
     const shutdownStart = Date.now();
     try {
         // Create timeout promise
@@ -55,16 +55,27 @@ async function handleShutdown(signal, client = null, options = {}) {
         const shutdownPromise = runShutdownSequence(client);
         await Promise.race([shutdownPromise, timeoutPromise]);
         const duration = Date.now() - shutdownStart;
-        Logger_1.default.success('Shutdown', `Graceful shutdown complete in ${duration}ms`);
+        Logger_js_1.default.success('Shutdown', `Graceful shutdown complete in ${duration}ms`);
         process.exit(0);
     }
     catch (error) {
-        Logger_1.default.error('Shutdown', `Shutdown error: ${error.message}`);
+        Logger_js_1.default.error('Shutdown', `Shutdown error: ${error.message}`);
         process.exit(1);
     }
 }
 /**
  * Run all shutdown handlers in order
+ *
+ * Shutdown sequence:
+ * 1. Destroy Discord client (stop receiving events)
+ * 2. Run any manually registered shutdown handlers
+ * 3. Shutdown DI container (calls shutdown/destroy/close on ALL registered services)
+ * 4. Cleanup static resources (PaginationState)
+ *
+ * The DI container handles ALL service lifecycle now — database, Redis, cache,
+ * API services, music services, handlers, repositories, and events with intervals.
+ * No manual require() + shutdown calls needed.
+ *
  * @private
  */
 async function runShutdownSequence(client) {
@@ -72,7 +83,7 @@ async function runShutdownSequence(client) {
     // 1. Destroy Discord client first (stop receiving events)
     if (client) {
         try {
-            Logger_1.default.info('Shutdown', 'Destroying Discord client...');
+            Logger_js_1.default.info('Shutdown', 'Destroying Discord client...');
             client.destroy();
             results.push({ name: 'Discord Client', success: true });
         }
@@ -80,106 +91,45 @@ async function runShutdownSequence(client) {
             results.push({ name: 'Discord Client', success: false, error: error.message });
         }
     }
-    // 2. Run registered handlers
+    // 2. Run registered handlers (external code can still register custom handlers)
     for (const { name, handler } of shutdownHandlers) {
         try {
-            Logger_1.default.debug('Shutdown', `Running handler: ${name}`);
+            Logger_js_1.default.debug('Shutdown', `Running handler: ${name}`);
             await handler();
             results.push({ name, success: true });
         }
         catch (error) {
-            Logger_1.default.error('Shutdown', `Handler "${name}" failed: ${error.message}`);
+            Logger_js_1.default.error('Shutdown', `Handler "${name}" failed: ${error.message}`);
             results.push({ name, success: false, error: error.message });
         }
     }
-    // 3. Shutdown DI container (this calls shutdown() on all registered services)
+    // 3. Shutdown DI container — handles ALL service lifecycle:
+    //    - Database (postgres.close())
+    //    - Redis/Cache (redisCache.shutdown(), cacheService.shutdown())
+    //    - API services (googleService.shutdown(), fandomService.destroy(), etc.)
+    //    - Music services (lavalinkService.shutdown(), musicEventBus.shutdown(), etc.)
+    //    - Handlers (nhentaiHandler.destroy())
+    //    - Repositories (rule34Cache.destroy(), redditCache.destroy(), etc.)
+    //    - Events (voiceStateUpdate.destroy(), readyEvent.destroy())
+    //    - Guild services (shardBridge.shutdown(), antiRaidService.shutdown())
     try {
-        Logger_1.default.info('Shutdown', 'Shutting down DI container...');
-        await container_1.default.shutdown();
+        Logger_js_1.default.info('Shutdown', 'Shutting down DI container...');
+        await container_js_1.default.shutdown();
         results.push({ name: 'DI Container', success: true });
     }
     catch (error) {
-        Logger_1.default.error('Shutdown', `Container shutdown failed: ${error.message}`);
+        Logger_js_1.default.error('Shutdown', `Container shutdown failed: ${error.message}`);
         results.push({ name: 'DI Container', success: false, error: error.message });
     }
-    // 4. Close database connections (try infrastructure first, then legacy)
-    try {
-        let infrastructure = null;
-        try {
-            infrastructure = require('../infrastructure');
-        }
-        catch {
-            infrastructure = null;
-        }
-        if (infrastructure?.shutdown) {
-            await infrastructure.shutdown();
-            Logger_1.default.info('Shutdown', 'Infrastructure shutdown complete');
-        }
-        else {
-            const postgres = require('../database/postgres');
-            await postgres.close();
-            Logger_1.default.info('Shutdown', 'Database connections closed');
-        }
-        results.push({ name: 'Database', success: true });
-    }
-    catch (error) {
-        results.push({ name: 'Database', success: false, error: error.message });
-    }
-    // 5. Close Redis connections
-    try {
-        const cacheService = require('../cache/CacheService');
-        const instance = cacheService.default || cacheService;
-        await instance.shutdown?.();
-        Logger_1.default.info('Shutdown', 'Cache service closed');
-        results.push({ name: 'Redis', success: true });
-    }
-    catch (error) {
-        results.push({ name: 'Redis', success: false, error: error.message });
-    }
-    // 6. Cleanup PaginationState instances
+    // 4. Cleanup static resources (not managed by container)
     try {
         const { PaginationState } = require('../utils/common/pagination');
         PaginationState.destroyAll();
-        Logger_1.default.info('Shutdown', 'Pagination state cleanup complete');
+        Logger_js_1.default.info('Shutdown', 'Pagination state cleanup complete');
         results.push({ name: 'PaginationState', success: true });
     }
     catch (error) {
         results.push({ name: 'PaginationState', success: false, error: error.message });
-    }
-    // 7. Cleanup interval-bearing services (prevent timer leaks)
-    const intervalServices = [
-        { name: 'Rule34Cache', path: '../repositories/api/rule34Cache', method: 'destroy' },
-        { name: 'CacheManager (API)', path: '../repositories/api/cacheManager', method: 'destroy' },
-        { name: 'RedditCache', path: '../repositories/api/redditCache', method: 'destroy' },
-        { name: 'NHentaiHandler', path: '../handlers/api/nhentaiHandler', method: 'destroy' },
-        { name: 'VideoDownloadService', path: '../services/video/VideoDownloadService', method: 'destroy' },
-        { name: 'VoiceStateUpdate', path: '../events/voiceStateUpdate', method: 'destroy' },
-        { name: 'AntiRaidService', path: '../services/moderation/AntiRaidService', method: 'shutdown' },
-        { name: 'MusicEventBus', path: '../services/music/events/MusicEventBus', method: 'shutdown' },
-        { name: 'VoiceConnectionService', path: '../services/music/voice/VoiceConnectionService', method: 'shutdownAll' },
-    ];
-    for (const { name, path, method } of intervalServices) {
-        try {
-            const mod = require(path);
-            const instance = mod.default || mod;
-            if (typeof instance[method] === 'function') {
-                await instance[method]();
-            }
-            else if (typeof instance === 'object') {
-                // Some modules export the class, try to find the singleton
-                for (const key of Object.keys(mod)) {
-                    if (mod[key] && typeof mod[key][method] === 'function') {
-                        await mod[key][method]();
-                        break;
-                    }
-                }
-            }
-            results.push({ name, success: true });
-        }
-        catch (error) {
-            // Silent — service may not have been initialized
-            results.push({ name, success: false, error: error.message });
-        }
     }
     return results;
 }
@@ -201,7 +151,7 @@ function initializeShutdownHandlers(client) {
         rl.on('SIGINT', () => process.emit('SIGINT'));
         rl.on('close', () => handleShutdown('CLOSE', client));
     }
-    Logger_1.default.info('Shutdown', 'Shutdown handlers initialized');
+    Logger_js_1.default.info('Shutdown', 'Shutdown handlers initialized');
 }
 /**
  * Check if shutdown is in progress

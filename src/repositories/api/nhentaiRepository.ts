@@ -3,7 +3,7 @@
  * Database operations for nhentai favourites
  */
 
-import postgres from '../../database/postgres';
+import postgres from '../../database/postgres.js';
 // Interfaces
 interface NHentaiGallery {
     id: number;

@@ -192,23 +192,6 @@ class BattleService {
         }
         return { damage: Math.max(1, finalDamage), breakdown, modifiersList };
     }
-    calculateDamage(base, hp, debuff = 1, boost = 1) {
-        // Legacy method for compatibility - uses lowered scales
-        let scale = 1;
-        if (hp > 1000000)
-            scale = 2.5;
-        else if (hp > 100000)
-            scale = 1.8;
-        else if (hp > 10000)
-            scale = 1.3;
-        else if (hp > 1000)
-            scale = 1.0;
-        else if (hp > 100)
-            scale = 0.8;
-        else
-            scale = 0.6;
-        return Math.max(1, Math.floor(base * scale * debuff * boost));
-    }
     /**
      * Process a turn and deal damage
      */
@@ -268,8 +251,6 @@ class BattleService {
         if (defEff.armor && defEff.armor !== 1) {
             modifierList.push({ name: defEff.armorSource || 'Armor', value: defEff.armor });
         }
-        // Calculate total multiplier for legacy method
-        const totalBoost = modifierList.reduce((acc, m) => acc * m.value, 1);
         // Get random power
         const power = SkillsetService_js_1.default.getRandomPower(battle.skillsetName, battle.usedPowers);
         let baseDamage = 0;
@@ -327,407 +308,6 @@ class BattleService {
             p2HpAfter: battle.player2Health
         };
         return { log, historyEntry };
-    }
-    /**
-     * Process a power and return damage + log
-     */
-    processPower(power, attacker, defender, battle, defenderHp, attackerMaxHp, defenderMaxHp, debuff, totalBoost, atkEff, defEff, isPlayer1Turn) {
-        let damage = 0;
-        let log = '';
-        switch (power.type) {
-            case 'combo':
-                for (let i = 0; i < (power.hits || 1); i++) {
-                    damage += this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.05)) + 10, defenderMaxHp, debuff, totalBoost);
-                }
-                log = `${attacker.username} used ${power.desc} hitting ${power.hits} times for **${damage}** total damage!`;
-                break;
-            case 'execute': {
-                const hpPercent = defenderHp / defenderMaxHp;
-                if (hpPercent <= (power.threshold || 0.2)) {
-                    damage = Math.floor(defenderHp * 0.9);
-                    log = `${attacker.username} executed ${defender.username} with ${power.desc} dealing **${damage}** massive damage!`;
-                }
-                else {
-                    damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.08)) + 15, defenderMaxHp, debuff, totalBoost);
-                    log = `${attacker.username} used ${power.desc} for **${damage}** damage (execute failed - HP too high)!`;
-                }
-                break;
-            }
-            case 'bleed':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.06)) + 10, defenderMaxHp, debuff, totalBoost);
-                defEff.bleed = power.turns || 3;
-                log = `${attacker.username} used ${power.desc}, dealing **${damage}** damage and causing bleeding for ${power.turns} turns!`;
-                break;
-            case 'poison_weaken':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.05)) + 8, defenderMaxHp, debuff, totalBoost);
-                defEff.poison = power.turns || 3;
-                defEff.poisonWeaken = 1 - (power.weaken || 0.2);
-                log = `${attacker.username} used ${power.desc}, dealing **${damage}** damage and weakening defense by ${Math.floor((power.weaken || 0.2) * 100)}%!`;
-                break;
-            case 'momentum': {
-                const momentumBonus = atkEff.momentum * (power.bonus || 0.02);
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * ((power.scale || 0.06) + momentumBonus)) + 15, defenderMaxHp, debuff, totalBoost);
-                atkEff.momentum++;
-                log = `${attacker.username} used ${power.desc} with momentum x${atkEff.momentum} dealing **${damage}** damage!`;
-                break;
-            }
-            case 'revive':
-                atkEff.revive = true;
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.06)) + 10, defenderMaxHp, debuff, totalBoost);
-                log = `${attacker.username} activated ${power.desc}! Next fatal blow will revive with ${Math.floor((power.scale || 0.25) * 100)}% HP! Dealt **${damage}** damage!`;
-                break;
-            case 'dodge':
-                atkEff.dodge = power.turns || 2;
-                log = `${attacker.username} used ${power.desc}! Will dodge the next ${power.turns} attacks!`;
-                break;
-            case 'lifesteal': {
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.07)) + 12, defenderMaxHp, debuff, totalBoost);
-                const stolen = Math.floor(damage * (power.steal || 0.3));
-                if (isPlayer1Turn)
-                    battle.player1Health = Math.min(battle.player1Health + stolen, battle.player1MaxHp);
-                else
-                    battle.player2Health = Math.min(battle.player2Health + stolen, battle.player2MaxHp);
-                log = `${attacker.username} used ${power.desc}, dealing **${damage}** damage and stealing **${stolen}** HP!`;
-                break;
-            }
-            case 'constrict':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.06)) + 10, defenderMaxHp, debuff, totalBoost);
-                defEff.constrict = power.turns || 3;
-                defEff.constrictDmg = Math.floor(defenderMaxHp * 0.04);
-                log = `${attacker.username} used ${power.desc}, dealing **${damage}** damage and constricting for ${power.turns} turns!`;
-                break;
-            case 'echo': {
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.07)) + 12, defenderMaxHp, debuff, totalBoost);
-                const lastDmg = isPlayer1Turn ? battle.lastDamageDealt.user1 : battle.lastDamageDealt.user2;
-                const echoDmg = Math.floor(lastDmg * 0.5);
-                damage += echoDmg;
-                log = `${attacker.username} used ${power.desc}, dealing **${damage}** damage (${echoDmg} echo from last attack)!`;
-                break;
-            }
-            case 'reflect':
-                atkEff.reflect = true;
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.05)) + 8, defenderMaxHp, debuff, totalBoost);
-                log = `${attacker.username} used ${power.desc}! Next attack will reflect ${Math.floor((power.scale || 0.5) * 100)}% damage back! Dealt **${damage}** damage!`;
-                break;
-            case 'berserk': {
-                atkEff.berserk = true;
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.09)) + 15, defenderMaxHp, debuff, totalBoost);
-                const recoil = Math.floor(attackerMaxHp * (power.recoil || 0.1));
-                if (isPlayer1Turn)
-                    battle.player1Health = Math.max(0, battle.player1Health - recoil);
-                else
-                    battle.player2Health = Math.max(0, battle.player2Health - recoil);
-                log = `${attacker.username} went berserk with ${power.desc}! Dealt **${damage}** damage but took **${recoil}** recoil! All attacks boosted!`;
-                break;
-            }
-            case 'detonate': {
-                const burnDmg = (defEff.burnStacks || 0) * Math.floor(defenderMaxHp * 0.03);
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.08)) + 15, defenderMaxHp, debuff, totalBoost) + burnDmg;
-                defEff.burnStacks = 0;
-                log = `${attacker.username} used ${power.desc}, detonating burn stacks for **${damage}** total damage!`;
-                break;
-            }
-            case 'piercing':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.08)) + 15, defenderMaxHp, debuff * (1 + (power.ignore || 0.3)), totalBoost);
-                log = `${attacker.username} used ${power.desc}, ignoring ${Math.floor((power.ignore || 0.3) * 100)}% defense for **${damage}** damage!`;
-                break;
-            case 'counter': {
-                const counterDmg = isPlayer1Turn ? battle.lastDamageDealt.user2 : battle.lastDamageDealt.user1;
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.05)) + counterDmg, defenderMaxHp, debuff, totalBoost);
-                log = `${attacker.username} countered with ${power.desc}, dealing **${damage}** damage (${counterDmg} from last hit)!`;
-                break;
-            }
-            case 'freeze':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.damage || 0.06)) + 10, defenderMaxHp, debuff, totalBoost);
-                defEff.frozen = power.turns || 2;
-                log = `${attacker.username} used ${power.desc}, dealing **${damage}** damage and freezing for ${power.turns} turns!`;
-                break;
-            case 'mark_boost':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.07)) + 15, defenderMaxHp, debuff, totalBoost);
-                atkEff.markBoost = power.boost || 1.3;
-                log = `${attacker.username} activated ${power.desc}! All damage increased by ${Math.floor(((power.boost || 1.3) - 1) * 100)}%! Dealt **${damage}** damage!`;
-                break;
-            case 'critical':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.07)) + 15, defenderMaxHp, debuff, totalBoost);
-                if (Math.random() < 0.4) {
-                    damage = Math.floor(damage * (power.crit || 2));
-                    log = `${attacker.username} landed a CRITICAL HIT with ${power.desc} for **${damage}** damage!`;
-                }
-                else {
-                    log = `${attacker.username} used ${power.desc} for **${damage}** damage!`;
-                }
-                break;
-            case 'burn_stack':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.06)) + 12, defenderMaxHp, debuff, totalBoost);
-                defEff.burnStacks = (defEff.burnStacks || 0) + (power.stacks || 2);
-                log = `${attacker.username} used ${power.desc}, dealing **${damage}** damage and stacking ${power.stacks} burn charges!`;
-                break;
-            case 'bloodpump':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.07)) + 15, defenderMaxHp, debuff, totalBoost);
-                atkEff.speedBoost = power.speed || 1.5;
-                log = `${attacker.username} activated ${power.desc}! Attack speed x${power.speed}! Dealt **${damage}** damage!`;
-                break;
-            case 'reality_warp':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.08)) + 20, defenderMaxHp, debuff, totalBoost);
-                if (Math.random() < 0.3) {
-                    damage = Math.floor(damage * 1.8);
-                    log = `${attacker.username} warped reality with ${power.desc}! Cartoon physics dealt **${damage}** chaotic damage!`;
-                }
-                else {
-                    log = `${attacker.username} used ${power.desc} for **${damage}** damage!`;
-                }
-                break;
-            case 'drain_power': {
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.07)) + 15, defenderMaxHp, debuff, totalBoost);
-                const selfDrain = Math.floor(attackerMaxHp * (power.self || 0.05));
-                if (isPlayer1Turn)
-                    battle.player1Health = Math.max(0, battle.player1Health - selfDrain);
-                else
-                    battle.player2Health = Math.max(0, battle.player2Health - selfDrain);
-                defEff.speech = Math.max(0.5, defEff.speech - 0.1);
-                log = `${attacker.username} used ${power.desc}, dealing **${damage}** damage, taking **${selfDrain}** self-damage, and weakening opponent!`;
-                break;
-            }
-            case 'foresight':
-                atkEff.foresight = power.turns || 3;
-                log = `${attacker.username} activated ${power.desc}! Can see ${power.turns} turns ahead and may dodge attacks!`;
-                break;
-            case 'aerial':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.08)) + 18, defenderMaxHp, debuff, totalBoost);
-                log = `${attacker.username} used ${power.desc}, diving from above for **${damage}** damage!`;
-                break;
-            case 'chain_lightning': {
-                const baseDmg = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.06)) + 12, defenderMaxHp, debuff, totalBoost);
-                damage = baseDmg;
-                for (let i = 0; i < (power.chains || 3); i++) {
-                    damage += Math.floor(baseDmg * 0.5);
-                }
-                log = `${attacker.username} used ${power.desc}, chaining ${power.chains} times for **${damage}** total damage!`;
-                break;
-            }
-            case 'illusion_copy':
-                atkEff.illusionCopy = power.turns || 3;
-                log = `${attacker.username} created an illusion copy with ${power.desc}! May confuse attacks for ${power.turns} turns!`;
-                break;
-            case 'trap':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.06)) + 10, defenderMaxHp, debuff, totalBoost);
-                defEff.trapped = 2;
-                log = `${attacker.username} set ${power.desc}, dealing **${damage}** damage and trapping opponent for 2 turns!`;
-                break;
-            case 'transform':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.08)) + 18, defenderMaxHp, debuff, totalBoost);
-                atkEff.transform = power.duration || 4;
-                atkEff.transformBoost = power.boost || 1.4;
-                log = `${attacker.username} transformed with ${power.desc}! Damage boosted ${Math.floor(((power.boost || 1.4) - 1) * 100)}% for ${power.duration} turns! Dealt **${damage}** damage!`;
-                break;
-            case 'giant_limbs':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.08)) + 16, defenderMaxHp, debuff, totalBoost * 1.2);
-                log = `${attacker.username} used ${power.desc}, crushing with giant limbs for **${damage}** damage!`;
-                break;
-            case 'demon_form': {
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.09)) + 18, defenderMaxHp, debuff, totalBoost);
-                const demonSteal = Math.floor(damage * (power.lifesteal || 0.25));
-                if (isPlayer1Turn)
-                    battle.player1Health = Math.min(battle.player1Health + demonSteal, battle.player1MaxHp);
-                else
-                    battle.player2Health = Math.min(battle.player2Health + demonSteal, battle.player2MaxHp);
-                log = `${attacker.username} unleashed ${power.desc}, dealing **${damage}** damage and stealing **${demonSteal}** HP!`;
-                break;
-            }
-            case 'laser':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.07)) + 15, defenderMaxHp, debuff, totalBoost);
-                if (power.piercing) {
-                    damage = Math.floor(damage * 1.3);
-                    log = `${attacker.username} fired ${power.desc}, piercing through for **${damage}** damage!`;
-                }
-                else {
-                    log = `${attacker.username} fired ${power.desc} for **${damage}** damage!`;
-                }
-                break;
-            case 'ghost':
-                atkEff.ghostMode = true;
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.06)) + 12, defenderMaxHp, debuff, totalBoost);
-                log = `${attacker.username} entered ${power.desc}! Next attack passes through and becomes intangible! Dealt **${damage}** damage!`;
-                break;
-            case 'water_prison':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.06)) + 12, defenderMaxHp, debuff, totalBoost);
-                defEff.waterPrison = power.turns || 3;
-                log = `${attacker.username} trapped opponent in ${power.desc}, dealing **${damage}** damage and drowning for ${power.turns} turns!`;
-                break;
-            case 'redirect':
-                atkEff.redirect = true;
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.05)) + 8, defenderMaxHp, debuff, totalBoost);
-                log = `${attacker.username} prepared ${power.desc}! Next attack will redirect ${Math.floor((power.scale || 0.5) * 100)}% damage back! Dealt **${damage}** damage!`;
-                break;
-            case 'earthquake':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.09)) + 20, defenderMaxHp, debuff, totalBoost);
-                if (power.aoe) {
-                    damage = Math.floor(damage * 1.15);
-                    log = `${attacker.username} caused ${power.desc}, shaking the entire battlefield for **${damage}** massive damage!`;
-                }
-                else {
-                    log = `${attacker.username} used ${power.desc} for **${damage}** damage!`;
-                }
-                break;
-            // Basic damage type - most common
-            case 'damage':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.10)) + 15, defenderMaxHp, debuff, totalBoost);
-                log = `${attacker.username} used ${power.desc} and dealt **${damage}** damage!`;
-                break;
-            // Stun - skip defender's next turn
-            case 'stun':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.05)) + 8, defenderMaxHp, debuff, totalBoost);
-                defEff.stunned = power.turns || 1;
-                log = `${attacker.username} used ${power.desc}, dealing **${damage}** damage and stunning for ${power.turns || 1} turn(s)!`;
-                break;
-            // DOT - damage over time
-            case 'dot':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.04)) + 8, defenderMaxHp, debuff, totalBoost);
-                defEff.dot = power.turns || 3;
-                defEff.dotDmg = Math.floor(defenderMaxHp * (power.scale || 0.04));
-                log = `${attacker.username} used ${power.desc}, dealing **${damage}** damage and inflicting DoT for ${power.turns || 3} turns!`;
-                break;
-            // Debuff - reduce opponent's damage
-            case 'debuff':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.06)) + 10, defenderMaxHp, debuff, totalBoost);
-                defEff.debuff = (defEff.debuff || 1) * (power.debuff || 0.7);
-                defEff.debuffTurns = power.turns || 2;
-                log = `${attacker.username} used ${power.desc}, dealing **${damage}** damage and weakening opponent by ${Math.floor((1 - (power.debuff || 0.7)) * 100)}%!`;
-                break;
-            // Heal - restore HP
-            case 'heal': {
-                const healAmount = Math.floor(attackerMaxHp * (power.scale || 0.15));
-                if (isPlayer1Turn)
-                    battle.player1Health = Math.min(battle.player1Health + healAmount, battle.player1MaxHp);
-                else
-                    battle.player2Health = Math.min(battle.player2Health + healAmount, battle.player2MaxHp);
-                log = `${attacker.username} used ${power.desc} and healed for **${healAmount}** HP!`;
-                break;
-            }
-            // Swap - swap HP percentages
-            case 'swap': {
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.08)) + 12, defenderMaxHp, debuff, totalBoost);
-                const shouldSwap = Math.random() < 0.35;
-                if (shouldSwap) {
-                    const atkHpPercent = isPlayer1Turn ? battle.player1Health / battle.player1MaxHp : battle.player2Health / battle.player2MaxHp;
-                    const defHpPercent = isPlayer1Turn ? battle.player2Health / battle.player2MaxHp : battle.player1Health / battle.player1MaxHp;
-                    if (isPlayer1Turn) {
-                        battle.player1Health = Math.floor(battle.player1MaxHp * defHpPercent);
-                        battle.player2Health = Math.floor(battle.player2MaxHp * atkHpPercent);
-                    }
-                    else {
-                        battle.player2Health = Math.floor(battle.player2MaxHp * defHpPercent);
-                        battle.player1Health = Math.floor(battle.player1MaxHp * atkHpPercent);
-                    }
-                    log = `${attacker.username} used ${power.desc}! HP percentages swapped! Also dealt **${damage}** damage!`;
-                }
-                else {
-                    log = `${attacker.username} used ${power.desc} for **${damage}** damage! (Swap failed)`;
-                }
-                break;
-            }
-            // Gamble - high risk, high reward
-            case 'gamble': {
-                const roll = Math.random();
-                if (roll < 0.25) {
-                    damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.10) * 3) + 30, defenderMaxHp, debuff, totalBoost);
-                    log = `${attacker.username} used ${power.desc} and hit the JACKPOT! Dealt **${damage}** massive damage!`;
-                }
-                else if (roll < 0.5) {
-                    damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.10)) + 15, defenderMaxHp, debuff, totalBoost);
-                    log = `${attacker.username} used ${power.desc} for **${damage}** damage!`;
-                }
-                else {
-                    const selfDmg = Math.floor(attackerMaxHp * 0.10);
-                    if (isPlayer1Turn)
-                        battle.player1Health = Math.max(1, battle.player1Health - selfDmg);
-                    else
-                        battle.player2Health = Math.max(1, battle.player2Health - selfDmg);
-                    log = `${attacker.username} used ${power.desc} and lost the gamble! Took **${selfDmg}** self-damage!`;
-                }
-                break;
-            }
-            // Charge - limited uses but powerful
-            case 'charge': {
-                const chargeKey = `charge_${power.name}`;
-                const chargeValue = atkEff[chargeKey];
-                const charges = typeof chargeValue === 'number' ? chargeValue : (power.charges || 2);
-                if (charges > 0) {
-                    damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.25)) + 25, defenderMaxHp, debuff, totalBoost);
-                    atkEff[chargeKey] = charges - 1;
-                    log = `${attacker.username} used ${power.desc}! Dealt **${damage}** damage! (${charges - 1} charges left)`;
-                }
-                else {
-                    damage = this.calculateDamage(Math.floor(defenderMaxHp * 0.05) + 8, defenderMaxHp, debuff, totalBoost);
-                    log = `${attacker.username} tried to use ${power.desc} but is out of charges! Dealt **${damage}** weak damage!`;
-                }
-                break;
-            }
-            // Slow - reduce opponent's speed/effectiveness
-            case 'slow':
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.06)) + 10, defenderMaxHp, debuff, totalBoost);
-                defEff.slowed = power.turns || 2;
-                defEff.slowAmount = 0.7;
-                log = `${attacker.username} used ${power.desc}, dealing **${damage}** damage and slowing opponent for ${power.turns || 2} turns!`;
-                break;
-            // Buff - boost own damage
-            case 'buff': {
-                let healAmount = 0;
-                if (power.heal) {
-                    healAmount = Math.floor(attackerMaxHp * (power.scale || 0.10));
-                    if (isPlayer1Turn)
-                        battle.player1Health = Math.min(battle.player1Health + healAmount, battle.player1MaxHp);
-                    else
-                        battle.player2Health = Math.min(battle.player2Health + healAmount, battle.player2MaxHp);
-                }
-                atkEff.buff = power.boost || 1.3;
-                atkEff.buffTurns = power.turns || 3;
-                log = `${attacker.username} used ${power.desc}! Damage boosted by ${Math.floor(((power.boost || 1.3) - 1) * 100)}%${healAmount > 0 ? ` and healed **${healAmount}** HP` : ''}!`;
-                break;
-            }
-            // Sacrifice - deal massive damage but hurt yourself
-            case 'sacrifice': {
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.30)) + 30, defenderMaxHp, debuff, totalBoost);
-                const selfDamage = Math.floor(attackerMaxHp * (power.self || 0.20));
-                if (isPlayer1Turn)
-                    battle.player1Health = Math.max(1, battle.player1Health - selfDamage);
-                else
-                    battle.player2Health = Math.max(1, battle.player2Health - selfDamage);
-                log = `${attacker.username} sacrificed health with ${power.desc}! Dealt **${damage}** damage but took **${selfDamage}** self-damage!`;
-                break;
-            }
-            // Random - random effect from summons
-            case 'random': {
-                const randomMult = 0.8 + Math.random() * 0.6; // 0.8x to 1.4x multiplier
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.09) * randomMult) + 12, defenderMaxHp, debuff, totalBoost);
-                const summonName = SkillsetService_js_1.default.getSummonName(battle.skillsetName, power.name);
-                if (summonName !== 'Unknown Summon') {
-                    log = `${attacker.username} summoned **${summonName}** with ${power.desc} for **${damage}** damage!`;
-                }
-                else {
-                    log = `${attacker.username} used ${power.desc} for **${damage}** damage!`;
-                }
-                break;
-            }
-            // Phantom - creates multiple attacking illusions/summons
-            case 'phantom': {
-                const summonName = SkillsetService_js_1.default.getSummonName(battle.skillsetName, power.name);
-                for (let i = 0; i < (power.illusions || 3); i++) {
-                    damage += this.calculateDamage(Math.floor(defenderMaxHp * (power.scale || 0.04)) + 8, defenderMaxHp, debuff, totalBoost);
-                }
-                if (summonName !== 'Unknown Summon') {
-                    log = `${attacker.username} summoned ${power.illusions} **${summonName}** phantoms with ${power.desc}, dealing **${damage}** total damage!`;
-                }
-                else {
-                    log = `${attacker.username} created ${power.illusions} phantoms with ${power.desc}, dealing **${damage}** total damage!`;
-                }
-                break;
-            }
-            default:
-                damage = this.calculateDamage(Math.floor(defenderMaxHp * 0.10) + 10, defenderMaxHp, debuff, totalBoost);
-                log = `${attacker.username} used a combo attack and dealt **${damage}** damage to ${defender.username}!`;
-        }
-        return [damage, log];
     }
     /**
      * Process a power with damage breakdown (shows modifiers in the log)
@@ -1288,263 +868,196 @@ class BattleService {
         return [damage, log, baseDamage];
     }
     /**
+     * Build player contexts for iterating both sides of a battle.
+     * Used by handleEffects to avoid duplicating user1/user2 logic.
+     */
+    getPlayerContexts(battle) {
+        return [
+            {
+                effects: battle.effects.user1,
+                username: battle.player1.username,
+                maxHp: battle.player1MaxHp,
+                getHp: () => battle.player1Health,
+                setHp: (hp) => { battle.player1Health = hp; },
+                setStunned: (v) => { battle.player1Stunned = v; },
+            },
+            {
+                effects: battle.effects.user2,
+                username: battle.player2.username,
+                maxHp: battle.player2MaxHp,
+                getHp: () => battle.player2Health,
+                setHp: (hp) => { battle.player2Health = hp; },
+                setStunned: (v) => { battle.player2Stunned = v; },
+            },
+        ];
+    }
+    /**
+     * Get the opposing player context (shrine damages the OTHER player)
+     */
+    getOpponentContext(battle, index) {
+        if (index === 0) {
+            return {
+                username: battle.player2.username,
+                maxHp: battle.player2MaxHp,
+                getHp: () => battle.player2Health,
+                setHp: (hp) => { battle.player2Health = hp; },
+            };
+        }
+        return {
+            username: battle.player1.username,
+            maxHp: battle.player1MaxHp,
+            getHp: () => battle.player1Health,
+            setHp: (hp) => { battle.player1Health = hp; },
+        };
+    }
+    /**
      * Process end-of-turn effects
      */
     handleEffects(battle) {
         const logs = [];
-        // Process Named DoTs first (new system with verse-specific names)
-        for (const dot of battle.effects.user1.namedDots) {
-            if (dot.turns > 0) {
-                battle.player1Health = Math.max(0, battle.player1Health - dot.value);
-                logs.push(`🔥 **${dot.name}**: **${battle.player1.username}** took **${dot.value}** damage!`);
-                dot.turns--;
-            }
-        }
-        battle.effects.user1.namedDots = battle.effects.user1.namedDots.filter(d => d.turns > 0);
-        for (const dot of battle.effects.user2.namedDots) {
-            if (dot.turns > 0) {
-                battle.player2Health = Math.max(0, battle.player2Health - dot.value);
-                logs.push(`🔥 **${dot.name}**: **${battle.player2.username}** took **${dot.value}** damage!`);
-                dot.turns--;
-            }
-        }
-        battle.effects.user2.namedDots = battle.effects.user2.namedDots.filter(d => d.turns > 0);
-        // Process Named Debuffs
-        for (const debuff of battle.effects.user1.namedDebuffs) {
-            if (debuff.turns > 0) {
-                debuff.turns--;
-                if (debuff.turns === 0) {
-                    logs.push(`✨ **${battle.player1.username}**'s **${debuff.name}** wore off!`);
+        const players = this.getPlayerContexts(battle);
+        for (const p of players) {
+            // Named DoTs (verse-specific names)
+            for (const dot of p.effects.namedDots) {
+                if (dot.turns > 0) {
+                    p.setHp(Math.max(0, p.getHp() - dot.value));
+                    logs.push(`🔥 **${dot.name}**: **${p.username}** took **${dot.value}** damage!`);
+                    dot.turns--;
                 }
             }
-        }
-        battle.effects.user1.namedDebuffs = battle.effects.user1.namedDebuffs.filter(d => d.turns > 0);
-        for (const debuff of battle.effects.user2.namedDebuffs) {
-            if (debuff.turns > 0) {
-                debuff.turns--;
-                if (debuff.turns === 0) {
-                    logs.push(`✨ **${battle.player2.username}**'s **${debuff.name}** wore off!`);
+            p.effects.namedDots = p.effects.namedDots.filter(d => d.turns > 0);
+            // Named Debuffs
+            for (const debuff of p.effects.namedDebuffs) {
+                if (debuff.turns > 0) {
+                    debuff.turns--;
+                    if (debuff.turns === 0) {
+                        logs.push(`✨ **${p.username}**'s **${debuff.name}** wore off!`);
+                    }
                 }
             }
-        }
-        battle.effects.user2.namedDebuffs = battle.effects.user2.namedDebuffs.filter(d => d.turns > 0);
-        // Process Named Buffs
-        for (const buff of battle.effects.user1.namedBuffs) {
-            if (buff.turns > 0 && buff.turns < 99) {
-                buff.turns--;
-                if (buff.turns === 0) {
-                    logs.push(`⬇️ **${battle.player1.username}**'s **${buff.name}** expired!`);
+            p.effects.namedDebuffs = p.effects.namedDebuffs.filter(d => d.turns > 0);
+            // Named Buffs
+            for (const buff of p.effects.namedBuffs) {
+                if (buff.turns > 0 && buff.turns < 99) {
+                    buff.turns--;
+                    if (buff.turns === 0) {
+                        logs.push(`⬇️ **${p.username}**'s **${buff.name}** expired!`);
+                    }
                 }
             }
+            p.effects.namedBuffs = p.effects.namedBuffs.filter(b => b.turns > 0);
         }
-        battle.effects.user1.namedBuffs = battle.effects.user1.namedBuffs.filter(b => b.turns > 0);
-        for (const buff of battle.effects.user2.namedBuffs) {
-            if (buff.turns > 0 && buff.turns < 99) {
-                buff.turns--;
-                if (buff.turns === 0) {
-                    logs.push(`⬇️ **${battle.player2.username}**'s **${buff.name}** expired!`);
+        // Shrine damages the OPPONENT, so needs special handling
+        for (let i = 0; i < players.length; i++) {
+            const p = players[i];
+            if (p.effects.shrine > 0) {
+                const opp = this.getOpponentContext(battle, i);
+                const dmg = Math.max(Math.floor(opp.maxHp * 0.045), 1);
+                opp.setHp(Math.max(0, opp.getHp() - dmg));
+                logs.push(`⛩️ **Malevolent Shrine**: **${opp.username}** took **${dmg}** cleave damage!`);
+                p.effects.shrine--;
+            }
+        }
+        for (const p of players) {
+            // Burn (legacy)
+            if (p.effects.burn > 0) {
+                const burnDmg = Math.floor(p.maxHp * 0.03);
+                p.setHp(Math.max(0, p.getHp() - burnDmg));
+                logs.push(`🔥 **Burning**: **${p.username}** took **${burnDmg}** burn damage!`);
+                p.effects.burn--;
+            }
+            // Bleed
+            if (p.effects.bleed > 0) {
+                const bleedDmg = Math.floor(p.maxHp * 0.035);
+                p.setHp(Math.max(0, p.getHp() - bleedDmg));
+                logs.push(`🩸 **Bleeding**: **${p.username}** took **${bleedDmg}** bleed damage!`);
+                p.effects.bleed--;
+            }
+            // Poison
+            if (p.effects.poison > 0) {
+                const poisonDmg = Math.floor(p.maxHp * 0.025);
+                p.setHp(Math.max(0, p.getHp() - poisonDmg));
+                logs.push(`☠️ **Poisoned**: **${p.username}** took **${poisonDmg}** poison damage!`);
+                p.effects.poison--;
+                if (p.effects.poison === 0)
+                    p.effects.poisonWeaken = 1;
+            }
+            // Constrict
+            if (p.effects.constrict > 0) {
+                p.setHp(Math.max(0, p.getHp() - p.effects.constrictDmg));
+                logs.push(`🐍 **Constricted**: **${p.username}** took **${p.effects.constrictDmg}** damage!`);
+                p.effects.constrict--;
+            }
+            // Frozen
+            if (p.effects.frozen > 0) {
+                const frozenDmg = Math.floor(p.maxHp * 0.015);
+                p.setHp(Math.max(0, p.getHp() - frozenDmg));
+                logs.push(`❄️ **Frozen**: **${p.username}** took **${frozenDmg}** freeze damage!`);
+                p.effects.frozen--;
+            }
+            // Water Prison
+            if (p.effects.waterPrison && p.effects.waterPrison > 0) {
+                const drownDmg = Math.floor(p.maxHp * 0.04);
+                p.setHp(Math.max(0, p.getHp() - drownDmg));
+                logs.push(`🌊 **Water Prison**: **${p.username}** is drowning for **${drownDmg}** damage!`);
+                p.effects.waterPrison--;
+            }
+            // DoT (generic fallback)
+            if (p.effects.dot && p.effects.dot > 0) {
+                const dotDmg = p.effects.dotDmg || Math.floor(p.maxHp * 0.035);
+                p.setHp(Math.max(0, p.getHp() - dotDmg));
+                logs.push(`💀 **DoT**: **${p.username}** took **${dotDmg}** damage!`);
+                p.effects.dot--;
+                if (p.effects.dot === 0)
+                    p.effects.dotDmg = 0;
+            }
+            // Debuff expiry
+            if (p.effects.debuffTurns && p.effects.debuffTurns > 0) {
+                p.effects.debuffTurns--;
+                if (p.effects.debuffTurns === 0 && p.effects.debuff) {
+                    logs.push(`✨ **${p.username}**'s debuff wore off!`);
+                    p.effects.speech = 1;
+                    p.effects.debuff = 0;
                 }
             }
-        }
-        battle.effects.user2.namedBuffs = battle.effects.user2.namedBuffs.filter(b => b.turns > 0);
-        // Shrine effects (JJK - Malevolent Shrine)
-        if (battle.effects.user1.shrine > 0) {
-            const dmg = Math.max(Math.floor(battle.player2MaxHp * 0.045), 1);
-            battle.player2Health = Math.max(0, battle.player2Health - dmg);
-            logs.push(`⛩️ **Malevolent Shrine**: **${battle.player2.username}** took **${dmg}** cleave damage!`);
-            battle.effects.user1.shrine--;
-        }
-        if (battle.effects.user2.shrine > 0) {
-            const dmg = Math.max(Math.floor(battle.player1MaxHp * 0.045), 1);
-            battle.player1Health = Math.max(0, battle.player1Health - dmg);
-            logs.push(`⛩️ **Malevolent Shrine**: **${battle.player1.username}** took **${dmg}** cleave damage!`);
-            battle.effects.user2.shrine--;
-        }
-        // Burn effects (legacy - kept for backwards compat)
-        if (battle.effects.user1.burn > 0) {
-            const burnDmg = Math.floor(battle.player1MaxHp * 0.03);
-            battle.player1Health = Math.max(0, battle.player1Health - burnDmg);
-            logs.push(`🔥 **Burning**: **${battle.player1.username}** took **${burnDmg}** burn damage!`);
-            battle.effects.user1.burn--;
-        }
-        if (battle.effects.user2.burn > 0) {
-            const burnDmg = Math.floor(battle.player2MaxHp * 0.03);
-            battle.player2Health = Math.max(0, battle.player2Health - burnDmg);
-            logs.push(`🔥 **Burning**: **${battle.player2.username}** took **${burnDmg}** burn damage!`);
-            battle.effects.user2.burn--;
-        }
-        // Bleed effects
-        if (battle.effects.user1.bleed > 0) {
-            const bleedDmg = Math.floor(battle.player1MaxHp * 0.035);
-            battle.player1Health = Math.max(0, battle.player1Health - bleedDmg);
-            logs.push(`🩸 **Bleeding**: **${battle.player1.username}** took **${bleedDmg}** bleed damage!`);
-            battle.effects.user1.bleed--;
-        }
-        if (battle.effects.user2.bleed > 0) {
-            const bleedDmg = Math.floor(battle.player2MaxHp * 0.035);
-            battle.player2Health = Math.max(0, battle.player2Health - bleedDmg);
-            logs.push(`🩸 **Bleeding**: **${battle.player2.username}** took **${bleedDmg}** bleed damage!`);
-            battle.effects.user2.bleed--;
-        }
-        // Poison effects
-        if (battle.effects.user1.poison > 0) {
-            const poisonDmg = Math.floor(battle.player1MaxHp * 0.025);
-            battle.player1Health = Math.max(0, battle.player1Health - poisonDmg);
-            logs.push(`☠️ **Poisoned**: **${battle.player1.username}** took **${poisonDmg}** poison damage!`);
-            battle.effects.user1.poison--;
-            if (battle.effects.user1.poison === 0)
-                battle.effects.user1.poisonWeaken = 1;
-        }
-        if (battle.effects.user2.poison > 0) {
-            const poisonDmg = Math.floor(battle.player2MaxHp * 0.025);
-            battle.player2Health = Math.max(0, battle.player2Health - poisonDmg);
-            logs.push(`☠️ **Poisoned**: **${battle.player2.username}** took **${poisonDmg}** poison damage!`);
-            battle.effects.user2.poison--;
-            if (battle.effects.user2.poison === 0)
-                battle.effects.user2.poisonWeaken = 1;
-        }
-        // Constrict effects
-        if (battle.effects.user1.constrict > 0) {
-            battle.player1Health = Math.max(0, battle.player1Health - battle.effects.user1.constrictDmg);
-            logs.push(`🐍 **Constricted**: **${battle.player1.username}** took **${battle.effects.user1.constrictDmg}** damage!`);
-            battle.effects.user1.constrict--;
-        }
-        if (battle.effects.user2.constrict > 0) {
-            battle.player2Health = Math.max(0, battle.player2Health - battle.effects.user2.constrictDmg);
-            logs.push(`🐍 **Constricted**: **${battle.player2.username}** took **${battle.effects.user2.constrictDmg}** damage!`);
-            battle.effects.user2.constrict--;
-        }
-        // Frozen effects
-        if (battle.effects.user1.frozen > 0) {
-            const frozenDmg = Math.floor(battle.player1MaxHp * 0.015);
-            battle.player1Health = Math.max(0, battle.player1Health - frozenDmg);
-            logs.push(`❄️ **Frozen**: **${battle.player1.username}** took **${frozenDmg}** freeze damage!`);
-            battle.effects.user1.frozen--;
-        }
-        if (battle.effects.user2.frozen > 0) {
-            const frozenDmg = Math.floor(battle.player2MaxHp * 0.015);
-            battle.player2Health = Math.max(0, battle.player2Health - frozenDmg);
-            logs.push(`❄️ **Frozen**: **${battle.player2.username}** took **${frozenDmg}** freeze damage!`);
-            battle.effects.user2.frozen--;
-        }
-        // Water Prison effects
-        if (battle.effects.user1.waterPrison && battle.effects.user1.waterPrison > 0) {
-            const drownDmg = Math.floor(battle.player1MaxHp * 0.04);
-            battle.player1Health = Math.max(0, battle.player1Health - drownDmg);
-            logs.push(`🌊 **Water Prison**: **${battle.player1.username}** is drowning for **${drownDmg}** damage!`);
-            battle.effects.user1.waterPrison--;
-        }
-        if (battle.effects.user2.waterPrison && battle.effects.user2.waterPrison > 0) {
-            const drownDmg = Math.floor(battle.player2MaxHp * 0.04);
-            battle.player2Health = Math.max(0, battle.player2Health - drownDmg);
-            logs.push(`🌊 **Water Prison**: **${battle.player2.username}** is drowning for **${drownDmg}** damage!`);
-            battle.effects.user2.waterPrison--;
-        }
-        // DoT (generic damage over time) effects - fallback
-        if (battle.effects.user1.dot && battle.effects.user1.dot > 0) {
-            const dotDmg = battle.effects.user1.dotDmg || Math.floor(battle.player1MaxHp * 0.035);
-            battle.player1Health = Math.max(0, battle.player1Health - dotDmg);
-            logs.push(`💀 **DoT**: **${battle.player1.username}** took **${dotDmg}** damage!`);
-            battle.effects.user1.dot--;
-            if (battle.effects.user1.dot === 0)
-                battle.effects.user1.dotDmg = 0;
-        }
-        if (battle.effects.user2.dot && battle.effects.user2.dot > 0) {
-            const dotDmg = battle.effects.user2.dotDmg || Math.floor(battle.player2MaxHp * 0.035);
-            battle.player2Health = Math.max(0, battle.player2Health - dotDmg);
-            logs.push(`💀 **DoT**: **${battle.player2.username}** took **${dotDmg}** damage!`);
-            battle.effects.user2.dot--;
-            if (battle.effects.user2.dot === 0)
-                battle.effects.user2.dotDmg = 0;
-        }
-        // Debuff effects
-        if (battle.effects.user1.debuffTurns && battle.effects.user1.debuffTurns > 0) {
-            battle.effects.user1.debuffTurns--;
-            if (battle.effects.user1.debuffTurns === 0 && battle.effects.user1.debuff) {
-                logs.push(`✨ **${battle.player1.username}**'s debuff wore off!`);
-                battle.effects.user1.speech = 1;
-                battle.effects.user1.debuff = 0;
+            // Slowed expiry
+            if (p.effects.slowed && p.effects.slowed > 0) {
+                p.effects.slowed--;
+                if (p.effects.slowed === 0) {
+                    logs.push(`✨ **${p.username}**'s slow wore off!`);
+                    p.effects.slowAmount = 0;
+                }
             }
-        }
-        if (battle.effects.user2.debuffTurns && battle.effects.user2.debuffTurns > 0) {
-            battle.effects.user2.debuffTurns--;
-            if (battle.effects.user2.debuffTurns === 0 && battle.effects.user2.debuff) {
-                logs.push(`✨ **${battle.player2.username}**'s debuff wore off!`);
-                battle.effects.user2.speech = 1;
-                battle.effects.user2.debuff = 0;
+            // Stunned
+            if (p.effects.stunned && p.effects.stunned > 0) {
+                p.setStunned(true);
+                p.effects.stunned--;
+                if (p.effects.stunned > 0) {
+                    logs.push(`💫 **${p.username}** is stunned! (${p.effects.stunned} turns left)`);
+                }
             }
-        }
-        // Slowed effects
-        if (battle.effects.user1.slowed && battle.effects.user1.slowed > 0) {
-            battle.effects.user1.slowed--;
-            if (battle.effects.user1.slowed === 0) {
-                logs.push(`✨ **${battle.player1.username}**'s slow wore off!`);
-                battle.effects.user1.slowAmount = 0;
+            // Buff expiry
+            if (p.effects.buffTurns && p.effects.buffTurns > 0) {
+                p.effects.buffTurns--;
+                if (p.effects.buffTurns === 0) {
+                    logs.push(`⬇️ **${p.username}**'s buff expired!`);
+                    p.effects.buff = 0;
+                }
             }
-        }
-        if (battle.effects.user2.slowed && battle.effects.user2.slowed > 0) {
-            battle.effects.user2.slowed--;
-            if (battle.effects.user2.slowed === 0) {
-                logs.push(`✨ **${battle.player2.username}**'s slow wore off!`);
-                battle.effects.user2.slowAmount = 0;
+            // Speech turns
+            if (p.effects.speechTurns > 0) {
+                p.effects.speechTurns--;
+                if (p.effects.speechTurns === 0) {
+                    p.effects.speech = 1;
+                }
             }
-        }
-        // Stunned effects
-        if (battle.effects.user1.stunned && battle.effects.user1.stunned > 0) {
-            battle.player1Stunned = true;
-            battle.effects.user1.stunned--;
-            if (battle.effects.user1.stunned > 0) {
-                logs.push(`💫 **${battle.player1.username}** is stunned! (${battle.effects.user1.stunned} turns left)`);
-            }
-        }
-        if (battle.effects.user2.stunned && battle.effects.user2.stunned > 0) {
-            battle.player2Stunned = true;
-            battle.effects.user2.stunned--;
-            if (battle.effects.user2.stunned > 0) {
-                logs.push(`💫 **${battle.player2.username}** is stunned! (${battle.effects.user2.stunned} turns left)`);
-            }
-        }
-        // Buff effects
-        if (battle.effects.user1.buffTurns && battle.effects.user1.buffTurns > 0) {
-            battle.effects.user1.buffTurns--;
-            if (battle.effects.user1.buffTurns === 0) {
-                logs.push(`⬇️ **${battle.player1.username}**'s buff expired!`);
-                battle.effects.user1.buff = 0;
-            }
-        }
-        if (battle.effects.user2.buffTurns && battle.effects.user2.buffTurns > 0) {
-            battle.effects.user2.buffTurns--;
-            if (battle.effects.user2.buffTurns === 0) {
-                logs.push(`⬇️ **${battle.player2.username}**'s buff expired!`);
-                battle.effects.user2.buff = 0;
-            }
-        }
-        // Speech turns
-        if (battle.effects.user1.speechTurns > 0) {
-            battle.effects.user1.speechTurns--;
-            if (battle.effects.user1.speechTurns === 0) {
-                battle.effects.user1.speech = 1;
-            }
-        }
-        if (battle.effects.user2.speechTurns > 0) {
-            battle.effects.user2.speechTurns--;
-            if (battle.effects.user2.speechTurns === 0) {
-                battle.effects.user2.speech = 1;
-            }
-        }
-        // Transform effects
-        if (battle.effects.user1.transform > 0) {
-            battle.effects.user1.transform--;
-            if (battle.effects.user1.transform === 0) {
-                battle.effects.user1.transformBoost = 1;
-                logs.push(`🔄 **${battle.player1.username}**'s transformation ended!`);
-            }
-        }
-        if (battle.effects.user2.transform > 0) {
-            battle.effects.user2.transform--;
-            if (battle.effects.user2.transform === 0) {
-                battle.effects.user2.transformBoost = 1;
-                logs.push(`🔄 **${battle.player2.username}**'s transformation ended!`);
+            // Transform
+            if (p.effects.transform > 0) {
+                p.effects.transform--;
+                if (p.effects.transform === 0) {
+                    p.effects.transformBoost = 1;
+                    logs.push(`🔄 **${p.username}**'s transformation ended!`);
+                }
             }
         }
         return logs;

@@ -3,7 +3,7 @@
  * @module errors/ApiError
  */
 
-import { AppError, SerializedError } from './AppError';
+import { AppError, SerializedError } from './AppError.js';
 
 /**
  * API error codes

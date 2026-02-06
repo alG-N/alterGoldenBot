@@ -5,8 +5,8 @@
  */
 
 import { SlashCommandBuilder, EmbedBuilder, ChatInputCommandInteraction } from 'discord.js';
-import { BaseCommand, CommandCategory, CommandData } from '../BaseCommand';
-import { COLORS } from '../../constants';
+import { BaseCommand, CommandCategory, CommandData } from '../BaseCommand.js';
+import { COLORS } from '../../constants.js';
 import shardBridge from '../../services/guild/ShardBridge.js';
 
 class PingCommand extends BaseCommand {

@@ -279,6 +279,15 @@ class LockdownService {
     }
 
     /**
+     * Get lock status for a guild
+     * SHARD-SAFE: Reads from Redis
+     */
+    async getLockStatus(guildId: Snowflake): Promise<{ lockedCount: number; channelIds: Snowflake[] }> {
+        const channelIds = await this.getLockedChannels(guildId);
+        return { lockedCount: channelIds.length, channelIds };
+    }
+
+    /**
      * Clear all lockdown data for a guild
      * SHARD-SAFE: Clears from Redis
      */

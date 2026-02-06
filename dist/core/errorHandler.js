@@ -13,8 +13,8 @@ exports.safeAsync = safeAsync;
 exports.withErrorHandling = withErrorHandling;
 exports.withTimeout = withTimeout;
 exports.interactionErrorBoundary = interactionErrorBoundary;
-const Logger_1 = __importDefault(require("./Logger"));
-const errors_1 = require("../errors");
+const Logger_js_1 = __importDefault(require("./Logger.js"));
+const index_js_1 = require("../errors/index.js");
 // FUNCTIONS
 /**
  * Initialize global error handlers
@@ -29,14 +29,14 @@ function initializeErrorHandlers(client) {
         const line = stackMatch ? stackMatch[3] : undefined;
         const fn = stackMatch ? stackMatch[1] : undefined;
         // Check if operational error
-        if (errors_1.AppError.isOperationalError(error)) {
-            Logger_1.default.error('ErrorHandler', `Operational Error: ${error.message}`);
+        if (index_js_1.AppError.isOperationalError(error)) {
+            Logger_js_1.default.error('ErrorHandler', `Operational Error: ${error.message}`);
         }
         else {
-            Logger_1.default.critical('ErrorHandler', `Uncaught Exception: ${error.message}`);
+            Logger_js_1.default.critical('ErrorHandler', `Uncaught Exception: ${error.message}`);
             console.error('Stack:', error.stack);
             // Log detailed error to Discord
-            Logger_1.default.logErrorDetailed({
+            Logger_js_1.default.logErrorDetailed({
                 title: 'Uncaught Exception',
                 error,
                 file,
@@ -60,14 +60,14 @@ function initializeErrorHandlers(client) {
         const file = stackMatch ? stackMatch[2] : undefined;
         const line = stackMatch ? stackMatch[3] : undefined;
         const fn = stackMatch ? stackMatch[1] : undefined;
-        if (errors_1.AppError.isOperationalError(error)) {
-            Logger_1.default.error('ErrorHandler', `Unhandled Rejection (Operational): ${error.message}`);
+        if (index_js_1.AppError.isOperationalError(error)) {
+            Logger_js_1.default.error('ErrorHandler', `Unhandled Rejection (Operational): ${error.message}`);
         }
         else {
-            Logger_1.default.critical('ErrorHandler', `Unhandled Rejection: ${error.message}`);
+            Logger_js_1.default.critical('ErrorHandler', `Unhandled Rejection: ${error.message}`);
             console.error('Stack:', error.stack);
             // Log detailed error to Discord
-            Logger_1.default.logErrorDetailed({
+            Logger_js_1.default.logErrorDetailed({
                 title: 'Unhandled Promise Rejection',
                 error,
                 file,
@@ -80,7 +80,7 @@ function initializeErrorHandlers(client) {
             }).catch(() => { });
         }
     });
-    Logger_1.default.info('ErrorHandler', 'Global error handlers initialized');
+    Logger_js_1.default.info('ErrorHandler', 'Global error handlers initialized');
 }
 /**
  * Safe async execution wrapper
@@ -94,7 +94,7 @@ function safeAsync(fn, context = 'Unknown') {
             return await fn(...args);
         }
         catch (error) {
-            Logger_1.default.error(context, `Error: ${error.message}`);
+            Logger_js_1.default.error(context, `Error: ${error.message}`);
             throw error;
         }
     };
@@ -115,7 +115,7 @@ function withErrorHandling(fn, options = {}) {
             }
             catch (error) {
                 lastError = error;
-                Logger_1.default.error(context, `Attempt ${attempt + 1} failed: ${lastError.message}`);
+                Logger_js_1.default.error(context, `Attempt ${attempt + 1} failed: ${lastError.message}`);
                 if (attempt < retries) {
                     await new Promise(r => setTimeout(r, retryDelay * (attempt + 1)));
                 }
@@ -167,8 +167,8 @@ function interactionErrorBoundary(fn, options = {}) {
             await fn(interaction, ...args);
         }
         catch (error) {
-            Logger_1.default.error('Interaction', `${interaction.commandName}: ${error.message}`);
-            const errorMessage = errors_1.AppError.isOperationalError(error)
+            Logger_js_1.default.error('Interaction', `${interaction.commandName}: ${error.message}`);
+            const errorMessage = index_js_1.AppError.isOperationalError(error)
                 ? error.message
                 : 'An unexpected error occurred. Please try again.';
             try {

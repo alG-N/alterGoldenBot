@@ -10,7 +10,7 @@ import {
     CircuitHealth, 
     CircuitBreakerMetrics,
     CircuitState 
-} from './CircuitBreaker';
+} from './CircuitBreaker.js';
 import logger from './Logger.js';
 // TYPES & INTERFACES
 /**

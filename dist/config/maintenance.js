@@ -1,42 +1,11 @@
 "use strict";
 /**
  * Maintenance Configuration
- * Based on FumoBOT's maintenance system
+ * Persistence via CacheService (Redis) instead of synchronous file I/O.
+ * Falls back to in-memory-only state when Redis is unavailable.
+ *
  * @module config/maintenance
  */
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.loadMaintenanceState = loadMaintenanceState;
 exports.saveMaintenanceState = saveMaintenanceState;
@@ -53,13 +22,24 @@ exports.cancelScheduledMaintenance = cancelScheduledMaintenance;
 exports.getMaintenanceStatus = getMaintenanceStatus;
 exports.createMaintenanceEmbed = createMaintenanceEmbed;
 exports.getMaintenanceState = getMaintenanceState;
-const fs = __importStar(require("fs"));
-const path = __importStar(require("path"));
 const discord_js_1 = require("discord.js");
 const owner_js_1 = require("./owner.js");
-// STATE
-const MAINTENANCE_FILE = path.join(__dirname, '..', 'data', 'maintenanceState.json');
-// Default maintenance state
+// Lazy-load cacheService to avoid circular dependency at module init
+const getDefault = (mod) => mod.default || mod;
+let _cacheService = null;
+const getCacheService = () => {
+    if (!_cacheService) {
+        try {
+            _cacheService = getDefault(require('../cache/CacheService'));
+        }
+        catch { /* not ready */ }
+    }
+    return _cacheService;
+};
+// Redis key for persistent maintenance state
+const REDIS_KEY = 'altergolden:maintenance:state';
+const REDIS_NS = 'session'; // Long-lived namespace
+// ── State ────────────────────────────────────────────────────────────
 let maintenanceState = {
     enabled: false,
     reason: 'Scheduled maintenance',
@@ -70,45 +50,43 @@ let maintenanceState = {
     allowedUsers: [],
     scheduledMaintenance: null
 };
-// Developer ID (imported from owner.ts — re-exported for backward compatibility)
-// STATE MANAGEMENT
+// ── Persistence (non-blocking, fire-and-forget) ──────────────────────
 /**
- * Load maintenance state from file
+ * Persist current state to Redis (fire-and-forget).
+ * Uses CacheService with a 30-day TTL — maintenance state is long-lived.
  */
-function loadMaintenanceState() {
+function persistState() {
+    const cs = getCacheService();
+    if (cs) {
+        cs.set(REDIS_NS, REDIS_KEY, maintenanceState, 30 * 24 * 3600).catch(() => { });
+    }
+}
+/**
+ * Load maintenance state from Redis.
+ * Called once at startup after CacheService is initialized.
+ */
+async function loadMaintenanceState() {
     try {
-        const dir = path.dirname(MAINTENANCE_FILE);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        if (fs.existsSync(MAINTENANCE_FILE)) {
-            const data = JSON.parse(fs.readFileSync(MAINTENANCE_FILE, 'utf8'));
-            maintenanceState = { ...maintenanceState, ...data };
+        const cs = getCacheService();
+        if (cs) {
+            const data = await cs.get(REDIS_NS, REDIS_KEY);
+            if (data) {
+                maintenanceState = { ...maintenanceState, ...data };
+            }
         }
     }
     catch (error) {
-        console.error('[Maintenance] Failed to load state:', error.message);
+        console.error('[Maintenance] Failed to load state from Redis:', error.message);
     }
     return maintenanceState;
 }
 /**
- * Save maintenance state to file
+ * Save maintenance state (public alias — fire-and-forget to Redis)
  */
 function saveMaintenanceState() {
-    try {
-        const dir = path.dirname(MAINTENANCE_FILE);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        fs.writeFileSync(MAINTENANCE_FILE, JSON.stringify(maintenanceState, null, 2));
-    }
-    catch (error) {
-        console.error('[Maintenance] Failed to save state:', error.message);
-    }
+    persistState();
 }
-// Initialize on load
-loadMaintenanceState();
-// MAINTENANCE CONTROL
+// ── Maintenance Control ──────────────────────────────────────────────
 /**
  * Enable maintenance mode
  */
@@ -122,7 +100,7 @@ function enableMaintenance(options = {}) {
     if (!maintenanceState.allowedUsers.includes(owner_js_1.DEVELOPER_ID)) {
         maintenanceState.allowedUsers.push(owner_js_1.DEVELOPER_ID);
     }
-    saveMaintenanceState();
+    persistState();
     return maintenanceState;
 }
 /**
@@ -135,7 +113,7 @@ function disableMaintenance() {
     maintenanceState.estimatedEnd = null;
     maintenanceState.partialMode = false;
     maintenanceState.disabledFeatures = [];
-    saveMaintenanceState();
+    persistState();
     return maintenanceState;
 }
 /**
@@ -168,14 +146,14 @@ function isFeatureDisabled(featureName) {
         return true; // All features disabled
     return maintenanceState.disabledFeatures.includes(featureName);
 }
-// USER MANAGEMENT
+// ── User Management ──────────────────────────────────────────────────
 /**
  * Add user to bypass list
  */
 function addBypassUser(userId) {
     if (!maintenanceState.allowedUsers.includes(userId)) {
         maintenanceState.allowedUsers.push(userId);
-        saveMaintenanceState();
+        persistState();
     }
 }
 /**
@@ -183,9 +161,9 @@ function addBypassUser(userId) {
  */
 function removeBypassUser(userId) {
     maintenanceState.allowedUsers = maintenanceState.allowedUsers.filter(id => id !== userId);
-    saveMaintenanceState();
+    persistState();
 }
-// SCHEDULING
+// ── Scheduling ───────────────────────────────────────────────────────
 /**
  * Schedule future maintenance
  */
@@ -196,7 +174,7 @@ function scheduleMaintenance(startTime, options = {}) {
         estimatedDuration: options.estimatedDuration || null,
         ...options
     };
-    saveMaintenanceState();
+    persistState();
     return maintenanceState.scheduledMaintenance;
 }
 /**
@@ -204,9 +182,9 @@ function scheduleMaintenance(startTime, options = {}) {
  */
 function cancelScheduledMaintenance() {
     maintenanceState.scheduledMaintenance = null;
-    saveMaintenanceState();
+    persistState();
 }
-// STATUS & DISPLAY
+// ── Status & Display ─────────────────────────────────────────────────
 /**
  * Get maintenance status for display
  */

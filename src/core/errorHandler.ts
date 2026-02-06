@@ -5,8 +5,8 @@
  */
 
 import type { Client, ChatInputCommandInteraction } from 'discord.js';
-import logger from './Logger';
-import { AppError } from '../errors';
+import logger from './Logger.js';
+import { AppError } from '../errors/index.js';
 // TYPES
 type AsyncFunction<T extends unknown[], R> = (...args: T) => Promise<R>;
 

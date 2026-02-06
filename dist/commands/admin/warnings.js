@@ -7,6 +7,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const discord_js_1 = require("discord.js");
 const BaseCommand_js_1 = require("../BaseCommand.js");
+const time_js_1 = require("../../utils/common/time.js");
 const WARNINGS_PER_PAGE = 5;
 const getDefault = (mod) => mod.default || mod;
 let infractionService;
@@ -137,13 +138,7 @@ class WarningsCommand extends BaseCommand_js_1.BaseCommand {
                 value += `**Moderator:** <@${infraction.moderator_id}>\n`;
                 value += `**Date:** <t:${timestamp}:R>`;
                 if (infraction.duration_ms) {
-                    try {
-                        const { formatDuration } = require('../../utils/common/time');
-                        value += `\n**Duration:** ${formatDuration(infraction.duration_ms)}`;
-                    }
-                    catch {
-                        value += `\n**Duration:** ${Math.floor(infraction.duration_ms / 60000)} minutes`;
-                    }
+                    value += `\n**Duration:** ${(0, time_js_1.formatDuration)(infraction.duration_ms)}`;
                 }
                 if (!infraction.active) {
                     value += '\n*⚠️ Inactive*';

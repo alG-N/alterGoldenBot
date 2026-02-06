@@ -32,8 +32,9 @@ exports.hasModPermission = hasModPermission;
 exports.isServerOwner = isServerOwner;
 exports.clearCache = clearCache;
 const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
-// Use require for CommonJS database module
-const db = require('../../database/postgres.js');
+// Use require for database module
+const _dbMod = require('../../database/postgres.js');
+const db = (_dbMod.default || _dbMod);
 // DEFAULT SETTINGS
 exports.DEFAULT_GUILD_SETTINGS = {
     guild_id: '0',

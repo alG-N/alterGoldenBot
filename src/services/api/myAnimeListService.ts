@@ -4,7 +4,7 @@
  * @module services/api/myAnimeListService
  */
 
-import { circuitBreakerRegistry } from '../../core/CircuitBreakerRegistry';
+import { circuitBreakerRegistry } from '../../core/CircuitBreakerRegistry.js';
 import cacheService from '../../cache/CacheService.js';
 // TYPES & INTERFACES
 // Jikan API v4 (unofficial MAL API)

@@ -19,20 +19,20 @@ exports.addIgnoredRole = addIgnoredRole;
 exports.removeIgnoredRole = removeIgnoredRole;
 exports.remove = remove;
 exports.getEnabledGuilds = getEnabledGuilds;
-const postgres_1 = __importDefault(require("../../database/postgres"));
+const postgres_js_1 = __importDefault(require("../../database/postgres.js"));
 // Repository Functions
 /**
  * Get auto-mod settings for a guild
  */
 async function get(guildId) {
-    const result = await postgres_1.default.query(`SELECT * FROM automod_settings WHERE guild_id = $1`, [guildId]);
+    const result = await postgres_js_1.default.query(`SELECT * FROM automod_settings WHERE guild_id = $1`, [guildId]);
     return result.rows[0] || null;
 }
 /**
  * Create default auto-mod settings for a guild
  */
 async function create(guildId) {
-    const result = await postgres_1.default.query(`INSERT INTO automod_settings (guild_id) 
+    const result = await postgres_js_1.default.query(`INSERT INTO automod_settings (guild_id) 
          VALUES ($1) 
          ON CONFLICT (guild_id) DO NOTHING
          RETURNING *`, [guildId]);
@@ -84,7 +84,7 @@ async function update(guildId, updates) {
     }
     if (setClauses.length === 0)
         return get(guildId);
-    const result = await postgres_1.default.query(`UPDATE automod_settings 
+    const result = await postgres_js_1.default.query(`UPDATE automod_settings 
          SET ${setClauses.join(', ')}
          WHERE guild_id = $1
          RETURNING *`, params);
@@ -101,7 +101,7 @@ async function toggleFeature(guildId, feature, enabled) {
  * Add channel to ignored list
  */
 async function addIgnoredChannel(guildId, channelId) {
-    const result = await postgres_1.default.query(`UPDATE automod_settings 
+    const result = await postgres_js_1.default.query(`UPDATE automod_settings 
          SET ignored_channels = array_append(
              COALESCE(ignored_channels, '{}'), 
              $2
@@ -114,7 +114,7 @@ async function addIgnoredChannel(guildId, channelId) {
  * Remove channel from ignored list
  */
 async function removeIgnoredChannel(guildId, channelId) {
-    const result = await postgres_1.default.query(`UPDATE automod_settings 
+    const result = await postgres_js_1.default.query(`UPDATE automod_settings 
          SET ignored_channels = array_remove(ignored_channels, $2)
          WHERE guild_id = $1
          RETURNING *`, [guildId, channelId]);
@@ -124,7 +124,7 @@ async function removeIgnoredChannel(guildId, channelId) {
  * Add role to ignored list
  */
 async function addIgnoredRole(guildId, roleId) {
-    const result = await postgres_1.default.query(`UPDATE automod_settings 
+    const result = await postgres_js_1.default.query(`UPDATE automod_settings 
          SET ignored_roles = array_append(
              COALESCE(ignored_roles, '{}'), 
              $2
@@ -137,7 +137,7 @@ async function addIgnoredRole(guildId, roleId) {
  * Remove role from ignored list
  */
 async function removeIgnoredRole(guildId, roleId) {
-    const result = await postgres_1.default.query(`UPDATE automod_settings 
+    const result = await postgres_js_1.default.query(`UPDATE automod_settings 
          SET ignored_roles = array_remove(ignored_roles, $2)
          WHERE guild_id = $1
          RETURNING *`, [guildId, roleId]);
@@ -147,14 +147,14 @@ async function removeIgnoredRole(guildId, roleId) {
  * Delete auto-mod settings for a guild
  */
 async function remove(guildId) {
-    const result = await postgres_1.default.query(`DELETE FROM automod_settings WHERE guild_id = $1`, [guildId]);
+    const result = await postgres_js_1.default.query(`DELETE FROM automod_settings WHERE guild_id = $1`, [guildId]);
     return (result.rowCount ?? 0) > 0;
 }
 /**
  * Get all guilds with auto-mod enabled
  */
 async function getEnabledGuilds() {
-    const result = await postgres_1.default.query(`SELECT guild_id FROM automod_settings WHERE enabled = true`);
+    const result = await postgres_js_1.default.query(`SELECT guild_id FROM automod_settings WHERE enabled = true`);
     return result.rows.map(r => r.guild_id);
 }
 // Export as module object

@@ -38,24 +38,4 @@ var warn_js_1 = require("./warn.js");
 Object.defineProperty(exports, "warn", { enumerable: true, get: function () { return __importDefault(warn_js_1).default; } });
 var warnings_js_1 = require("./warnings.js");
 Object.defineProperty(exports, "warnings", { enumerable: true, get: function () { return __importDefault(warnings_js_1).default; } });
-// CommonJS compatibility for command loader
-// Handle both `module.exports = cmd` and `export default cmd` patterns
-const getCmd = (mod) => mod.default || mod;
-module.exports = {
-    automod: getCmd(require('./automod')),
-    ban: getCmd(require('./ban')),
-    case: getCmd(require('./case')),
-    clearwarns: getCmd(require('./clearwarns')),
-    delete: getCmd(require('./delete')),
-    delwarn: getCmd(require('./delwarn')),
-    kick: getCmd(require('./kick')),
-    lockdown: getCmd(require('./lockdown')),
-    mute: getCmd(require('./mute')),
-    raid: getCmd(require('./raid')),
-    setting: getCmd(require('./setting')),
-    slowmode: getCmd(require('./slowmode')),
-    snipe: getCmd(require('./snipe')),
-    warn: getCmd(require('./warn')),
-    warnings: getCmd(require('./warnings')),
-};
 //# sourceMappingURL=index.js.map

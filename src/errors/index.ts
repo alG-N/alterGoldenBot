@@ -16,18 +16,18 @@ export {
     ConfigurationError,
     TimeoutError,
     CooldownError,
-} from './AppError';
+} from './AppError.js';
 
-export type { SerializedError, ErrorCode } from './AppError';
+export type { SerializedError, ErrorCode } from './AppError.js';
 
 // Domain base errors (for instanceof checks only)
-export { MusicError } from './MusicError';
-export { VideoError } from './VideoError';
-export { ApiError } from './ApiError';
+export { MusicError } from './MusicError.js';
+export { VideoError } from './VideoError.js';
+export { ApiError } from './ApiError.js';
 
 // Type exports
-export type { MusicErrorCode } from './MusicError';
-export type { VideoErrorCode } from './VideoError';
-export type { ApiErrorCode } from './ApiError';
+export type { MusicErrorCode } from './MusicError.js';
+export type { VideoErrorCode } from './VideoError.js';
+export type { ApiErrorCode } from './ApiError.js';
 
 

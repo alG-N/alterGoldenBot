@@ -202,8 +202,6 @@ class DeathBattleCommand extends BaseCommand {
             return;
         }
 
-        logger?.log(`Battle started: ${player1.tag} vs ${opponent.tag} (${skillsetName})`, interaction);
-
         // Start countdown
         let countdown = COUNTDOWN_SECONDS;
         let battleEmbed = embedBuilder!.buildCountdownEmbed(battle, countdown);

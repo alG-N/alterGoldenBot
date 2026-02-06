@@ -4,9 +4,13 @@
  * Central management for all circuit breakers
  * @module core/CircuitBreakerRegistry
  */
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.circuitBreakerRegistry = exports.CircuitBreakerRegistry = exports.CIRCUIT_CONFIGS = void 0;
-const CircuitBreaker_1 = require("./CircuitBreaker");
+const CircuitBreaker_js_1 = require("./CircuitBreaker.js");
+const Logger_js_1 = __importDefault(require("./Logger.js"));
 // PRE-CONFIGURED CIRCUIT CONFIGS
 /**
  * Pre-configured circuit breaker configs for different services
@@ -186,24 +190,24 @@ class CircuitBreakerRegistry {
             this.register(key, config);
         }
         this.initialized = true;
-        console.log(`[CircuitBreakerRegistry] Initialized ${this.breakers.size} circuit breakers`);
+        Logger_js_1.default.info('CircuitBreakerRegistry', `Initialized ${this.breakers.size} circuit breakers`);
     }
     /**
      * Register a new circuit breaker
      */
     register(name, config = {}) {
         if (this.breakers.has(name)) {
-            console.warn(`[CircuitBreakerRegistry] Breaker '${name}' already exists, returning existing`);
+            Logger_js_1.default.warn('CircuitBreakerRegistry', `Breaker '${name}' already exists, returning existing`);
             return this.breakers.get(name);
         }
-        const breaker = new CircuitBreaker_1.CircuitBreaker({ name, ...config });
+        const breaker = new CircuitBreaker_js_1.CircuitBreaker({ name, ...config });
         // Log state changes
         breaker.on('stateChange', ({ name, from, to }) => {
             if (to === 'OPEN') {
-                console.warn(`[CircuitBreakerRegistry] ⚠️ Circuit '${name}' OPENED - service degraded`);
+                Logger_js_1.default.warn('CircuitBreakerRegistry', `⚠️ Circuit '${name}' OPENED - service degraded`);
             }
             else if (to === 'CLOSED' && from === 'HALF_OPEN') {
-                console.log(`[CircuitBreakerRegistry] ✅ Circuit '${name}' recovered`);
+                Logger_js_1.default.info('CircuitBreakerRegistry', `✅ Circuit '${name}' recovered`);
             }
         });
         this.breakers.set(name, breaker);
@@ -221,7 +225,7 @@ class CircuitBreakerRegistry {
     async execute(name, fn) {
         const breaker = this.breakers.get(name);
         if (!breaker) {
-            console.warn(`[CircuitBreakerRegistry] Breaker '${name}' not found, executing without protection`);
+            Logger_js_1.default.warn('CircuitBreakerRegistry', `Breaker '${name}' not found, executing without protection`);
             return fn();
         }
         return breaker.execute(fn);
@@ -267,7 +271,7 @@ class CircuitBreakerRegistry {
         for (const breaker of this.breakers.values()) {
             breaker.reset();
         }
-        console.log('[CircuitBreakerRegistry] All circuits reset');
+        Logger_js_1.default.info('CircuitBreakerRegistry', 'All circuits reset');
     }
     /**
      * Reset metrics for all breakers
@@ -289,11 +293,11 @@ class CircuitBreakerRegistry {
         };
         for (const breaker of this.breakers.values()) {
             const state = breaker.getState();
-            if (state === CircuitBreaker_1.CircuitState.CLOSED)
+            if (state === CircuitBreaker_js_1.CircuitState.CLOSED)
                 summary.closed++;
-            else if (state === CircuitBreaker_1.CircuitState.OPEN)
+            else if (state === CircuitBreaker_js_1.CircuitState.OPEN)
                 summary.open++;
-            else if (state === CircuitBreaker_1.CircuitState.HALF_OPEN)
+            else if (state === CircuitBreaker_js_1.CircuitState.HALF_OPEN)
                 summary.halfOpen++;
         }
         return summary;
@@ -314,9 +318,4 @@ exports.CircuitBreakerRegistry = CircuitBreakerRegistry;
 const circuitBreakerRegistry = new CircuitBreakerRegistry();
 exports.circuitBreakerRegistry = circuitBreakerRegistry;
 exports.default = circuitBreakerRegistry;
-// CommonJS compatibility
-module.exports = circuitBreakerRegistry;
-module.exports.CircuitBreakerRegistry = CircuitBreakerRegistry;
-module.exports.CIRCUIT_CONFIGS = exports.CIRCUIT_CONFIGS;
-module.exports.circuitBreakerRegistry = circuitBreakerRegistry;
 //# sourceMappingURL=CircuitBreakerRegistry.js.map

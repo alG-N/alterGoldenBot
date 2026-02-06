@@ -6,15 +6,15 @@
  */
 
 import { ChatInputCommandInteraction, Message, Guild, TextBasedChannel, ActionRowComponent } from 'discord.js';
-import { queueService, QueueService } from './queue';
-import { playbackService, PlaybackService } from './playback';
-import { voiceConnectionService, VoiceConnectionService } from './voice';
-import { autoPlayService, AutoPlayService } from './autoplay';
-import { musicEventBus, MusicEvents, playbackEventHandler } from './events';
-import musicCache from '../../cache/music/MusicCacheFacade';
-import trackHandler from '../../handlers/music/trackHandler';
-import { TRACK_TRANSITION_DELAY } from '../../config/features/music';
-import { updateMusicMetrics, musicTracksPlayedTotal } from '../../core/metrics';
+import { queueService, QueueService } from './queue/index.js';
+import { playbackService, PlaybackService } from './playback/index.js';
+import { voiceConnectionService, VoiceConnectionService } from './voice/index.js';
+import { autoPlayService, AutoPlayService } from './autoplay/index.js';
+import { musicEventBus, MusicEvents, playbackEventHandler } from './events/index.js';
+import musicCache from '../../cache/music/MusicCacheFacade.js';
+import trackHandler from '../../handlers/music/trackHandler.js';
+import { TRACK_TRANSITION_DELAY } from '../../config/features/music.js';
+import { updateMusicMetrics, musicTracksPlayedTotal } from '../../core/metrics.js';
 // Types
 export interface Track {
     track: {

@@ -5,7 +5,7 @@
  */
 
 import { Message } from 'discord.js';
-import { CACHE_LIMITS } from '../../constants';
+import { CACHE_LIMITS } from '../../constants.js';
 // Types
 export interface MusicTrack {
     url?: string;

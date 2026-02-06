@@ -3,7 +3,7 @@
  * Database operations for auto-moderation settings
  */
 
-import db from '../../database/postgres';
+import db from '../../database/postgres.js';
 // Interfaces
 type AutoModAction = 'warn' | 'mute' | 'kick' | 'ban' | 'delete' | 'delete_warn';
 

@@ -10,7 +10,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GoogleService = exports.googleService = void 0;
 const axios_1 = __importDefault(require("axios"));
-const CircuitBreakerRegistry_1 = require("../../core/CircuitBreakerRegistry");
+const CircuitBreakerRegistry_js_1 = require("../../core/CircuitBreakerRegistry.js");
 const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
 // CONFIGURATION
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
@@ -39,7 +39,7 @@ class GoogleService {
         if (cached)
             return { ...cached, fromCache: true };
         // Execute with circuit breaker
-        const result = await CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('google', async () => {
+        const result = await CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('google', async () => {
             if (this.useDuckDuckGo) {
                 return this.searchDuckDuckGo(query);
             }
@@ -191,8 +191,4 @@ exports.GoogleService = GoogleService;
 const googleService = new GoogleService();
 exports.googleService = googleService;
 exports.default = googleService;
-// CommonJS compatibility
-module.exports = googleService;
-module.exports.googleService = googleService;
-module.exports.GoogleService = GoogleService;
 //# sourceMappingURL=googleService.js.map

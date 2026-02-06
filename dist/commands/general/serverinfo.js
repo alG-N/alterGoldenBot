@@ -6,12 +6,12 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 const discord_js_1 = require("discord.js");
-const BaseCommand_1 = require("../BaseCommand");
-const constants_1 = require("../../constants");
-class ServerInfoCommand extends BaseCommand_1.BaseCommand {
+const BaseCommand_js_1 = require("../BaseCommand.js");
+const constants_js_1 = require("../../constants.js");
+class ServerInfoCommand extends BaseCommand_js_1.BaseCommand {
     constructor() {
         super({
-            category: BaseCommand_1.CommandCategory.GENERAL,
+            category: BaseCommand_js_1.CommandCategory.GENERAL,
             cooldown: 5,
             deferReply: true
         });
@@ -40,7 +40,6 @@ class ServerInfoCommand extends BaseCommand_1.BaseCommand {
         const members = guild.members.cache;
         const humans = members.filter(m => !m.user.bot).size;
         const bots = members.filter(m => m.user.bot).size;
-        const online = members.filter(m => m.presence?.status === 'online').size;
         // Roles
         const roles = guild.roles.cache;
         const topRole = roles.sort((a, b) => b.position - a.position).first();
@@ -67,14 +66,14 @@ class ServerInfoCommand extends BaseCommand_1.BaseCommand {
         const createdTimestamp = Math.floor(createdAt.getTime() / 1000);
         const embed = new discord_js_1.EmbedBuilder()
             .setTitle(`✨ ${guild.name}`)
-            .setColor(constants_1.COLORS.INFO)
+            .setColor(constants_js_1.COLORS.INFO)
             .setThumbnail(guild.iconURL({ size: 1024, forceStatic: false }))
             .setDescription(guild.description || '*No description set*')
             .addFields(
         // General Info
         { name: '👑 Owner', value: owner ? `<@${owner.id}>` : 'Unknown', inline: true }, { name: '🆔 Server ID', value: `\`${guild.id}\``, inline: true }, { name: '📅 Created', value: `<t:${createdTimestamp}:R>`, inline: true }, 
         // Members
-        { name: '👥 Members', value: `Total: **${guild.memberCount}**\nHumans: ${humans}\nBots: ${bots}`, inline: true }, { name: '🟢 Online', value: `${online} members`, inline: true }, { name: '📜 Roles', value: `${roles.size} roles\nTop: ${topRole?.name || 'None'}`, inline: true }, 
+        { name: '👥 Members', value: `Total: **${guild.memberCount}**\nHumans: ${humans}\nBots: ${bots}`, inline: true }, { name: ' Roles', value: `${roles.size} roles\nTop: ${topRole?.name || 'None'}`, inline: true }, 
         // Channels
         { name: '💬 Channels', value: `Text: ${textChannels}\nVoice: ${voiceChannels}\nCategories: ${categories}`, inline: true }, { name: '🧵 Threads', value: `${threads}`, inline: true }, { name: '😀 Emojis', value: `${guild.emojis.cache.size}`, inline: true }, 
         // Server settings
@@ -97,6 +96,4 @@ class ServerInfoCommand extends BaseCommand_1.BaseCommand {
 // Export singleton instance
 const serverInfoCommand = new ServerInfoCommand();
 exports.default = serverInfoCommand;
-// CommonJS compatibility
-module.exports = serverInfoCommand;
 //# sourceMappingURL=serverinfo.js.map

@@ -20,13 +20,13 @@ exports.removeAll = removeAll;
 exports.count = count;
 exports.getBySeverity = getBySeverity;
 exports.search = search;
-const postgres_1 = __importDefault(require("../../database/postgres"));
+const postgres_js_1 = __importDefault(require("../../database/postgres.js"));
 // Repository Functions
 /**
  * Get all filters for a guild
  */
 async function getAll(guildId) {
-    const result = await postgres_1.default.query(`SELECT * FROM word_filters 
+    const result = await postgres_js_1.default.query(`SELECT * FROM word_filters 
          WHERE guild_id = $1 
          ORDER BY severity DESC, pattern`, [guildId]);
     return result.rows;
@@ -35,14 +35,14 @@ async function getAll(guildId) {
  * Get filter by ID
  */
 async function getById(id) {
-    const result = await postgres_1.default.query(`SELECT * FROM word_filters WHERE id = $1`, [id]);
+    const result = await postgres_js_1.default.query(`SELECT * FROM word_filters WHERE id = $1`, [id]);
     return result.rows[0] || null;
 }
 /**
  * Get filter by pattern
  */
 async function getByPattern(guildId, pattern) {
-    const result = await postgres_1.default.query(`SELECT * FROM word_filters 
+    const result = await postgres_js_1.default.query(`SELECT * FROM word_filters 
          WHERE guild_id = $1 AND LOWER(pattern) = LOWER($2)`, [guildId, pattern]);
     return result.rows[0] || null;
 }
@@ -51,7 +51,7 @@ async function getByPattern(guildId, pattern) {
  */
 async function add(data) {
     const { guildId, pattern, matchType = 'contains', action = 'delete_warn', severity = 1, createdBy } = data;
-    const result = await postgres_1.default.query(`INSERT INTO word_filters (guild_id, pattern, match_type, action, severity, created_by)
+    const result = await postgres_js_1.default.query(`INSERT INTO word_filters (guild_id, pattern, match_type, action, severity, created_by)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (guild_id, pattern) DO UPDATE 
          SET match_type = $3, action = $4, severity = $5
@@ -76,7 +76,7 @@ async function addBulk(guildId, filters, createdBy) {
         f.severity || 1,
         createdBy
     ]);
-    const result = await postgres_1.default.query(`INSERT INTO word_filters (guild_id, pattern, match_type, action, severity, created_by)
+    const result = await postgres_js_1.default.query(`INSERT INTO word_filters (guild_id, pattern, match_type, action, severity, created_by)
          VALUES ${values}
          ON CONFLICT (guild_id, pattern) DO NOTHING`, params);
     return result.rowCount ?? 0;
@@ -99,7 +99,7 @@ async function update(id, updates) {
     }
     if (setClauses.length === 0)
         return getById(id);
-    const result = await postgres_1.default.query(`UPDATE word_filters 
+    const result = await postgres_js_1.default.query(`UPDATE word_filters 
          SET ${setClauses.join(', ')}
          WHERE id = $1
          RETURNING *`, params);
@@ -109,14 +109,14 @@ async function update(id, updates) {
  * Remove a filter by ID
  */
 async function remove(id) {
-    const result = await postgres_1.default.query(`DELETE FROM word_filters WHERE id = $1`, [id]);
+    const result = await postgres_js_1.default.query(`DELETE FROM word_filters WHERE id = $1`, [id]);
     return (result.rowCount ?? 0) > 0;
 }
 /**
  * Remove filter by pattern
  */
 async function removeByPattern(guildId, pattern) {
-    const result = await postgres_1.default.query(`DELETE FROM word_filters 
+    const result = await postgres_js_1.default.query(`DELETE FROM word_filters 
          WHERE guild_id = $1 AND LOWER(pattern) = LOWER($2)`, [guildId, pattern]);
     return (result.rowCount ?? 0) > 0;
 }
@@ -124,21 +124,21 @@ async function removeByPattern(guildId, pattern) {
  * Remove all filters for a guild
  */
 async function removeAll(guildId) {
-    const result = await postgres_1.default.query(`DELETE FROM word_filters WHERE guild_id = $1`, [guildId]);
+    const result = await postgres_js_1.default.query(`DELETE FROM word_filters WHERE guild_id = $1`, [guildId]);
     return result.rowCount ?? 0;
 }
 /**
  * Get filter count for a guild
  */
 async function count(guildId) {
-    const result = await postgres_1.default.query(`SELECT COUNT(*) as count FROM word_filters WHERE guild_id = $1`, [guildId]);
+    const result = await postgres_js_1.default.query(`SELECT COUNT(*) as count FROM word_filters WHERE guild_id = $1`, [guildId]);
     return parseInt(String(result.rows[0]?.count ?? '0'), 10);
 }
 /**
  * Get filters by severity
  */
 async function getBySeverity(guildId, minSeverity) {
-    const result = await postgres_1.default.query(`SELECT * FROM word_filters 
+    const result = await postgres_js_1.default.query(`SELECT * FROM word_filters 
          WHERE guild_id = $1 AND severity >= $2
          ORDER BY severity DESC`, [guildId, minSeverity]);
     return result.rows;
@@ -147,7 +147,7 @@ async function getBySeverity(guildId, minSeverity) {
  * Search filters
  */
 async function search(guildId, searchTerm) {
-    const result = await postgres_1.default.query(`SELECT * FROM word_filters 
+    const result = await postgres_js_1.default.query(`SELECT * FROM word_filters 
          WHERE guild_id = $1 AND pattern ILIKE $2
          ORDER BY severity DESC`, [guildId, `%${searchTerm}%`]);
     return result.rows;

@@ -6,12 +6,12 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 const discord_js_1 = require("discord.js");
-const BaseCommand_1 = require("../BaseCommand");
-const constants_1 = require("../../constants");
-class AvatarCommand extends BaseCommand_1.BaseCommand {
+const BaseCommand_js_1 = require("../BaseCommand.js");
+const constants_js_1 = require("../../constants.js");
+class AvatarCommand extends BaseCommand_js_1.BaseCommand {
     constructor() {
         super({
-            category: BaseCommand_1.CommandCategory.GENERAL,
+            category: BaseCommand_js_1.CommandCategory.GENERAL,
             cooldown: 3,
             deferReply: false
         });
@@ -62,7 +62,7 @@ class AvatarCommand extends BaseCommand_1.BaseCommand {
         }
         const embed = new discord_js_1.EmbedBuilder()
             .setTitle(`${targetUser.username}'s Avatar`)
-            .setColor(fetchedUser.accentColor || constants_1.COLORS.PRIMARY)
+            .setColor(fetchedUser.accentColor || constants_js_1.COLORS.PRIMARY)
             .setImage(avatarURL)
             .setTimestamp()
             .setFooter({
@@ -107,6 +107,4 @@ class AvatarCommand extends BaseCommand_1.BaseCommand {
 // Export singleton instance
 const avatarCommand = new AvatarCommand();
 exports.default = avatarCommand;
-// CommonJS compatibility
-module.exports = avatarCommand;
 //# sourceMappingURL=avatar.js.map

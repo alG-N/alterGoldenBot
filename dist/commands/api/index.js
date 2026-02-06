@@ -27,18 +27,4 @@ var steam_js_1 = require("./steam.js");
 Object.defineProperty(exports, "steam", { enumerable: true, get: function () { return __importDefault(steam_js_1).default; } });
 var wikipedia_js_1 = require("./wikipedia.js");
 Object.defineProperty(exports, "wikipedia", { enumerable: true, get: function () { return __importDefault(wikipedia_js_1).default; } });
-// CommonJS compatibility for command loader
-// Handle both `module.exports = cmd` and `export default cmd` patterns
-const getCmd = (mod) => mod.default || mod;
-module.exports = {
-    anime: getCmd(require('./anime')),
-    fandom: getCmd(require('./fandom')),
-    google: getCmd(require('./google')),
-    nhentai: getCmd(require('./nhentai')),
-    pixiv: getCmd(require('./pixiv')),
-    reddit: getCmd(require('./reddit')),
-    rule34: getCmd(require('./rule34')),
-    steam: getCmd(require('./steam')),
-    wikipedia: getCmd(require('./wikipedia')),
-};
 //# sourceMappingURL=index.js.map

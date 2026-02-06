@@ -13,8 +13,8 @@ import {
     GuildMember,
     GuildBan
 } from 'discord.js';
-import { BaseCommand, CommandCategory, CommandData } from '../BaseCommand';
-import { COLORS } from '../../constants';
+import { BaseCommand, CommandCategory, CommandData } from '../BaseCommand.js';
+import { COLORS } from '../../constants.js';
 
 // Helper to get default export from require()
 const getDefault = <T>(mod: { default?: T } | T): T => (mod as { default?: T }).default || mod as T;

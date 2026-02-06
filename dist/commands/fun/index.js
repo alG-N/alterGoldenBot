@@ -12,11 +12,4 @@ var deathbattle_js_1 = require("./deathbattle.js");
 Object.defineProperty(exports, "deathbattle", { enumerable: true, get: function () { return __importDefault(deathbattle_js_1).default; } });
 var say_js_1 = require("./say.js");
 Object.defineProperty(exports, "say", { enumerable: true, get: function () { return __importDefault(say_js_1).default; } });
-// CommonJS compatibility for command loader
-// Handle both `module.exports = cmd` and `export default cmd` patterns
-const getCmd = (mod) => mod.default || mod;
-module.exports = {
-    deathbattle: getCmd(require('./deathbattle')),
-    say: getCmd(require('./say')),
-};
 //# sourceMappingURL=index.js.map

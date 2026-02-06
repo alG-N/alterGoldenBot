@@ -167,10 +167,28 @@ class Container {
         for (const [name, inst] of this.instances) {
             try {
                 const service = inst;
-                if (service && typeof service.shutdown === 'function') {
+                if (!service)
+                    continue;
+                // Try lifecycle methods in priority order
+                if (typeof service.shutdown === 'function') {
                     await service.shutdown();
-                    Logger_js_1.logger.debug('Container', `Shutdown: ${name}`);
                 }
+                else if (typeof service.shutdownAll === 'function') {
+                    await service.shutdownAll();
+                }
+                else if (typeof service.destroy === 'function') {
+                    await service.destroy();
+                }
+                else if (typeof service.destroyAll === 'function') {
+                    await service.destroyAll();
+                }
+                else if (typeof service.close === 'function') {
+                    await service.close();
+                }
+                else {
+                    continue; // No lifecycle method — skip logging
+                }
+                Logger_js_1.logger.debug('Container', `Shutdown: ${name}`);
             }
             catch (error) {
                 const message = error instanceof Error ? error.message : String(error);

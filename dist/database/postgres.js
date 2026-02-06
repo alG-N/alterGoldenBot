@@ -48,7 +48,8 @@ const pg_1 = require("pg");
 const GracefulDegradation_js_1 = __importStar(require("../core/GracefulDegradation.js"));
 const metrics_js_1 = require("../core/metrics.js");
 // Use require for internal modules to avoid circular dependency
-const logger = require('../core/Logger');
+const _loggerMod = require('../core/Logger');
+const logger = _loggerMod.default || _loggerMod;
 // TYPES & INTERFACES
 /**
  * Allowed table names (whitelist for SQL injection prevention)
@@ -705,14 +706,4 @@ function isDatabaseReady() {
 }
 // Default export
 exports.default = defaultInstance;
-// CommonJS COMPATIBILITY
-module.exports = defaultInstance;
-module.exports.PostgresDatabase = PostgresDatabase;
-module.exports.validateTable = validateTable;
-module.exports.validateIdentifier = validateIdentifier;
-module.exports.ALLOWED_TABLES = exports.ALLOWED_TABLES;
-module.exports.TRANSIENT_ERROR_CODES = exports.TRANSIENT_ERROR_CODES;
-module.exports.initializeDatabase = initializeDatabase;
-module.exports.isDatabaseReady = isDatabaseReady;
-module.exports.default = defaultInstance;
 //# sourceMappingURL=postgres.js.map

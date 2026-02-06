@@ -22,8 +22,7 @@ exports.CLIENT_OPTIONS = {
         discord_js_1.GatewayIntentBits.GuildVoiceStates,
         discord_js_1.GatewayIntentBits.MessageContent,
         discord_js_1.GatewayIntentBits.GuildMembers,
-        discord_js_1.GatewayIntentBits.DirectMessages,
-        discord_js_1.GatewayIntentBits.GuildPresences
+        discord_js_1.GatewayIntentBits.DirectMessages
     ],
     partials: [
         discord_js_1.Partials.Message,

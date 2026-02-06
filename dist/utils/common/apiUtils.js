@@ -14,7 +14,7 @@ exports.isRetryableError = isRetryableError;
 exports.withRetry = withRetry;
 exports.withTimeout = withTimeout;
 exports.withTimeoutAndRetry = withTimeoutAndRetry;
-const Logger_1 = __importDefault(require("../../core/Logger"));
+const Logger_js_1 = __importDefault(require("../../core/Logger.js"));
 // CONFIGURATION
 /**
  * Default configuration for API utilities
@@ -73,7 +73,7 @@ async function withRetry(fn, options = {}) {
             // Check if we should retry
             if (attempt <= maxRetries && isRetryableError(error, retryableStatusCodes)) {
                 const delay = retryDelay * Math.pow(2, attempt - 1); // Exponential backoff
-                Logger_1.default.debug('API', `${name} failed (attempt ${attempt}/${maxRetries + 1}), retrying in ${delay}ms: ${lastError.message}`);
+                Logger_js_1.default.debug('API', `${name} failed (attempt ${attempt}/${maxRetries + 1}), retrying in ${delay}ms: ${lastError.message}`);
                 if (onRetry) {
                     onRetry(attempt, lastError);
                 }

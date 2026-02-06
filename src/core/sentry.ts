@@ -5,7 +5,7 @@
  */
 
 import * as Sentry from '@sentry/node';
-import logger from './Logger';
+import logger from './Logger.js';
 // TYPES
 interface SentryInitOptions {
     release?: string;

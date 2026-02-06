@@ -41,7 +41,7 @@ interface LockdownService {
     unlockChannel?: (channel: TextChannel, reason: string) => Promise<LockResult>;
     lockServer?: (guild: ChatInputCommandInteraction['guild'], reason: string) => Promise<ServerLockResult>;
     unlockServer?: (guild: ChatInputCommandInteraction['guild'], reason: string) => Promise<ServerLockResult>;
-    getLockStatus?: (guildId: string) => LockStatus;
+    getLockStatus?: (guildId: string) => Promise<LockStatus>;
 }
 
 const getDefault = <T>(mod: { default?: T } | T): T => (mod as { default?: T }).default || mod as T;
@@ -350,7 +350,7 @@ class LockdownCommand extends BaseCommand {
             return;
         }
 
-        const status = lockdownService?.getLockStatus?.(interaction.guild.id) || { lockedCount: 0, channelIds: [] };
+        const status = await lockdownService?.getLockStatus?.(interaction.guild.id) || { lockedCount: 0, channelIds: [] };
         
         let description: string;
         if (status.lockedCount === 0) {

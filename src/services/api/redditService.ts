@@ -1,10 +1,10 @@
 import axios, { AxiosResponse } from 'axios';
 import { Buffer } from 'buffer';
-import config from '../../config/services';
-import { withRetry } from '../../utils/common/apiUtils';
-import logger from '../../core/Logger';
-import { circuitBreakerRegistry } from '../../core/CircuitBreakerRegistry';
-import cacheService from '../../cache/CacheService';
+import config from '../../config/services.js';
+import { withRetry } from '../../utils/common/apiUtils.js';
+import logger from '../../core/Logger.js';
+import { circuitBreakerRegistry } from '../../core/CircuitBreakerRegistry.js';
+import cacheService from '../../cache/CacheService.js';
 // TYPES & INTERFACES
 /**
  * Reddit OAuth token response

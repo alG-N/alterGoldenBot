@@ -15,7 +15,7 @@ import {
     ButtonInteraction,
     ModalSubmitInteraction
 } from 'discord.js';
-import nhentaiRepository, { NHentaiGallery, NHentaiFavourite } from '../../repositories/api/nhentaiRepository';
+import nhentaiRepository, { NHentaiGallery, NHentaiFavourite } from '../../repositories/api/nhentaiRepository.js';
 import cacheService from '../../cache/CacheService.js';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports

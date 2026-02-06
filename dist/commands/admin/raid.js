@@ -81,7 +81,7 @@ class RaidCommand extends BaseCommand_js_1.BaseCommand {
         const reason = interaction.options.getString('reason') || 'Manual activation';
         const lockdown = interaction.options.getBoolean('lockdown') ?? false;
         // Check if already active
-        if (antiRaidService?.isRaidModeActive?.(interaction.guild.id)) {
+        if (await antiRaidService?.isRaidModeActive?.(interaction.guild.id)) {
             await interaction.reply({
                 embeds: [
                     new discord_js_1.EmbedBuilder()
@@ -94,7 +94,7 @@ class RaidCommand extends BaseCommand_js_1.BaseCommand {
         }
         await interaction.deferReply();
         // Activate raid mode
-        antiRaidService?.activateRaidMode?.(interaction.guild.id, interaction.user.id, reason);
+        await antiRaidService?.activateRaidMode?.(interaction.guild.id, interaction.user.id, reason);
         const embed = new discord_js_1.EmbedBuilder()
             .setColor(moderationConfig?.COLORS?.RAID || 0xFF0000)
             .setTitle('🛡️ RAID MODE ACTIVATED')
@@ -128,7 +128,7 @@ class RaidCommand extends BaseCommand_js_1.BaseCommand {
         }
         const unlock = interaction.options.getBoolean('unlock') ?? false;
         // Check if active
-        if (!antiRaidService?.isRaidModeActive?.(interaction.guild.id)) {
+        if (!(await antiRaidService?.isRaidModeActive?.(interaction.guild.id))) {
             await interaction.reply({
                 embeds: [
                     new discord_js_1.EmbedBuilder()
@@ -140,7 +140,7 @@ class RaidCommand extends BaseCommand_js_1.BaseCommand {
             return;
         }
         await interaction.deferReply();
-        const result = antiRaidService?.deactivateRaidMode?.(interaction.guild.id) || {
+        const result = await antiRaidService?.deactivateRaidMode?.(interaction.guild.id) || {
             duration: 0,
             flaggedAccounts: 0
         };
@@ -171,9 +171,9 @@ class RaidCommand extends BaseCommand_js_1.BaseCommand {
             await this.errorReply(interaction, 'This command can only be used in a server.');
             return;
         }
-        const state = antiRaidService?.getRaidModeState?.(interaction.guild.id);
-        const flagged = antiRaidService?.getFlaggedAccounts?.(interaction.guild.id) || new Set();
-        const lockStatus = lockdownService?.getLockStatus?.(interaction.guild.id) || { lockedCount: 0 };
+        const state = await antiRaidService?.getRaidModeState?.(interaction.guild.id);
+        const flagged = await antiRaidService?.getFlaggedAccounts?.(interaction.guild.id) || [];
+        const lockStatus = await lockdownService?.getLockStatus?.(interaction.guild.id) || { lockedCount: 0 };
         if (!state?.active) {
             await interaction.reply({
                 embeds: [
@@ -200,7 +200,7 @@ class RaidCommand extends BaseCommand_js_1.BaseCommand {
                 new discord_js_1.EmbedBuilder()
                     .setColor(moderationConfig?.COLORS?.RAID || 0xFF0000)
                     .setTitle('🛡️ Raid Mode ACTIVE')
-                    .addFields({ name: 'Activated By', value: activatedBy, inline: true }, { name: 'Duration', value: `${durationMinutes} minutes`, inline: true }, { name: 'Reason', value: state.reason || 'No reason', inline: false }, { name: 'Flagged Users', value: `${flagged.size}`, inline: true }, { name: 'Kicked', value: `${state.stats?.kickedCount || 0}`, inline: true }, { name: 'Banned', value: `${state.stats?.bannedCount || 0}`, inline: true }, { name: 'Locked Channels', value: `${lockStatus.lockedCount}`, inline: true })
+                    .addFields({ name: 'Activated By', value: activatedBy, inline: true }, { name: 'Duration', value: `${durationMinutes} minutes`, inline: true }, { name: 'Reason', value: state.reason || 'No reason', inline: false }, { name: 'Flagged Users', value: `${flagged.length}`, inline: true }, { name: 'Kicked', value: `${state.stats?.kickedCount || 0}`, inline: true }, { name: 'Banned', value: `${state.stats?.bannedCount || 0}`, inline: true }, { name: 'Locked Channels', value: `${lockStatus.lockedCount}`, inline: true })
             ],
             ephemeral: true
         });
@@ -214,8 +214,8 @@ class RaidCommand extends BaseCommand_js_1.BaseCommand {
             return;
         }
         const action = interaction.options.getString('action', true);
-        const flagged = antiRaidService?.getFlaggedAccounts?.(interaction.guild.id) || new Set();
-        if (flagged.size === 0) {
+        const flagged = await antiRaidService?.getFlaggedAccounts?.(interaction.guild.id) || [];
+        if (flagged.length === 0) {
             await interaction.reply({
                 embeds: [
                     new discord_js_1.EmbedBuilder()
@@ -246,14 +246,14 @@ class RaidCommand extends BaseCommand_js_1.BaseCommand {
                 }
                 if (action === 'kick') {
                     await member.kick(`Raid cleanup by ${interaction.user.tag}`);
-                    antiRaidService?.updateStats?.(interaction.guild.id, 'kick');
+                    await antiRaidService?.updateStats?.(interaction.guild.id, 'kick');
                 }
                 else {
                     await member.ban({
                         reason: `Raid cleanup by ${interaction.user.tag}`,
                         deleteMessageSeconds: 60 * 60 * 24 // 24 hours
                     });
-                    antiRaidService?.updateStats?.(interaction.guild.id, 'ban');
+                    await antiRaidService?.updateStats?.(interaction.guild.id, 'ban');
                 }
                 results.success++;
                 // Delay to avoid rate limits

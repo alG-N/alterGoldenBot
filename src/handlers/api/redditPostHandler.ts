@@ -12,8 +12,8 @@ import {
     ChatInputCommandInteraction,
     ButtonInteraction
 } from 'discord.js';
-import { formatNumber, truncateText } from '../../utils/common/embed';
-import redditCache from '../../repositories/api/redditCache';
+import { formatNumber, truncateText } from '../../utils/common/embed.js';
+import redditCache from '../../repositories/api/redditCache.js';
 // TYPES & INTERFACES
 interface RedditPost {
     title: string;

@@ -15,8 +15,8 @@ exports.createPostListEmbed = createPostListEmbed;
 exports.createPostEmbed = createPostEmbed;
 exports.createNotFoundEmbed = createNotFoundEmbed;
 const discord_js_1 = require("discord.js");
-const embed_1 = require("../../utils/common/embed");
-const redditCache_1 = __importDefault(require("../../repositories/api/redditCache"));
+const embed_js_1 = require("../../utils/common/embed.js");
+const redditCache_js_1 = __importDefault(require("../../repositories/api/redditCache.js"));
 // CONSTANTS
 const POSTS_PER_PAGE = 5;
 exports.POSTS_PER_PAGE = POSTS_PER_PAGE;
@@ -52,7 +52,7 @@ function createPostListEmbed(subreddit, posts, sortBy, currentPage) {
         const contentIcon = CONTENT_ICONS[post.contentType || 'text'] || CONTENT_ICONS.text;
         const nsfwTag = post.nsfw ? '🔞 ' : '';
         const title = `${globalIndex + 1}. ${nsfwTag}${contentIcon} ${post.title.slice(0, 80)}${post.title.length > 80 ? '...' : ''}`;
-        const value = `👍 ${(0, embed_1.formatNumber)(post.upvotes || post.ups || 0)} | 💬 ${(0, embed_1.formatNumber)(post.comments || post.num_comments || 0)} | 🏆 ${post.awards || 0}\n[View on Reddit](${post.permalink})`;
+        const value = `👍 ${(0, embed_js_1.formatNumber)(post.upvotes || post.ups || 0)} | 💬 ${(0, embed_js_1.formatNumber)(post.comments || post.num_comments || 0)} | 🏆 ${post.awards || 0}\n[View on Reddit](${post.permalink})`;
         embed.addFields({ name: title, value, inline: false });
     });
     return embed;
@@ -121,15 +121,15 @@ function createPostEmbed(post, subreddit) {
     const contentIcon = CONTENT_ICONS[post.contentType || 'text'] || CONTENT_ICONS.text;
     const nsfwTag = post.over_18 || post.nsfw ? '🔞 ' : '';
     const embed = new discord_js_1.EmbedBuilder()
-        .setTitle(`${nsfwTag}${contentIcon} ${(0, embed_1.truncateText)(post.title, 200)}`)
+        .setTitle(`${nsfwTag}${contentIcon} ${(0, embed_js_1.truncateText)(post.title, 200)}`)
         .setURL(post.permalink || `https://reddit.com${post.url}`)
         .setColor(0xFF4500)
         .setAuthor({ name: `Posted by u/${post.author}` })
-        .setFooter({ text: `r/${subreddit} • 👍 ${(0, embed_1.formatNumber)(post.upvotes || post.ups || 0)} • 💬 ${(0, embed_1.formatNumber)(post.comments || post.num_comments || 0)}` })
+        .setFooter({ text: `r/${subreddit} • 👍 ${(0, embed_js_1.formatNumber)(post.upvotes || post.ups || 0)} • 💬 ${(0, embed_js_1.formatNumber)(post.comments || post.num_comments || 0)}` })
         .setTimestamp(post.created ? new Date(post.created * 1000) : null);
     // Add description if text post
     if (post.selftext?.trim()) {
-        embed.setDescription((0, embed_1.truncateText)(post.selftext, 500));
+        embed.setDescription((0, embed_js_1.truncateText)(post.selftext, 500));
     }
     // Add image if available
     if (post.image || post.thumbnail) {
@@ -170,7 +170,7 @@ async function showPostDetails(interaction, post, postIndex, userId) {
         .setTimestamp(post.created ? new Date(post.created * 1000) : null);
     const statsField = {
         name: '📊 Statistics',
-        value: `👍 ${(0, embed_1.formatNumber)(post.upvotes || 0)} upvotes\n💬 ${(0, embed_1.formatNumber)(post.comments || 0)} comments\n🏆 ${post.awards || 0} awards`,
+        value: `👍 ${(0, embed_js_1.formatNumber)(post.upvotes || 0)} upvotes\n💬 ${(0, embed_js_1.formatNumber)(post.comments || 0)} comments\n🏆 ${post.awards || 0} awards`,
         inline: true
     };
     const components = [createBackButton(userId)];
@@ -186,7 +186,7 @@ async function showPostDetails(interaction, post, postIndex, userId) {
             break;
         case 'gallery':
             if (post.gallery && post.gallery.length > 0) {
-                const galleryPage = redditCache_1.default.getGalleryPage(userId, postIndex);
+                const galleryPage = redditCache_js_1.default.getGalleryPage(userId, postIndex);
                 embed.setImage(post.gallery[galleryPage]);
                 embed.addFields(statsField, {
                     name: '🖼️ Gallery',
@@ -204,7 +204,7 @@ async function showPostDetails(interaction, post, postIndex, userId) {
         default:
             embed.addFields(statsField);
             if (post.selftext?.trim()) {
-                embed.setDescription((0, embed_1.truncateText)(post.selftext, 3000));
+                embed.setDescription((0, embed_js_1.truncateText)(post.selftext, 3000));
             }
             else if (post.url !== post.permalink) {
                 embed.addFields({
@@ -218,7 +218,7 @@ async function showPostDetails(interaction, post, postIndex, userId) {
         const maxLength = post.contentType === 'gallery' ? 800 : 1000;
         embed.addFields({
             name: '📝 Post Content',
-            value: (0, embed_1.truncateText)(post.selftext, maxLength),
+            value: (0, embed_js_1.truncateText)(post.selftext, maxLength),
             inline: false
         });
     }

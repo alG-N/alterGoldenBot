@@ -3,10 +3,10 @@
  */
 
 // Import repositories
-import InfractionRepository from './InfractionRepository';
-import AutoModRepository from './AutoModRepository';
-import FilterRepository from './FilterRepository';
-import ModLogRepository from './ModLogRepository';
+import InfractionRepository from './InfractionRepository.js';
+import AutoModRepository from './AutoModRepository.js';
+import FilterRepository from './FilterRepository.js';
+import ModLogRepository from './ModLogRepository.js';
 
 // Import types
 import type { 
@@ -17,13 +17,13 @@ import type {
     InfractionSearchCriteria,
     InfractionStats,
     InfractionUpdateData
-} from './InfractionRepository';
+} from './InfractionRepository.js';
 
 import type { 
     AutoModSettings, 
     AutoModUpdateData, 
     AutoModAction 
-} from './AutoModRepository';
+} from './AutoModRepository.js';
 
 import type { 
     WordFilter, 
@@ -32,13 +32,13 @@ import type {
     FilterAddData, 
     FilterBulkItem, 
     FilterUpdateData 
-} from './FilterRepository';
+} from './FilterRepository.js';
 
 import type { 
     ModLogSettings, 
     ModLogUpdateData, 
     LogType 
-} from './ModLogRepository';
+} from './ModLogRepository.js';
 
 // Re-export repositories
 export {

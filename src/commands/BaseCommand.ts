@@ -22,11 +22,11 @@ import {
     GuildMember,
 } from 'discord.js';
 
-import { COLORS, TIMEOUTS, EMOJIS } from '../constants';
-import { AppError, ValidationError, PermissionError } from '../errors';
-import { trackCommand, commandsActive, commandErrorsTotal } from '../core/metrics';
-import { isOwner } from '../config/owner';
-import { logger } from '../core/Logger';
+import { COLORS, TIMEOUTS, EMOJIS } from '../constants.js';
+import { AppError, ValidationError, PermissionError } from '../errors/index.js';
+import { trackCommand, commandsActive, commandErrorsTotal } from '../core/metrics.js';
+import { isOwner } from '../config/owner.js';
+import { logger } from '../core/Logger.js';
 // TYPES & INTERFACES
 /**
  * Command categories enum

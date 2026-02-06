@@ -3,7 +3,7 @@
  * Database operations for mod log settings
  */
 
-import db from '../../database/postgres';
+import db from '../../database/postgres.js';
 // Interfaces
 interface ModLogSettings {
     guild_id: string;

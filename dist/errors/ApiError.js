@@ -5,13 +5,14 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ApiError = void 0;
-const AppError_1 = require("./AppError");
+const AppError_js_1 = require("./AppError.js");
 /**
  * Base API error - use only for catch blocks or instanceof checks.
- * For throwing errors, prefer `Result.err(ErrorCodes.XXX)` pattern.
+ * @deprecated Prefer `Result.err(ErrorCodes.XXX)` pattern for new error flows.
  */
-class ApiError extends AppError_1.AppError {
+class ApiError extends AppError_js_1.AppError {
     service;
+    /** @deprecated Use `Result.err(ErrorCodes.XXX)` instead. */
     constructor(message, code = 'API_ERROR', service = null) {
         super(message, code, 400);
         this.service = service;
@@ -24,8 +25,4 @@ class ApiError extends AppError_1.AppError {
     }
 }
 exports.ApiError = ApiError;
-// CommonJS compatibility
-module.exports = {
-    ApiError,
-};
 //# sourceMappingURL=ApiError.js.map

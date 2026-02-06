@@ -238,7 +238,7 @@ class LockdownCommand extends BaseCommand_js_1.BaseCommand {
             await this.errorReply(interaction, 'This command can only be used in a server.');
             return;
         }
-        const status = lockdownService?.getLockStatus?.(interaction.guild.id) || { lockedCount: 0, channelIds: [] };
+        const status = await lockdownService?.getLockStatus?.(interaction.guild.id) || { lockedCount: 0, channelIds: [] };
         let description;
         if (status.lockedCount === 0) {
             description = '✅ No channels are currently locked.';

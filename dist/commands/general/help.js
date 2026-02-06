@@ -6,8 +6,8 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 const discord_js_1 = require("discord.js");
-const BaseCommand_1 = require("../BaseCommand");
-const constants_1 = require("../../constants");
+const BaseCommand_js_1 = require("../BaseCommand.js");
+const constants_js_1 = require("../../constants.js");
 /**
  * Category configuration
  */
@@ -20,10 +20,10 @@ const CATEGORIES = {
     admin: { emoji: '🛡️', name: 'Admin', description: 'Server management' },
     moderation: { emoji: '⚙️', name: 'Moderation', description: 'Auto-mod & filters' }
 };
-class HelpCommand extends BaseCommand_1.BaseCommand {
+class HelpCommand extends BaseCommand_js_1.BaseCommand {
     constructor() {
         super({
-            category: BaseCommand_1.CommandCategory.GENERAL,
+            category: BaseCommand_js_1.CommandCategory.GENERAL,
             cooldown: 5,
             deferReply: false
         });
@@ -38,7 +38,7 @@ class HelpCommand extends BaseCommand_1.BaseCommand {
      */
     buildCategoryEmbed(category, user) {
         const embed = new discord_js_1.EmbedBuilder()
-            .setColor(constants_1.COLORS.INFO)
+            .setColor(constants_js_1.COLORS.INFO)
             .setTimestamp()
             .setFooter({
             text: `Requested by ${user.tag} • Use buttons to navigate`,
@@ -310,6 +310,4 @@ class HelpCommand extends BaseCommand_1.BaseCommand {
 // Export singleton instance
 const helpCommand = new HelpCommand();
 exports.default = helpCommand;
-// CommonJS compatibility
-module.exports = helpCommand;
 //# sourceMappingURL=help.js.map

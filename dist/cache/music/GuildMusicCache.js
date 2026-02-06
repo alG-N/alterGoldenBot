@@ -6,7 +6,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.guildMusicCache = void 0;
-const constants_1 = require("../../constants");
+const constants_js_1 = require("../../constants.js");
 // GuildMusicCache Class
 class GuildMusicCache {
     // Guild settings
@@ -28,9 +28,9 @@ class GuildMusicCache {
         this.recentlyPlayed = new Map();
         this.djLockState = new Map();
         this.playlistCache = new Map();
-        this.MAX_GUILDS = constants_1.CACHE_LIMITS.MAX_GUILDS;
-        this.RECENTLY_PLAYED_MAX = constants_1.CACHE_LIMITS.MAX_RECENTLY_PLAYED;
-        this.PLAYLIST_CACHE_TTL = constants_1.CACHE_LIMITS.PLAYLIST_CACHE_TTL;
+        this.MAX_GUILDS = constants_js_1.CACHE_LIMITS.MAX_GUILDS;
+        this.RECENTLY_PLAYED_MAX = constants_js_1.CACHE_LIMITS.MAX_RECENTLY_PLAYED;
+        this.PLAYLIST_CACHE_TTL = constants_js_1.CACHE_LIMITS.PLAYLIST_CACHE_TTL;
         this._cleanupInterval = setInterval(() => this.cleanup(), 30 * 60 * 1000);
     }
     /**
@@ -158,7 +158,7 @@ class GuildMusicCache {
      * Cache playlist
      */
     cachePlaylist(playlistUrl, playlistData) {
-        if (this.playlistCache.size >= constants_1.CACHE_LIMITS.MAX_PLAYLIST_CACHE) {
+        if (this.playlistCache.size >= constants_js_1.CACHE_LIMITS.MAX_PLAYLIST_CACHE) {
             this._evictOldestPlaylist();
         }
         this.playlistCache.set(playlistUrl, {

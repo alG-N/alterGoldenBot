@@ -1,45 +1,91 @@
 "use strict";
 /**
- * Pixiv Cache - Extends BaseCache with search-specific functionality
+ * Pixiv Cache — CacheService-backed search & result caching
+ *
+ * Architecture (same as rule34Cache):
+ *   - In-memory Maps for fast synchronous reads
+ *   - CacheService (Redis-backed) write-through for cross-shard sharing + persistence
+ *   - Lazy hydration on miss from CacheService
+ *
+ * @module repositories/api/pixivCache
  */
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PixivCache = exports.pixivCache = void 0;
-const BaseCache_1 = require("../../cache/BaseCache");
-// PixivCache Class
+const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
+// ── CacheService namespace constants ─────────────────────────────────
+const NS = {
+    SEARCH: 'pixiv:search',
+    RESULTS: 'pixiv:results',
+};
+const TTL = {
+    SEARCH: 5 * 60, // 5 minutes (autocomplete suggestions)
+    RESULTS: 30 * 60, // 30 minutes (paginated results)
+};
+const MAX = {
+    SEARCH: 200,
+    RESULTS: 100,
+};
+// ── Register namespaces ──────────────────────────────────────────────
+function registerNamespaces() {
+    CacheService_js_1.default.registerNamespace(NS.SEARCH, { ttl: TTL.SEARCH, maxSize: MAX.SEARCH, useRedis: true });
+    CacheService_js_1.default.registerNamespace(NS.RESULTS, { ttl: TTL.RESULTS, maxSize: MAX.RESULTS, useRedis: true });
+}
+// ── Helpers ──────────────────────────────────────────────────────────
+/** Fire-and-forget write to CacheService */
+function persist(ns, key, value, ttl) {
+    CacheService_js_1.default.set(ns, key, value, ttl).catch(() => { });
+}
+/** Fire-and-forget delete from CacheService */
+function unpersist(ns, key) {
+    CacheService_js_1.default.delete(ns, key).catch(() => { });
+}
+// ── PixivCache Class ─────────────────────────────────────────────────
 class PixivCache {
-    searchCache;
-    resultCache;
+    searchMap = new Map();
+    resultMap = new Map();
     constructor() {
-        // Use BaseCache for both caches
-        this.searchCache = new BaseCache_1.BaseCache('pixiv-search', {
-            defaultTTL: 5 * 60 * 1000, // 5 minutes
-            maxSize: 200
-        });
-        this.resultCache = new BaseCache_1.BaseCache('pixiv-results', {
-            defaultTTL: 30 * 60 * 1000, // 30 minutes
-            maxSize: 100
-        });
+        registerNamespaces();
     }
-    // Search autocomplete cache
+    // ── Search autocomplete cache ────────────────────────────────────
     getSearchSuggestions(query) {
         const key = query.toLowerCase();
-        return this.searchCache.get(key) || null;
+        const local = this.searchMap.get(key);
+        if (local)
+            return local;
+        // Lazy hydrate from CacheService
+        this._hydrateSearch(key);
+        return null;
     }
     setSearchSuggestions(query, results) {
         const key = query.toLowerCase();
-        this.searchCache.set(key, results);
+        if (this.searchMap.size >= MAX.SEARCH)
+            this._evictOldest(this.searchMap);
+        this.searchMap.set(key, results);
+        persist(NS.SEARCH, key, results, TTL.SEARCH);
     }
-    // Result cache for pagination
+    // ── Result cache for pagination ──────────────────────────────────
     getResults(cacheKey) {
-        return this.resultCache.get(cacheKey) || null;
+        const local = this.resultMap.get(cacheKey);
+        if (local)
+            return local;
+        // Lazy hydrate
+        this._hydrateResult(cacheKey);
+        return null;
     }
     setResults(cacheKey, data) {
-        this.resultCache.set(cacheKey, data);
+        if (this.resultMap.size >= MAX.RESULTS)
+            this._evictOldest(this.resultMap);
+        this.resultMap.set(cacheKey, data);
+        persist(NS.RESULTS, cacheKey, data, TTL.RESULTS);
     }
     deleteResults(cacheKey) {
-        this.resultCache.delete(cacheKey);
+        this.resultMap.delete(cacheKey);
+        unpersist(NS.RESULTS, cacheKey);
     }
-    // Alias methods for button handler compatibility
+    // ── Alias methods for button handler compatibility ───────────────
     getSearchResults(cacheKey) {
         return this.getResults(cacheKey);
     }
@@ -56,6 +102,35 @@ class PixivCache {
         if (existing) {
             this.setResults(cacheKey, { ...existing, ...updates });
         }
+    }
+    // ── Lifecycle ────────────────────────────────────────────────────
+    destroy() {
+        this.searchMap.clear();
+        this.resultMap.clear();
+    }
+    // ── Internal helpers ─────────────────────────────────────────────
+    _evictOldest(map) {
+        const firstKey = map.keys().next().value;
+        if (firstKey !== undefined)
+            map.delete(firstKey);
+    }
+    _hydrateSearch(key) {
+        CacheService_js_1.default.get(NS.SEARCH, key).then(val => {
+            if (val && !this.searchMap.has(key)) {
+                if (this.searchMap.size >= MAX.SEARCH)
+                    this._evictOldest(this.searchMap);
+                this.searchMap.set(key, val);
+            }
+        }).catch(() => { });
+    }
+    _hydrateResult(key) {
+        CacheService_js_1.default.get(NS.RESULTS, key).then(val => {
+            if (val && !this.resultMap.has(key)) {
+                if (this.resultMap.size >= MAX.RESULTS)
+                    this._evictOldest(this.resultMap);
+                this.resultMap.set(key, val);
+            }
+        }).catch(() => { });
     }
 }
 exports.PixivCache = PixivCache;

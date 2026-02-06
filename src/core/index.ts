@@ -5,19 +5,19 @@
  */
 // TYPESCRIPT MODULES
 // Logger
-export { default as logger, Logger, LOG_LEVELS, LOG_CHANNEL_ID } from './Logger';
-export type { LogLevel, LogFormat, LogMetadata, RequestLogOptions } from './Logger';
+export { default as logger, Logger, LOG_LEVELS, LOG_CHANNEL_ID } from './Logger.js';
+export type { LogLevel, LogFormat, LogMetadata, RequestLogOptions } from './Logger.js';
 
 // Result Pattern
-export { Result } from './Result';
-export type { ErrorDetails, ReplyOptions, DiscordReply, ResultJSON } from './Result';
+export { Result } from './Result.js';
+export type { ErrorDetails, ReplyOptions, DiscordReply, ResultJSON } from './Result.js';
 
 // Error Codes
-export { ErrorCodes, getErrorMessage, isErrorCategory } from './ErrorCodes';
-export type { ErrorCode, ErrorCategory } from './ErrorCodes';
+export { ErrorCodes, getErrorMessage, isErrorCategory } from './ErrorCodes.js';
+export type { ErrorCode, ErrorCategory } from './ErrorCodes.js';
 
 // Circuit Breaker
-export { CircuitBreaker, CircuitState } from './CircuitBreaker';
+export { CircuitBreaker, CircuitState } from './CircuitBreaker.js';
 export type { 
     CircuitStateType,
     CircuitBreakerOptions,
@@ -25,15 +25,15 @@ export type {
     CircuitBreakerMetrics,
     CircuitHealth,
     StateChange
-} from './CircuitBreaker';
+} from './CircuitBreaker.js';
 
 // Circuit Breaker Registry
 export { 
     circuitBreakerRegistry, 
     CircuitBreakerRegistry, 
     CIRCUIT_CONFIGS 
-} from './CircuitBreakerRegistry';
-export type { RegistryHealth, RegistrySummary, FallbackResult } from './CircuitBreakerRegistry';
+} from './CircuitBreakerRegistry.js';
+export type { RegistryHealth, RegistrySummary, FallbackResult } from './CircuitBreakerRegistry.js';
 
 // Client
 export { 
@@ -42,8 +42,8 @@ export {
     getClientStats, 
     ActivityType,
     CLIENT_OPTIONS 
-} from './Client';
-export type { ClientStats } from './Client';
+} from './Client.js';
+export type { ClientStats } from './Client.js';
 
 // Shutdown
 export { 
@@ -51,7 +51,7 @@ export {
     handleShutdown, 
     initializeShutdownHandlers,
     getIsShuttingDown
-} from './shutdown';
+} from './shutdown.js';
 
 // Error Handler
 export { 
@@ -60,10 +60,10 @@ export {
     withErrorHandling,
     withTimeout,
     interactionErrorBoundary
-} from './errorHandler';
+} from './errorHandler.js';
 
 // Sentry
-export * as sentry from './sentry';
+export * as sentry from './sentry.js';
 export {
     initialize as initializeSentry,
     captureException,
@@ -75,10 +75,10 @@ export {
     flush as flushSentry,
     close as closeSentry,
     isEnabled as isSentryEnabled
-} from './sentry';
+} from './sentry.js';
 
 // Health
-export * as health from './health';
+export * as health from './health.js';
 export {
     registerHealthCheck,
     runHealthChecks,
@@ -86,7 +86,7 @@ export {
     setStatus as setHealthStatus,
     startHealthServer,
     registerDefaultChecks
-} from './health';
+} from './health.js';
 
 // Graceful Degradation
 export { 
@@ -95,5 +95,5 @@ export {
     GracefulDegradation, 
     DegradationLevel, 
     ServiceState 
-} from './GracefulDegradation';
+} from './GracefulDegradation.js';
 

@@ -30,17 +30,4 @@ Object.defineProperty(exports, "report", { enumerable: true, get: function () { 
 Object.defineProperty(exports, "reportHandleModal", { enumerable: true, get: function () { return report_js_1.handleModal; } });
 var roleinfo_js_1 = require("./roleinfo.js");
 Object.defineProperty(exports, "roleinfo", { enumerable: true, get: function () { return __importDefault(roleinfo_js_1).default; } });
-// CommonJS compatibility for command loader
-// Handle both `module.exports = cmd` and `export default cmd` patterns
-const getCmd = (mod) => mod.default || mod;
-module.exports = {
-    ping: getCmd(require('./ping')),
-    help: getCmd(require('./help')),
-    avatar: getCmd(require('./avatar')),
-    serverinfo: getCmd(require('./serverinfo')),
-    afk: getCmd(require('./afk')),
-    invite: getCmd(require('./invite')),
-    report: getCmd(require('./report')),
-    roleinfo: getCmd(require('./roleinfo')),
-};
 //# sourceMappingURL=index.js.map

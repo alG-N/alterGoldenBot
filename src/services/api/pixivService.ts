@@ -6,9 +6,9 @@
 
 import * as path from 'path';
 import * as dotenv from 'dotenv';
-import logger from '../../core/Logger';
-import { circuitBreakerRegistry } from '../../core/CircuitBreakerRegistry';
-import cacheService from '../../cache/CacheService';
+import logger from '../../core/Logger.js';
+import { circuitBreakerRegistry } from '../../core/CircuitBreakerRegistry.js';
+import cacheService from '../../cache/CacheService.js';
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 // TYPES & INTERFACES

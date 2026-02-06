@@ -5,7 +5,7 @@
  */
 
 import axios, { AxiosRequestConfig } from 'axios';
-import { circuitBreakerRegistry } from '../../core/CircuitBreakerRegistry';
+import { circuitBreakerRegistry } from '../../core/CircuitBreakerRegistry.js';
 import cacheService from '../../cache/CacheService.js';
 // TYPES & INTERFACES
 interface RequestConfig extends AxiosRequestConfig {

@@ -10,7 +10,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NHentaiService = exports.nhentaiService = void 0;
 const axios_1 = __importDefault(require("axios"));
-const CircuitBreakerRegistry_1 = require("../../core/CircuitBreakerRegistry");
+const CircuitBreakerRegistry_js_1 = require("../../core/CircuitBreakerRegistry.js");
 const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
 // TYPES & INTERFACES
 // API Configuration
@@ -55,7 +55,7 @@ class NHentaiService {
         const cached = await CacheService_js_1.default.get(this.CACHE_NS, `nhentai:gallery_${code}`);
         if (cached)
             return { success: true, data: cached, fromCache: true };
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('nsfw', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('nsfw', async () => {
             try {
                 const response = await axios_1.default.get(`${API_BASE}${GALLERY_ENDPOINT}/${code}`, REQUEST_CONFIG);
                 // Cache successful response
@@ -156,7 +156,7 @@ class NHentaiService {
         const cached = await CacheService_js_1.default.get(this.CACHE_NS, cacheKey);
         if (cached)
             return { success: true, data: cached, fromCache: true };
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('nsfw', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('nsfw', async () => {
             try {
                 const encodedQuery = encodeURIComponent(query);
                 const sortParam = sort === 'recent' ? 'date' : 'popular';
@@ -185,7 +185,7 @@ class NHentaiService {
         const cached = await CacheService_js_1.default.get(this.CACHE_NS, cacheKey);
         if (cached)
             return cached;
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('nsfw', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('nsfw', async () => {
             try {
                 const response = await axios_1.default.get(`${API_BASE}/galleries/search?query=${encodeURIComponent(query)}&page=1`, { ...REQUEST_CONFIG, timeout: 3000 });
                 const results = response.data.result || [];
@@ -318,8 +318,4 @@ exports.NHentaiService = NHentaiService;
 const nhentaiService = new NHentaiService();
 exports.nhentaiService = nhentaiService;
 exports.default = nhentaiService;
-// CommonJS compatibility
-module.exports = nhentaiService;
-module.exports.nhentaiService = nhentaiService;
-module.exports.NHentaiService = NHentaiService;
 //# sourceMappingURL=nhentaiService.js.map

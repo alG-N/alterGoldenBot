@@ -12,8 +12,8 @@ import {
     GuildExplicitContentFilter,
     GuildVerificationLevel
 } from 'discord.js';
-import { BaseCommand, CommandCategory, CommandData } from '../BaseCommand';
-import { COLORS } from '../../constants';
+import { BaseCommand, CommandCategory, CommandData } from '../BaseCommand.js';
+import { COLORS } from '../../constants.js';
 
 class ServerInfoCommand extends BaseCommand {
     constructor() {

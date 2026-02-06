@@ -10,8 +10,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.setupWizardService = exports.SetupWizardService = void 0;
 const discord_js_1 = require("discord.js");
-const constants_1 = require("../../constants");
-const Logger_1 = __importDefault(require("../../core/Logger"));
+const constants_js_1 = require("../../constants.js");
+const Logger_js_1 = __importDefault(require("../../core/Logger.js"));
 /**
  * Setup Wizard Service Class
  */
@@ -32,12 +32,12 @@ class SetupWizardService {
             // Find a suitable channel to send the setup message
             const channel = await this.findWelcomeChannel(guild);
             if (!channel) {
-                Logger_1.default.warn('SetupWizard', `Could not find suitable channel in ${guild.name}`);
+                Logger_js_1.default.warn('SetupWizard', `Could not find suitable channel in ${guild.name}`);
                 return;
             }
             // Check if bot has permission to send messages
             if (!channel.permissionsFor(guild.members.me)?.has(discord_js_1.PermissionFlagsBits.SendMessages)) {
-                Logger_1.default.warn('SetupWizard', `No permission to send messages in ${channel.name}`);
+                Logger_js_1.default.warn('SetupWizard', `No permission to send messages in ${channel.name}`);
                 return;
             }
             // Send welcome message with setup options
@@ -51,7 +51,7 @@ class SetupWizardService {
             this.createWelcomeCollector(message, guild);
         }
         catch (error) {
-            Logger_1.default.error('SetupWizard', `Failed to start wizard for ${guild.name}:`, { error: error instanceof Error ? error.message : String(error) });
+            Logger_js_1.default.error('SetupWizard', `Failed to start wizard for ${guild.name}:`, { error: error instanceof Error ? error.message : String(error) });
         }
     }
     /**
@@ -94,7 +94,7 @@ class SetupWizardService {
     buildWelcomeEmbed(guild) {
         return new discord_js_1.EmbedBuilder()
             .setTitle('🎉 Thanks for adding alterGolden!')
-            .setColor(constants_1.COLORS.SUCCESS)
+            .setColor(constants_js_1.COLORS.SUCCESS)
             .setDescription(`Hey **${guild.name}**! I'm alterGolden, your new multi-purpose bot! 🤖\n\n` +
             '**What I can do:**\n' +
             '> 🎬 Download videos from TikTok, YouTube, Twitter & more\n' +
@@ -152,7 +152,7 @@ class SetupWizardService {
                         embeds: [
                             new discord_js_1.EmbedBuilder()
                                 .setTitle('✅ Setup Skipped')
-                                .setColor(constants_1.COLORS.INFO)
+                                .setColor(constants_js_1.COLORS.INFO)
                                 .setDescription('No problem! You can set up the bot anytime using:\n\n' +
                                 '> `/automod` - Configure auto-moderation\n' +
                                 '> `/setting` - Server settings\n' +
@@ -176,7 +176,7 @@ class SetupWizardService {
                     embeds: [
                         new discord_js_1.EmbedBuilder()
                             .setTitle('⏰ Setup Timed Out')
-                            .setColor(constants_1.COLORS.WARNING)
+                            .setColor(constants_js_1.COLORS.WARNING)
                             .setDescription('The setup wizard has timed out.\n' +
                             'Use `/help` to see commands or `/automod` to configure moderation.')
                     ],
@@ -191,7 +191,7 @@ class SetupWizardService {
     async showAutoModSetup(interaction, originalMessage) {
         const embed = new discord_js_1.EmbedBuilder()
             .setTitle('🛡️ Auto-Moderation Setup')
-            .setColor(constants_1.COLORS.INFO)
+            .setColor(constants_js_1.COLORS.INFO)
             .setDescription('**Select the features you want to enable:**\n\n' +
             '> 🚫 **Anti-Spam** - Prevent message spam\n' +
             '> 🔗 **Anti-Invite** - Block Discord invite links\n' +
@@ -324,7 +324,7 @@ class SetupWizardService {
                 : '> *No features enabled*';
             const embed = new discord_js_1.EmbedBuilder()
                 .setTitle('✅ Auto-Moderation Configured!')
-                .setColor(constants_1.COLORS.SUCCESS)
+                .setColor(constants_js_1.COLORS.SUCCESS)
                 .setDescription('**Enabled Features:**\n' +
                 enabledList + '\n\n' +
                 '**Next Steps:**\n' +
@@ -345,15 +345,15 @@ class SetupWizardService {
             });
             // Handle next step
             this.createFinalStepCollector(interaction.message);
-            Logger_1.default.info('SetupWizard', `AutoMod configured for ${guild.name}: ${features.join(', ')}`);
+            Logger_js_1.default.info('SetupWizard', `AutoMod configured for ${guild.name}: ${features.join(', ')}`);
         }
         catch (error) {
-            Logger_1.default.error('SetupWizard', 'Failed to apply automod settings:', { error: error instanceof Error ? error.message : String(error) });
+            Logger_js_1.default.error('SetupWizard', 'Failed to apply automod settings:', { error: error instanceof Error ? error.message : String(error) });
             await interaction.update({
                 embeds: [
                     new discord_js_1.EmbedBuilder()
                         .setTitle('❌ Setup Error')
-                        .setColor(constants_1.COLORS.ERROR)
+                        .setColor(constants_js_1.COLORS.ERROR)
                         .setDescription('Failed to save settings. Please try again or use `/automod` manually.\n\n' +
                         `Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
                 ],
@@ -393,7 +393,7 @@ class SetupWizardService {
     async showFeaturesOverview(interaction, _message) {
         const embed = new discord_js_1.EmbedBuilder()
             .setTitle('🎯 Feature Overview')
-            .setColor(constants_1.COLORS.INFO)
+            .setColor(constants_js_1.COLORS.INFO)
             .setDescription('Here\'s what alterGolden can do for your server:')
             .addFields({
             name: '🎬 Media Downloads',
@@ -444,7 +444,7 @@ class SetupWizardService {
     async showSetupComplete(interaction) {
         const embed = new discord_js_1.EmbedBuilder()
             .setTitle('🎉 Setup Complete!')
-            .setColor(constants_1.COLORS.SUCCESS)
+            .setColor(constants_js_1.COLORS.SUCCESS)
             .setDescription('**alterGolden is ready to use!**\n\n' +
             '**Quick Commands:**\n' +
             '> `/help` - View all commands\n' +
@@ -470,7 +470,7 @@ class SetupWizardService {
     async showQuickHelp(interaction) {
         const embed = new discord_js_1.EmbedBuilder()
             .setTitle('📚 Quick Help')
-            .setColor(constants_1.COLORS.INFO)
+            .setColor(constants_js_1.COLORS.INFO)
             .setDescription('**Essential Commands:**\n\n' +
             '🎬 `/video [url]` - Download videos\n' +
             '🎵 `/music play [query]` - Play music\n' +

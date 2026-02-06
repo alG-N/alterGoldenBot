@@ -6,16 +6,16 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 const discord_js_1 = require("discord.js");
-const BaseCommand_1 = require("../BaseCommand");
-const constants_1 = require("../../constants");
+const BaseCommand_js_1 = require("../BaseCommand.js");
+const constants_js_1 = require("../../constants.js");
 // Helper to get default export from require()
 const getDefault = (mod) => mod.default || mod;
 // Logger for debugging
 const logger = getDefault(require('../../core/Logger'));
-class BanCommand extends BaseCommand_1.BaseCommand {
+class BanCommand extends BaseCommand_js_1.BaseCommand {
     constructor() {
         super({
-            category: BaseCommand_1.CommandCategory.ADMIN,
+            category: BaseCommand_js_1.CommandCategory.ADMIN,
             cooldown: 3,
             deferReply: true,
             userPermissions: [discord_js_1.PermissionFlagsBits.BanMembers],
@@ -81,7 +81,7 @@ class BanCommand extends BaseCommand_1.BaseCommand {
             // DM user before ban
             try {
                 const dmEmbed = new discord_js_1.EmbedBuilder()
-                    .setColor(constants_1.COLORS.ERROR)
+                    .setColor(constants_js_1.COLORS.ERROR)
                     .setTitle(`🔨 You have been banned from ${interaction.guild.name}`)
                     .addFields({ name: 'Reason', value: reason }, { name: 'Moderator', value: interaction.user.tag })
                     .setTimestamp();
@@ -110,7 +110,7 @@ class BanCommand extends BaseCommand_1.BaseCommand {
                 // Service not available
             }
             const embed = new discord_js_1.EmbedBuilder()
-                .setColor(constants_1.COLORS.ERROR)
+                .setColor(constants_js_1.COLORS.ERROR)
                 .setTitle('🔨 User Banned')
                 .setThumbnail(targetUser.displayAvatarURL({ forceStatic: false }))
                 .addFields({ name: 'User', value: `${targetUser.tag}\n\`${targetUser.id}\``, inline: true }, { name: 'Moderator', value: `${interaction.user.tag}`, inline: true }, { name: 'Reason', value: reason, inline: false }, { name: 'Messages Deleted', value: `${deleteDays} days`, inline: true })
@@ -159,7 +159,7 @@ class BanCommand extends BaseCommand_1.BaseCommand {
                 // Service not available
             }
             const embed = new discord_js_1.EmbedBuilder()
-                .setColor(constants_1.COLORS.SUCCESS)
+                .setColor(constants_js_1.COLORS.SUCCESS)
                 .setTitle('✅ User Unbanned')
                 .setThumbnail(banned.user.displayAvatarURL({ forceStatic: false }))
                 .addFields({ name: 'User', value: `${banned.user.tag}\n\`${banned.user.id}\``, inline: true }, { name: 'Moderator', value: `${interaction.user.tag}`, inline: true }, { name: 'Reason', value: reason, inline: false })
@@ -186,7 +186,7 @@ class BanCommand extends BaseCommand_1.BaseCommand {
             const banArray = [...bans.values()].slice(0, 25);
             const banList = banArray.map((ban, index) => `**${index + 1}.** ${ban.user.tag} (\`${ban.user.id}\`)\n└ ${ban.reason || 'No reason'}`).join('\n\n');
             const embed = new discord_js_1.EmbedBuilder()
-                .setColor(constants_1.COLORS.INFO)
+                .setColor(constants_js_1.COLORS.INFO)
                 .setTitle(`🔨 Ban List - ${interaction.guild.name}`)
                 .setDescription(banList)
                 .setFooter({ text: `Showing ${Math.min(bans.size, 25)} of ${bans.size}${bans.size >= 100 ? '+ (limited)' : ''} banned user(s)` })
@@ -234,6 +234,4 @@ class BanCommand extends BaseCommand_1.BaseCommand {
 // Export singleton instance
 const banCommand = new BanCommand();
 exports.default = banCommand;
-// CommonJS compatibility
-module.exports = banCommand;
 //# sourceMappingURL=ban.js.map

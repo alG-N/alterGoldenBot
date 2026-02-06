@@ -222,6 +222,14 @@ class LockdownService {
         }
     }
     /**
+     * Get lock status for a guild
+     * SHARD-SAFE: Reads from Redis
+     */
+    async getLockStatus(guildId) {
+        const channelIds = await this.getLockedChannels(guildId);
+        return { lockedCount: channelIds.length, channelIds };
+    }
+    /**
      * Clear all lockdown data for a guild
      * SHARD-SAFE: Clears from Redis
      */

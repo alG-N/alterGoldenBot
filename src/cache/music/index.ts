@@ -6,13 +6,13 @@
  */
 
 // Main facade (backward compatible)
-export { default as MusicCache, musicCacheFacade as MusicCacheFacade } from './MusicCacheFacade';
+export { default as MusicCache, musicCacheFacade as MusicCacheFacade } from './MusicCacheFacade.js';
 
 // Individual caches
-export { default as queueCache, queueCache as QueueCache } from './QueueCache';
-export { default as userMusicCache, userMusicCache as UserMusicCache } from './UserMusicCache';
-export { default as guildMusicCache, guildMusicCache as GuildMusicCache } from './GuildMusicCache';
-export { default as voteCache, voteCache as VoteCache } from './VoteCache';
+export { default as queueCache, queueCache as QueueCache } from './QueueCache.js';
+export { default as userMusicCache, userMusicCache as UserMusicCache } from './UserMusicCache.js';
+export { default as guildMusicCache, guildMusicCache as GuildMusicCache } from './GuildMusicCache.js';
+export { default as voteCache, voteCache as VoteCache } from './VoteCache.js';
 
 // Type exports
 export type {
@@ -21,7 +21,7 @@ export type {
     AddTrackResult,
     AddTracksResult,
     QueueStats
-} from './QueueCache';
+} from './QueueCache.js';
 
 export type {
     UserPreferences,
@@ -31,7 +31,7 @@ export type {
     HistoryEntry,
     AddFavoriteResult,
     UserMusicStats
-} from './UserMusicCache';
+} from './UserMusicCache.js';
 
 export type {
     SkipVoteSession,
@@ -41,7 +41,7 @@ export type {
     PriorityVoteEndResult,
     VoteSkipStatus,
     VoteCacheStats
-} from './VoteCache';
+} from './VoteCache.js';
 
 export type {
     GuildMusicSettings,
@@ -50,6 +50,6 @@ export type {
     DJLockState,
     CachedPlaylist,
     GuildMusicCacheStats
-} from './GuildMusicCache';
+} from './GuildMusicCache.js';
 
-export type { MusicCacheStats } from './MusicCacheFacade';
+export type { MusicCacheStats } from './MusicCacheFacade.js';

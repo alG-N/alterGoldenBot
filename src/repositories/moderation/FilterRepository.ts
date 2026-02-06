@@ -3,7 +3,7 @@
  * Database operations for word filters
  */
 
-import db from '../../database/postgres';
+import db from '../../database/postgres.js';
 // Interfaces
 type FilterMatchType = 'contains' | 'exact' | 'regex' | 'word';
 type FilterAction = 'delete' | 'delete_warn' | 'warn' | 'mute' | 'kick' | 'ban';

@@ -10,11 +10,11 @@ exports.handleMessageDelete = handleMessageDelete;
 exports.handleMessageUpdate = handleMessageUpdate;
 exports.handleMemberJoin = handleMemberJoin;
 exports.handleMemberLeave = handleMemberLeave;
-exports.formatDuration = formatDuration;
 exports.buildQuickEmbed = buildQuickEmbed;
 exports.sendConfirmation = sendConfirmation;
 const discord_js_1 = require("discord.js");
 const Logger_js_1 = require("../../core/Logger.js");
+const time_js_1 = require("../../utils/common/time.js");
 const getDefault = (mod) => mod.default || mod;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const ModLogService = getDefault(require('../../services/moderation/ModLogService'));
@@ -117,24 +117,7 @@ async function handleMemberLeave(member) {
         Logger_js_1.logger.error('[ModLogHandler] Error handling member leave:', String(error));
     }
 }
-/**
- * Format duration for display
- * @param ms - Duration in milliseconds
- * @returns Formatted duration string
- */
-function formatDuration(ms) {
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-    if (days > 0)
-        return `${days}d ${hours % 24}h`;
-    if (hours > 0)
-        return `${hours}h ${minutes % 60}m`;
-    if (minutes > 0)
-        return `${minutes}m ${seconds % 60}s`;
-    return `${seconds}s`;
-}
+// formatDuration imported from utils/common/time.ts (canonical source)
 /**
  * Build a quick mod action embed
  * @param options - Embed options
@@ -158,7 +141,7 @@ function buildQuickEmbed(options) {
         .addFields({ name: 'User', value: `<@${user.id}>`, inline: true }, { name: 'Moderator', value: `<@${moderator.id}>`, inline: true })
         .setTimestamp();
     if (duration) {
-        embed.addFields({ name: 'Duration', value: formatDuration(duration), inline: true });
+        embed.addFields({ name: 'Duration', value: (0, time_js_1.formatDuration)(duration), inline: true });
     }
     if (reason) {
         embed.addFields({ name: 'Reason', value: reason, inline: false });
@@ -183,6 +166,6 @@ exports.default = {
     handleMemberLeave,
     buildQuickEmbed,
     sendConfirmation,
-    formatDuration
+    formatDuration: time_js_1.formatDuration
 };
 //# sourceMappingURL=ModLogHandler.js.map

@@ -10,9 +10,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AnilistService = exports.anilistService = void 0;
 const graphql_request_1 = require("graphql-request");
-const CircuitBreakerRegistry_1 = require("../../core/CircuitBreakerRegistry");
-const CacheService_1 = __importDefault(require("../../cache/CacheService"));
-const GracefulDegradation_1 = __importDefault(require("../../core/GracefulDegradation"));
+const CircuitBreakerRegistry_js_1 = require("../../core/CircuitBreakerRegistry.js");
+const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
+const GracefulDegradation_js_1 = __importDefault(require("../../core/GracefulDegradation.js"));
 // ANILIST SERVICE CLASS
 class AnilistService {
     client;
@@ -26,11 +26,11 @@ class AnilistService {
      */
     _getCircuitBreaker() {
         if (!this.circuitBreaker) {
-            CircuitBreakerRegistry_1.circuitBreakerRegistry.initialize();
-            this.circuitBreaker = CircuitBreakerRegistry_1.circuitBreakerRegistry.get('anime');
+            CircuitBreakerRegistry_js_1.circuitBreakerRegistry.initialize();
+            this.circuitBreaker = CircuitBreakerRegistry_js_1.circuitBreakerRegistry.get('anime');
             // Register with graceful degradation
-            GracefulDegradation_1.default.initialize();
-            GracefulDegradation_1.default.registerFallback('anilist', async (_error, options) => {
+            GracefulDegradation_js_1.default.initialize();
+            GracefulDegradation_js_1.default.registerFallback('anilist', async (_error, options) => {
                 const context = options;
                 if (context?.cachedResult) {
                     return {
@@ -56,7 +56,7 @@ class AnilistService {
     async _executeWithResilience(cacheKey, queryFn) {
         const breaker = this._getCircuitBreaker();
         // Try cache first
-        const cachedResult = await CacheService_1.default.get('api', cacheKey);
+        const cachedResult = await CacheService_js_1.default.get('api', cacheKey);
         if (cachedResult) {
             return cachedResult;
         }
@@ -65,8 +65,8 @@ class AnilistService {
             const result = await breaker.execute(queryFn);
             if (result) {
                 // Cache successful result
-                await CacheService_1.default.set('api', cacheKey, result, this.cacheTTL);
-                GracefulDegradation_1.default.markHealthy('anilist');
+                await CacheService_js_1.default.set('api', cacheKey, result, this.cacheTTL);
+                GracefulDegradation_js_1.default.markHealthy('anilist');
             }
             return result;
         }
@@ -76,14 +76,14 @@ class AnilistService {
             const staleResult = await this._getStaleCache(cacheKey);
             if (staleResult) {
                 console.log(`[AniList] Returning stale cache for: ${cacheKey}`);
-                GracefulDegradation_1.default.markDegraded('anilist', err.message);
+                GracefulDegradation_js_1.default.markDegraded('anilist', err.message);
                 return {
                     ...staleResult,
                     _stale: true,
                     _error: err.message
                 };
             }
-            GracefulDegradation_1.default.markDegraded('anilist', err.message);
+            GracefulDegradation_js_1.default.markDegraded('anilist', err.message);
             throw error;
         }
     }
@@ -92,7 +92,7 @@ class AnilistService {
      */
     async _getStaleCache(cacheKey) {
         const staleKey = `stale:${cacheKey}`;
-        return await CacheService_1.default.get('temp', staleKey);
+        return await CacheService_js_1.default.get('temp', staleKey);
     }
     /**
      * Store stale cache backup (longer TTL for fallback)
@@ -100,7 +100,7 @@ class AnilistService {
     async _setStaleCache(cacheKey, data) {
         const staleKey = `stale:${cacheKey}`;
         // Keep stale cache for 24 hours as fallback
-        await CacheService_1.default.set('temp', staleKey, data, 86400);
+        await CacheService_js_1.default.set('temp', staleKey, data, 86400);
     }
     /**
      * Search for anime by name
@@ -353,8 +353,4 @@ exports.AnilistService = AnilistService;
 const anilistService = new AnilistService();
 exports.anilistService = anilistService;
 exports.default = anilistService;
-// CommonJS compatibility
-module.exports = anilistService;
-module.exports.anilistService = anilistService;
-module.exports.AnilistService = AnilistService;
 //# sourceMappingURL=anilistService.js.map

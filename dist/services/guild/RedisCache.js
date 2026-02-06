@@ -2,7 +2,12 @@
 /**
  * Redis Cache Service
  * High-performance caching for scale (1000+ servers)
- * @internal Used by CacheService - prefer CacheService for new code
+ *
+ * The in-memory fallback uses expiry timestamps checked by a periodic
+ * sweep instead of per-key setTimeout calls, preventing timer accumulation
+ * under high churn.
+ *
+ * @internal Used by CacheService — prefer CacheService for new code
  * @module services/guild/RedisCache
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
@@ -15,7 +20,14 @@ const ioredis_1 = __importDefault(require("ioredis"));
 class RedisCache {
     _client = null;
     _isConnected = false;
+    /**
+     * In-memory fallback with timestamp-based expiry.
+     * A periodic sweep removes expired entries — no per-key timers.
+     */
     fallbackCache = new Map();
+    _sweepInterval = null;
+    /** Max fallback entries before LRU eviction */
+    MAX_FALLBACK_SIZE = 10_000;
     /** Get connection status */
     get isConnected() {
         return this._isConnected;
@@ -35,10 +47,59 @@ class RedisCache {
         RATE_LIMIT: 60, // 1 minute
         AUTOMOD_WARN: 3600, // 1 hour
     };
+    // ── Fallback helpers (no setTimeout) ─────────────────────────────
+    /** Get a value from the fallback cache, returning null if expired. */
+    _fbGet(key) {
+        const entry = this.fallbackCache.get(key);
+        if (!entry)
+            return null;
+        if (Date.now() > entry.expiresAt) {
+            this.fallbackCache.delete(key);
+            return null;
+        }
+        return entry.value;
+    }
+    /** Set a value in the fallback cache with a TTL (seconds). */
+    _fbSet(key, value, ttlSeconds) {
+        // Evict oldest if at capacity
+        if (this.fallbackCache.size >= this.MAX_FALLBACK_SIZE) {
+            const firstKey = this.fallbackCache.keys().next().value;
+            if (firstKey !== undefined)
+                this.fallbackCache.delete(firstKey);
+        }
+        this.fallbackCache.set(key, {
+            value,
+            expiresAt: Date.now() + ttlSeconds * 1000,
+        });
+    }
+    /** Delete a key from the fallback cache. */
+    _fbDelete(key) {
+        this.fallbackCache.delete(key);
+    }
+    /** Periodic sweep — remove all expired entries. */
+    _sweep() {
+        const now = Date.now();
+        for (const [key, entry] of this.fallbackCache) {
+            if (now > entry.expiresAt) {
+                this.fallbackCache.delete(key);
+            }
+        }
+    }
+    /** Start the periodic sweep interval. */
+    _startSweep() {
+        if (this._sweepInterval)
+            return;
+        this._sweepInterval = setInterval(() => this._sweep(), 30_000); // every 30s
+        if (this._sweepInterval.unref)
+            this._sweepInterval.unref();
+    }
+    // ── Initialize ───────────────────────────────────────────────────
     /**
      * Initialize Redis connection
      */
     async initialize() {
+        // Start fallback sweep regardless of Redis availability
+        this._startSweep();
         const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
         try {
             this._client = new ioredis_1.default(redisUrl, {
@@ -74,6 +135,7 @@ class RedisCache {
             return false;
         }
     }
+    // ── Core CRUD ────────────────────────────────────────────────────
     /**
      * Get value from cache
      */
@@ -83,11 +145,11 @@ class RedisCache {
                 const value = await this._client.get(key);
                 return value ? JSON.parse(value) : null;
             }
-            return this.fallbackCache.get(key) || null;
+            return this._fbGet(key) || null;
         }
         catch (error) {
             console.error('[Redis] Get error:', error.message);
-            return this.fallbackCache.get(key) || null;
+            return this._fbGet(key) || null;
         }
     }
     /**
@@ -100,12 +162,11 @@ class RedisCache {
                 await this._client.setex(key, ttl, stringValue);
             }
             // Always set in fallback for redundancy
-            this.fallbackCache.set(key, value);
-            setTimeout(() => this.fallbackCache.delete(key), ttl * 1000);
+            this._fbSet(key, value, ttl);
         }
         catch (error) {
             console.error('[Redis] Set error:', error.message);
-            this.fallbackCache.set(key, value);
+            this._fbSet(key, value, ttl);
         }
     }
     /**
@@ -116,7 +177,7 @@ class RedisCache {
             if (this._isConnected && this._client) {
                 await this._client.del(key);
             }
-            this.fallbackCache.delete(key);
+            this._fbDelete(key);
         }
         catch (error) {
             console.error('[Redis] Delete error:', error.message);
@@ -134,8 +195,9 @@ class RedisCache {
                 }
             }
             // Clean fallback cache
+            const regex = new RegExp(pattern.replace(/\*/g, '.*'));
             for (const key of this.fallbackCache.keys()) {
-                if (key.match(new RegExp(pattern.replace('*', '.*')))) {
+                if (regex.test(key)) {
                     this.fallbackCache.delete(key);
                 }
             }
@@ -144,7 +206,7 @@ class RedisCache {
             console.error('[Redis] DeletePattern error:', error.message);
         }
     }
-    // Guild Settings Cache
+    // ── Guild Settings Cache ─────────────────────────────────────────
     async getGuildSettings(guildId) {
         return this.get(`guild:${guildId}:settings`);
     }
@@ -154,7 +216,7 @@ class RedisCache {
     async invalidateGuildSettings(guildId) {
         await this.delete(`guild:${guildId}:settings`);
     }
-    // Cooldown Cache
+    // ── Cooldown Cache ───────────────────────────────────────────────
     async getCooldown(commandName, userId) {
         const key = `cooldown:${commandName}:${userId}`;
         const ttl = this._isConnected && this._client
@@ -170,7 +232,7 @@ class RedisCache {
         const ttlSeconds = Math.ceil(cooldownMs / 1000);
         await this.set(key, Date.now(), ttlSeconds);
     }
-    // API Response Cache
+    // ── API Response Cache ───────────────────────────────────────────
     async getApiCache(service, query) {
         const key = `api:${service}:${Buffer.from(query).toString('base64')}`;
         return this.get(key);
@@ -179,14 +241,14 @@ class RedisCache {
         const key = `api:${service}:${Buffer.from(query).toString('base64')}`;
         await this.set(key, response, ttl);
     }
-    // Statistics
+    // ── Statistics ───────────────────────────────────────────────────
     async increment(key) {
         try {
             if (this._isConnected && this._client) {
                 return await this._client.incr(key);
             }
-            const current = this.fallbackCache.get(key) || 0;
-            this.fallbackCache.set(key, current + 1);
+            const current = this._fbGet(key) || 0;
+            this._fbSet(key, current + 1, 3600); // default 1h TTL for counters
             return current + 1;
         }
         catch (error) {
@@ -201,7 +263,7 @@ class RedisCache {
             redisInfo: this._isConnected && this._client ? await this._client.info('memory') : null,
         };
     }
-    // Spam & Duplicate Tracking (AutoMod)
+    // ── Spam & Duplicate Tracking (AutoMod) ──────────────────────────
     async trackSpamMessage(guildId, userId, windowSeconds = 5) {
         const key = `spam:${guildId}:${userId}`;
         try {
@@ -212,16 +274,15 @@ class RedisCache {
                 const results = await multi.exec();
                 return results?.[0]?.[1] ?? 1;
             }
-            // Fallback to in-memory
+            // Fallback
             const now = Date.now();
             const windowMs = windowSeconds * 1000;
-            let tracker = this.fallbackCache.get(key);
+            let tracker = this._fbGet(key);
             if (!tracker || now - tracker.start > windowMs) {
                 tracker = { count: 0, start: now };
             }
             tracker.count++;
-            this.fallbackCache.set(key, tracker);
-            setTimeout(() => this.fallbackCache.delete(key), windowMs);
+            this._fbSet(key, tracker, windowSeconds);
             return tracker.count;
         }
         catch (error) {
@@ -258,14 +319,14 @@ class RedisCache {
             const cacheKey = `dup:${guildId}:${userId}`;
             const now = Date.now();
             const windowMs = windowSeconds * 1000;
-            let tracker = this.fallbackCache.get(cacheKey);
+            let tracker = this._fbGet(cacheKey);
             if (!tracker || now - tracker.start > windowMs || tracker.hash !== contentHash) {
                 tracker = { hash: contentHash, count: 1, start: now };
-                this.fallbackCache.set(cacheKey, tracker);
-                setTimeout(() => this.fallbackCache.delete(cacheKey), windowMs);
+                this._fbSet(cacheKey, tracker, windowSeconds);
                 return { count: 1, isNew: true };
             }
             tracker.count++;
+            this._fbSet(cacheKey, tracker, windowSeconds);
             return { count: tracker.count, isNew: false };
         }
         catch (error) {
@@ -276,7 +337,7 @@ class RedisCache {
     async resetDuplicateTracker(guildId, userId) {
         await this.delete(`dup:${guildId}:${userId}:count`);
         await this.delete(`dup:${guildId}:${userId}:hash`);
-        this.fallbackCache.delete(`dup:${guildId}:${userId}`);
+        this._fbDelete(`dup:${guildId}:${userId}`);
     }
     async trackAutomodWarn(guildId, userId, resetHours = 1) {
         const key = `automod:warn:${guildId}:${userId}`;
@@ -290,9 +351,8 @@ class RedisCache {
                 return results?.[0]?.[1] ?? 1;
             }
             // Fallback
-            const current = (this.fallbackCache.get(key) || 0) + 1;
-            this.fallbackCache.set(key, current);
-            setTimeout(() => this.fallbackCache.delete(key), ttlSeconds * 1000);
+            const current = (this._fbGet(key) || 0) + 1;
+            this._fbSet(key, current, ttlSeconds);
             return current;
         }
         catch (error) {
@@ -307,7 +367,7 @@ class RedisCache {
                 const count = await this._client.get(key);
                 return parseInt(count || '0') || 0;
             }
-            return this.fallbackCache.get(key) || 0;
+            return this._fbGet(key) || 0;
         }
         catch {
             return 0;
@@ -316,7 +376,7 @@ class RedisCache {
     async resetAutomodWarn(guildId, userId) {
         await this.delete(`automod:warn:${guildId}:${userId}`);
     }
-    // Rate Limiting
+    // ── Rate Limiting ────────────────────────────────────────────────
     async checkRateLimit(key, limit, windowSeconds) {
         const redisKey = `ratelimit:${key}`;
         try {
@@ -335,24 +395,23 @@ class RedisCache {
                 return {
                     allowed,
                     remaining: Math.max(0, limit - count),
-                    resetIn: ttl * 1000
+                    resetIn: ttl * 1000,
                 };
             }
             // Fallback
             const now = Date.now();
             const windowMs = windowSeconds * 1000;
-            let tracker = this.fallbackCache.get(redisKey);
+            let tracker = this._fbGet(redisKey);
             if (!tracker || now - tracker.start > windowMs) {
                 tracker = { count: 0, start: now };
-                this.fallbackCache.set(redisKey, tracker);
-                setTimeout(() => this.fallbackCache.delete(redisKey), windowMs);
             }
             tracker.count++;
+            this._fbSet(redisKey, tracker, windowSeconds);
             const allowed = tracker.count <= limit;
             return {
                 allowed,
                 remaining: Math.max(0, limit - tracker.count),
-                resetIn: windowMs - (now - tracker.start)
+                resetIn: windowMs - (now - tracker.start),
             };
         }
         catch (error) {
@@ -360,10 +419,15 @@ class RedisCache {
             return { allowed: true, remaining: limit, resetIn: 0 };
         }
     }
+    // ── Lifecycle ────────────────────────────────────────────────────
     /**
      * Graceful shutdown
      */
     async shutdown() {
+        if (this._sweepInterval) {
+            clearInterval(this._sweepInterval);
+            this._sweepInterval = null;
+        }
         if (this._client) {
             await this._client.quit();
             this._isConnected = false;

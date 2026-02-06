@@ -12,23 +12,24 @@ class EventRegistry {
     /**
      * Load events from presentation layer
      */
-    loadEvents() {
+    async loadEvents() {
         console.log('[EventRegistry] Loading events...');
         // Load presentation layer events
-        this._loadPresentationEvents();
+        await this._loadPresentationEvents();
         console.log(`[EventRegistry] Loaded ${this.events.size} events`);
         return this.events;
     }
     /**
      * Load events from events directory
      */
-    _loadPresentationEvents() {
+    async _loadPresentationEvents() {
         const eventFiles = ['ready', 'messageCreate', 'messageUpdate', 'guildCreate', 'guildDelete', 'guildMemberAdd', 'guildMemberRemove', 'voiceStateUpdate'];
         for (const eventFile of eventFiles) {
             try {
-                // eslint-disable-next-line @typescript-eslint/no-require-imports
-                const mod = require(`../../events/${eventFile}`);
-                const event = (mod.default || mod);
+                const mod = await import(`../../events/${eventFile}.js`);
+                // CJS dynamic import wraps module.exports as 'default'
+                const eventExports = (mod.default || mod);
+                const event = (eventExports.default || eventExports);
                 if (event?.name) {
                     this.events.set(event.name, event);
                     console.log(`[EventRegistry] Loaded: ${event.name}`);

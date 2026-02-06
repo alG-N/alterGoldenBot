@@ -47,10 +47,10 @@ class SettingCommand extends BaseCommand_js_1.BaseCommand {
             const services = require('../../services');
             GuildSettingsService = services.GuildSettingsService;
             const modServices = require('../../services/moderation');
-            AutoModService = modServices.AutoModService;
-            LockdownService = modServices.LockdownService;
-            AntiRaidService = modServices.AntiRaidService;
-            ModLogService = modServices.ModLogService;
+            AutoModService = modServices.autoModService;
+            LockdownService = modServices.lockdownService;
+            AntiRaidService = modServices.antiRaidService;
+            ModLogService = modServices.modLogService;
         }
         catch {
             await interaction.reply({
@@ -81,11 +81,11 @@ class SettingCommand extends BaseCommand_js_1.BaseCommand {
         }
         catch { }
         try {
-            lockdownStatus = LockdownService.getLockStatus(guildId);
+            lockdownStatus = await LockdownService.getLockStatus(guildId);
         }
         catch { }
         try {
-            raidStatus = AntiRaidService.getRaidModeState(guildId);
+            raidStatus = await AntiRaidService.getRaidModeState(guildId);
         }
         catch { }
         const adminRolesMention = adminRoles.length > 0
@@ -292,7 +292,7 @@ class SettingCommand extends BaseCommand_js_1.BaseCommand {
         let ModLogService;
         try {
             const modServices = require('../../services/moderation');
-            ModLogService = modServices.ModLogService;
+            ModLogService = modServices.modLogService;
         }
         catch {
             return;

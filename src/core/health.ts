@@ -8,8 +8,8 @@
 import * as http from 'http';
 import type { Server, IncomingMessage, ServerResponse } from 'http';
 import type { Client } from 'discord.js';
-import logger from './Logger';
-import { getMetrics, getContentType } from './metrics';
+import logger from './Logger.js';
+import { getMetrics, getContentType } from './metrics.js';
 // TYPES
 type HealthStatus = 'starting' | 'healthy' | 'unhealthy' | 'shutting_down';
 

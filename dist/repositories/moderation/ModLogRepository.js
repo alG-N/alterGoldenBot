@@ -17,20 +17,20 @@ exports.toggleLogType = toggleLogType;
 exports.remove = remove;
 exports.isEnabled = isEnabled;
 exports.getGuildsWithLogging = getGuildsWithLogging;
-const postgres_1 = __importDefault(require("../../database/postgres"));
+const postgres_js_1 = __importDefault(require("../../database/postgres.js"));
 // Repository Functions
 /**
  * Get mod log settings for a guild
  */
 async function get(guildId) {
-    const result = await postgres_1.default.query(`SELECT * FROM mod_log_settings WHERE guild_id = $1`, [guildId]);
+    const result = await postgres_js_1.default.query(`SELECT * FROM mod_log_settings WHERE guild_id = $1`, [guildId]);
     return result.rows[0] || null;
 }
 /**
  * Create default mod log settings
  */
 async function create(guildId) {
-    const result = await postgres_1.default.query(`INSERT INTO mod_log_settings (guild_id) 
+    const result = await postgres_js_1.default.query(`INSERT INTO mod_log_settings (guild_id) 
          VALUES ($1) 
          ON CONFLICT (guild_id) DO NOTHING
          RETURNING *`, [guildId]);
@@ -74,7 +74,7 @@ async function update(guildId, updates) {
     }
     if (setClauses.length === 0)
         return get(guildId);
-    const result = await postgres_1.default.query(`UPDATE mod_log_settings 
+    const result = await postgres_js_1.default.query(`UPDATE mod_log_settings 
          SET ${setClauses.join(', ')}
          WHERE guild_id = $1
          RETURNING *`, params);
@@ -97,7 +97,7 @@ async function toggleLogType(guildId, logType, enabled) {
  * Delete mod log settings
  */
 async function remove(guildId) {
-    const result = await postgres_1.default.query(`DELETE FROM mod_log_settings WHERE guild_id = $1`, [guildId]);
+    const result = await postgres_js_1.default.query(`DELETE FROM mod_log_settings WHERE guild_id = $1`, [guildId]);
     return (result.rowCount ?? 0) > 0;
 }
 /**
@@ -114,7 +114,7 @@ async function isEnabled(guildId, logType) {
  * Get all guilds with mod logging enabled
  */
 async function getGuildsWithLogging() {
-    const result = await postgres_1.default.query(`SELECT * FROM mod_log_settings WHERE log_channel_id IS NOT NULL`);
+    const result = await postgres_js_1.default.query(`SELECT * FROM mod_log_settings WHERE log_channel_id IS NOT NULL`);
     return result.rows;
 }
 // Export as module object

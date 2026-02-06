@@ -20,8 +20,8 @@ import {
     Message,
     PermissionFlagsBits
 } from 'discord.js';
-import { COLORS } from '../../constants';
-import logger from '../../core/Logger';
+import { COLORS } from '../../constants.js';
+import logger from '../../core/Logger.js';
 
 /**
  * Setup step types

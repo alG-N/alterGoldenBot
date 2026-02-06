@@ -8,13 +8,11 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BaseCommand = exports.CommandCategory = void 0;
 const discord_js_1 = require("discord.js");
-const constants_1 = require("../constants");
-const errors_1 = require("../errors");
-const metrics_1 = require("../core/metrics");
-// Helper to get default export from require()
-const getDefault = (mod) => mod.default || mod;
-// Use require for Logger to avoid circular dependency
-const logger = getDefault(require('../core/Logger'));
+const constants_js_1 = require("../constants.js");
+const index_js_1 = require("../errors/index.js");
+const metrics_js_1 = require("../core/metrics.js");
+const owner_js_1 = require("../config/owner.js");
+const Logger_js_1 = require("../core/Logger.js");
 // TYPES & INTERFACES
 /**
  * Command categories enum
@@ -57,7 +55,7 @@ class BaseCommand {
     _cooldowns = new Map();
     constructor(options = {}) {
         this.category = options.category || exports.CommandCategory.GENERAL;
-        this.cooldown = options.cooldown ?? constants_1.TIMEOUTS.COMMAND_COOLDOWN / 1000;
+        this.cooldown = options.cooldown ?? constants_js_1.TIMEOUTS.COMMAND_COOLDOWN / 1000;
         this.ownerOnly = options.ownerOnly || false;
         this.adminOnly = options.adminOnly || false;
         this.guildOnly = options.guildOnly ?? true;
@@ -98,7 +96,7 @@ class BaseCommand {
         const startTime = Date.now();
         const commandName = this.data?.name || 'unknown';
         // Track active commands
-        metrics_1.commandsActive.inc({ command: commandName });
+        metrics_js_1.commandsActive.inc({ command: commandName });
         try {
             // Pre-execution validations
             await this._validateExecution(interaction);
@@ -123,19 +121,19 @@ class BaseCommand {
             this._setCooldown(interaction.user.id);
             // Track metrics
             const duration = Date.now() - startTime;
-            (0, metrics_1.trackCommand)(commandName, this.category, duration, 'success');
-            metrics_1.commandsActive.dec({ command: commandName });
+            (0, metrics_js_1.trackCommand)(commandName, this.category, duration, 'success');
+            metrics_js_1.commandsActive.dec({ command: commandName });
             // Log slow executions
             if (duration > 3000) {
-                logger.warn(commandName, `Slow command execution: ${duration}ms`);
+                Logger_js_1.logger.warn(commandName, `Slow command execution: ${duration}ms`);
             }
         }
         catch (error) {
             // Track error metrics
             const duration = Date.now() - startTime;
-            (0, metrics_1.trackCommand)(commandName, this.category, duration, 'error');
-            metrics_1.commandsActive.dec({ command: commandName });
-            metrics_1.commandErrorsTotal.inc({
+            (0, metrics_js_1.trackCommand)(commandName, this.category, duration, 'error');
+            metrics_js_1.commandsActive.dec({ command: commandName });
+            metrics_js_1.commandErrorsTotal.inc({
                 command: commandName,
                 category: this.category,
                 error_type: error.name || 'Unknown'
@@ -149,17 +147,16 @@ class BaseCommand {
     async _validateExecution(interaction) {
         // Guild only check
         if (this.guildOnly && !interaction.guild) {
-            throw new errors_1.ValidationError('This command can only be used in a server');
+            throw new index_js_1.ValidationError('This command can only be used in a server');
         }
         // NSFW check
         if (this.nsfw && interaction.channel && 'nsfw' in interaction.channel && !interaction.channel.nsfw) {
-            throw new errors_1.ValidationError('This command can only be used in NSFW channels');
+            throw new index_js_1.ValidationError('This command can only be used in NSFW channels');
         }
         // Owner only check
         if (this.ownerOnly) {
-            const { isOwner } = require('../config/owner');
-            if (!isOwner(interaction.user.id)) {
-                throw new errors_1.PermissionError('This command is restricted to bot owners');
+            if (!(0, owner_js_1.isOwner)(interaction.user.id)) {
+                throw new index_js_1.PermissionError('This command is restricted to bot owners');
             }
         }
         // Admin only check
@@ -168,7 +165,7 @@ class BaseCommand {
             const isAdmin = member.permissions.has(discord_js_1.PermissionFlagsBits.Administrator);
             const isGuildOwner = interaction.guild.ownerId === interaction.user.id;
             if (!isAdmin && !isGuildOwner) {
-                throw new errors_1.PermissionError('This command requires Administrator permission');
+                throw new index_js_1.PermissionError('This command requires Administrator permission');
             }
         }
         // User permissions check
@@ -176,7 +173,7 @@ class BaseCommand {
             const member = interaction.member;
             const missing = this.userPermissions.filter(perm => !member.permissions.has(perm));
             if (missing.length > 0) {
-                throw new errors_1.PermissionError(`Missing permissions: ${missing.join(', ')}`);
+                throw new index_js_1.PermissionError(`Missing permissions: ${missing.join(', ')}`);
             }
         }
         // Bot permissions check
@@ -185,7 +182,7 @@ class BaseCommand {
             if (botMember) {
                 const missing = this.botPermissions.filter(perm => !botMember.permissions.has(perm));
                 if (missing.length > 0) {
-                    throw new errors_1.PermissionError(`I'm missing permissions: ${missing.join(', ')}`);
+                    throw new index_js_1.PermissionError(`I'm missing permissions: ${missing.join(', ')}`);
                 }
             }
         }
@@ -223,8 +220,8 @@ class BaseCommand {
      */
     async _sendCooldownMessage(interaction, remaining) {
         const embed = new discord_js_1.EmbedBuilder()
-            .setColor(constants_1.COLORS.WARNING)
-            .setDescription(`${constants_1.EMOJIS.CLOCK} Please wait **${remaining}s** before using this command again.`);
+            .setColor(constants_js_1.COLORS.WARNING)
+            .setDescription(`${constants_js_1.EMOJIS.CLOCK} Please wait **${remaining}s** before using this command again.`);
         await this.safeReply(interaction, { embeds: [embed], ephemeral: true });
     }
     /**
@@ -232,17 +229,17 @@ class BaseCommand {
      */
     async _handleError(interaction, error, commandName) {
         // Log error
-        logger.error(commandName, `Error: ${error.message}`);
-        if (error.stack && !errors_1.AppError.isOperationalError(error)) {
+        Logger_js_1.logger.error(commandName, `Error: ${error.message}`);
+        if (error.stack && !index_js_1.AppError.isOperationalError(error)) {
             console.error(error.stack);
         }
         // Determine error message
         let userMessage = 'An unexpected error occurred. Please try again later.';
-        let color = constants_1.COLORS.ERROR;
-        if (error instanceof errors_1.AppError) {
+        let color = constants_js_1.COLORS.ERROR;
+        if (error instanceof index_js_1.AppError) {
             userMessage = error.message;
             if (error.code === 'VALIDATION_ERROR') {
-                color = constants_1.COLORS.WARNING;
+                color = constants_js_1.COLORS.WARNING;
             }
         }
         else if (error.code === 'InteractionAlreadyReplied') {
@@ -251,7 +248,7 @@ class BaseCommand {
         // Send error response
         const embed = new discord_js_1.EmbedBuilder()
             .setColor(color)
-            .setDescription(`${constants_1.EMOJIS.ERROR} ${userMessage}`);
+            .setDescription(`${constants_js_1.EMOJIS.ERROR} ${userMessage}`);
         await this.safeReply(interaction, { embeds: [embed], ephemeral: true });
     }
     /**
@@ -273,7 +270,7 @@ class BaseCommand {
             }
         }
         catch (error) {
-            logger.debug('BaseCommand', `Reply failed: ${error.message}`);
+            Logger_js_1.logger.debug('BaseCommand', `Reply failed: ${error.message}`);
         }
     }
     // EMBED HELPERS
@@ -282,8 +279,8 @@ class BaseCommand {
      */
     successEmbed(title, description) {
         return new discord_js_1.EmbedBuilder()
-            .setColor(constants_1.COLORS.SUCCESS)
-            .setTitle(`${constants_1.EMOJIS.SUCCESS} ${title}`)
+            .setColor(constants_js_1.COLORS.SUCCESS)
+            .setTitle(`${constants_js_1.EMOJIS.SUCCESS} ${title}`)
             .setDescription(description)
             .setTimestamp();
     }
@@ -292,16 +289,16 @@ class BaseCommand {
      */
     errorEmbed(message) {
         return new discord_js_1.EmbedBuilder()
-            .setColor(constants_1.COLORS.ERROR)
-            .setDescription(`${constants_1.EMOJIS.ERROR} ${message}`);
+            .setColor(constants_js_1.COLORS.ERROR)
+            .setDescription(`${constants_js_1.EMOJIS.ERROR} ${message}`);
     }
     /**
      * Create info embed
      */
     infoEmbed(title, description) {
         return new discord_js_1.EmbedBuilder()
-            .setColor(constants_1.COLORS.INFO)
-            .setTitle(`${constants_1.EMOJIS.INFO} ${title}`)
+            .setColor(constants_js_1.COLORS.INFO)
+            .setTitle(`${constants_js_1.EMOJIS.INFO} ${title}`)
             .setDescription(description);
     }
     /**
@@ -309,8 +306,8 @@ class BaseCommand {
      */
     warningEmbed(message) {
         return new discord_js_1.EmbedBuilder()
-            .setColor(constants_1.COLORS.WARNING)
-            .setDescription(`${constants_1.EMOJIS.WARNING} ${message}`);
+            .setColor(constants_js_1.COLORS.WARNING)
+            .setDescription(`${constants_js_1.EMOJIS.WARNING} ${message}`);
     }
     // REPLY HELPERS
     /**
@@ -343,9 +340,4 @@ class BaseCommand {
     }
 }
 exports.BaseCommand = BaseCommand;
-// CommonJS COMPATIBILITY
-module.exports = {
-    BaseCommand,
-    CommandCategory: exports.CommandCategory,
-};
 //# sourceMappingURL=BaseCommand.js.map

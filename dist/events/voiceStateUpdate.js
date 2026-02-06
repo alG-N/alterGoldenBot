@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const discord_js_1 = require("discord.js");
 const BaseEvent_js_1 = require("./BaseEvent.js");
 const CacheService_js_1 = __importDefault(require("../cache/CacheService.js"));
+const MusicFacade_js_1 = require("../services/music/MusicFacade.js");
 // Cache namespace for voice disconnect deadlines
 const CACHE_NAMESPACE = 'voice';
 const DISCONNECT_DELAY_SEC = 30;
@@ -147,13 +148,8 @@ class VoiceStateUpdateEvent extends BaseEvent_js_1.BaseEvent {
      */
     async _handleDisconnect(client, guildId) {
         try {
-            // Use MusicFacade - the refactored music service
-            const getDefault = (mod) => mod.default || mod;
-            // eslint-disable-next-line @typescript-eslint/no-require-imports
-            const musicFacadeModule = getDefault(require('../services/music/MusicFacade'));
-            const musicFacade = musicFacadeModule?.musicFacade || musicFacadeModule;
-            if (musicFacade?.cleanup) {
-                await musicFacade.cleanup(guildId);
+            if (MusicFacade_js_1.musicFacade?.cleanup) {
+                await MusicFacade_js_1.musicFacade.cleanup(guildId);
             }
             const clientWithLogger = client;
             clientWithLogger.logger?.debug(`Auto-disconnected from empty channel in guild ${guildId}`);

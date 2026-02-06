@@ -37,7 +37,9 @@ class EventRegistry {
         for (const eventFile of eventFiles) {
             try {
                 const mod = await import(`../../events/${eventFile}.js`);
-                const event = (mod.default || mod) as Event;
+                // CJS dynamic import wraps module.exports as 'default'
+                const eventExports = (mod.default || mod) as Record<string, unknown>;
+                const event = (eventExports.default || eventExports) as Event;
 
                 if (event?.name) {
                     this.events.set(event.name, event);

@@ -48,18 +48,18 @@ interface DeactivateResult {
 }
 
 interface AntiRaidService {
-    isRaidModeActive?: (guildId: string) => boolean;
-    activateRaidMode?: (guildId: string, userId: string, reason: string) => void;
-    deactivateRaidMode?: (guildId: string) => DeactivateResult;
-    getRaidModeState?: (guildId: string) => RaidState | null;
-    getFlaggedAccounts?: (guildId: string) => Set<string>;
-    updateStats?: (guildId: string, action: 'kick' | 'ban') => void;
+    isRaidModeActive?: (guildId: string) => Promise<boolean>;
+    activateRaidMode?: (guildId: string, userId: string, reason: string) => Promise<void>;
+    deactivateRaidMode?: (guildId: string) => Promise<DeactivateResult>;
+    getRaidModeState?: (guildId: string) => Promise<RaidState | null>;
+    getFlaggedAccounts?: (guildId: string) => Promise<string[]>;
+    updateStats?: (guildId: string, action: 'kick' | 'ban') => Promise<void>;
 }
 
 interface LockdownService {
     lockServer?: (guild: ChatInputCommandInteraction['guild'], reason: string) => Promise<LockResults>;
     unlockServer?: (guild: ChatInputCommandInteraction['guild'], reason: string) => Promise<LockResults>;
-    getLockStatus?: (guildId: string) => LockStatus;
+    getLockStatus?: (guildId: string) => Promise<LockStatus>;
 }
 
 const getDefault = <T>(mod: { default?: T } | T): T => (mod as { default?: T }).default || mod as T;
@@ -163,7 +163,7 @@ class RaidCommand extends BaseCommand {
         const lockdown = interaction.options.getBoolean('lockdown') ?? false;
         
         // Check if already active
-        if (antiRaidService?.isRaidModeActive?.(interaction.guild.id)) {
+        if (await antiRaidService?.isRaidModeActive?.(interaction.guild.id)) {
             await interaction.reply({
                 embeds: [
                     new EmbedBuilder()
@@ -178,7 +178,7 @@ class RaidCommand extends BaseCommand {
         await interaction.deferReply();
         
         // Activate raid mode
-        antiRaidService?.activateRaidMode?.(
+        await antiRaidService?.activateRaidMode?.(
             interaction.guild.id,
             interaction.user.id,
             reason
@@ -229,7 +229,7 @@ class RaidCommand extends BaseCommand {
         const unlock = interaction.options.getBoolean('unlock') ?? false;
         
         // Check if active
-        if (!antiRaidService?.isRaidModeActive?.(interaction.guild.id)) {
+        if (!(await antiRaidService?.isRaidModeActive?.(interaction.guild.id))) {
             await interaction.reply({
                 embeds: [
                     new EmbedBuilder()
@@ -243,7 +243,7 @@ class RaidCommand extends BaseCommand {
         
         await interaction.deferReply();
         
-        const result = antiRaidService?.deactivateRaidMode?.(interaction.guild.id) || { 
+        const result = await antiRaidService?.deactivateRaidMode?.(interaction.guild.id) || { 
             duration: 0, 
             flaggedAccounts: 0 
         };
@@ -291,9 +291,9 @@ class RaidCommand extends BaseCommand {
             return;
         }
 
-        const state = antiRaidService?.getRaidModeState?.(interaction.guild.id);
-        const flagged = antiRaidService?.getFlaggedAccounts?.(interaction.guild.id) || new Set();
-        const lockStatus = lockdownService?.getLockStatus?.(interaction.guild.id) || { lockedCount: 0 };
+        const state = await antiRaidService?.getRaidModeState?.(interaction.guild.id);
+        const flagged = await antiRaidService?.getFlaggedAccounts?.(interaction.guild.id) || [];
+        const lockStatus = await lockdownService?.getLockStatus?.(interaction.guild.id) || { lockedCount: 0 };
         
         if (!state?.active) {
             await interaction.reply({
@@ -327,7 +327,7 @@ class RaidCommand extends BaseCommand {
                         { name: 'Activated By', value: activatedBy, inline: true },
                         { name: 'Duration', value: `${durationMinutes} minutes`, inline: true },
                         { name: 'Reason', value: state.reason || 'No reason', inline: false },
-                        { name: 'Flagged Users', value: `${flagged.size}`, inline: true },
+                        { name: 'Flagged Users', value: `${flagged.length}`, inline: true },
                         { name: 'Kicked', value: `${state.stats?.kickedCount || 0}`, inline: true },
                         { name: 'Banned', value: `${state.stats?.bannedCount || 0}`, inline: true },
                         { name: 'Locked Channels', value: `${lockStatus.lockedCount}`, inline: true }
@@ -348,9 +348,9 @@ class RaidCommand extends BaseCommand {
 
         const action = interaction.options.getString('action', true);
         
-        const flagged = antiRaidService?.getFlaggedAccounts?.(interaction.guild.id) || new Set();
+        const flagged = await antiRaidService?.getFlaggedAccounts?.(interaction.guild.id) || [];
         
-        if (flagged.size === 0) {
+        if (flagged.length === 0) {
             await interaction.reply({
                 embeds: [
                     new EmbedBuilder()
@@ -387,13 +387,13 @@ class RaidCommand extends BaseCommand {
                 
                 if (action === 'kick') {
                     await member.kick(`Raid cleanup by ${interaction.user.tag}`);
-                    antiRaidService?.updateStats?.(interaction.guild.id, 'kick');
+                    await antiRaidService?.updateStats?.(interaction.guild.id, 'kick');
                 } else {
                     await member.ban({ 
                         reason: `Raid cleanup by ${interaction.user.tag}`,
                         deleteMessageSeconds: 60 * 60 * 24 // 24 hours
                     });
-                    antiRaidService?.updateStats?.(interaction.guild.id, 'ban');
+                    await antiRaidService?.updateStats?.(interaction.guild.id, 'ban');
                 }
                 
                 results.success++;

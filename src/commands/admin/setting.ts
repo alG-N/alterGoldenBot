@@ -74,11 +74,11 @@ interface AutoModServiceType {
 }
 
 interface LockdownServiceType {
-    getLockStatus: (guildId: string) => LockdownStatus;
+    getLockStatus: (guildId: string) => Promise<LockdownStatus>;
 }
 
 interface AntiRaidServiceType {
-    getRaidModeState: (guildId: string) => RaidStatus | null;
+    getRaidModeState: (guildId: string) => Promise<RaidStatus | null>;
 }
 
 interface ModLogServiceType {
@@ -130,10 +130,10 @@ class SettingCommand extends BaseCommand {
             const services = require('../../services');
             GuildSettingsService = services.GuildSettingsService;
             const modServices = require('../../services/moderation');
-            AutoModService = modServices.AutoModService;
-            LockdownService = modServices.LockdownService;
-            AntiRaidService = modServices.AntiRaidService;
-            ModLogService = modServices.ModLogService;
+            AutoModService = modServices.autoModService;
+            LockdownService = modServices.lockdownService;
+            AntiRaidService = modServices.antiRaidService;
+            ModLogService = modServices.modLogService;
         } catch {
             await interaction.reply({
                 content: '❌ Settings service unavailable.',
@@ -162,8 +162,8 @@ class SettingCommand extends BaseCommand {
         let raidStatus: RaidStatus | null = null;
         
         try { automodSettings = await AutoModService!.getSettings(guildId); } catch {}
-        try { lockdownStatus = LockdownService!.getLockStatus(guildId); } catch {}
-        try { raidStatus = AntiRaidService!.getRaidModeState(guildId); } catch {}
+        try { lockdownStatus = await LockdownService!.getLockStatus(guildId); } catch {}
+        try { raidStatus = await AntiRaidService!.getRaidModeState(guildId); } catch {}
 
         const adminRolesMention = adminRoles.length > 0 
             ? adminRoles.map(id => `<@&${id}>`).join(', ')
@@ -401,7 +401,7 @@ class SettingCommand extends BaseCommand {
         let ModLogService: ModLogServiceType | undefined;
         try {
             const modServices = require('../../services/moderation');
-            ModLogService = modServices.ModLogService;
+            ModLogService = modServices.modLogService;
         } catch {
             return;
         }

@@ -10,7 +10,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.BLOCKED_HOST_PATTERNS = void 0;
 exports.validateUrl = validateUrl;
 exports.isBlockedHost = isBlockedHost;
-const videoEmbedBuilder_1 = __importDefault(require("../utils/video/videoEmbedBuilder"));
+const videoEmbedBuilder_js_1 = __importDefault(require("../utils/video/videoEmbedBuilder.js"));
 // Constants
 /**
  * SSRF Protection - Blocked hostname patterns
@@ -66,7 +66,7 @@ async function validateUrl(interaction, url) {
     // Basic protocol check
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
         await interaction.editReply({
-            embeds: [videoEmbedBuilder_1.default.buildInvalidUrlEmbed()]
+            embeds: [videoEmbedBuilder_js_1.default.buildInvalidUrlEmbed()]
         });
         return false;
     }
@@ -76,28 +76,28 @@ async function validateUrl(interaction, url) {
         // Block dangerous protocols
         if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
             await interaction.editReply({
-                embeds: [videoEmbedBuilder_1.default.buildInvalidUrlEmbed('Only HTTP/HTTPS URLs are supported.')]
+                embeds: [videoEmbedBuilder_js_1.default.buildInvalidUrlEmbed('Only HTTP/HTTPS URLs are supported.')]
             });
             return false;
         }
         // SSRF Protection: Check against blocked patterns
         if (isBlockedHost(parsedUrl.hostname)) {
             await interaction.editReply({
-                embeds: [videoEmbedBuilder_1.default.buildInvalidUrlEmbed('This URL is not allowed for security reasons.')]
+                embeds: [videoEmbedBuilder_js_1.default.buildInvalidUrlEmbed('This URL is not allowed for security reasons.')]
             });
             return false;
         }
         // Block URLs with credentials
         if (parsedUrl.username || parsedUrl.password) {
             await interaction.editReply({
-                embeds: [videoEmbedBuilder_1.default.buildInvalidUrlEmbed('URLs with credentials are not allowed.')]
+                embeds: [videoEmbedBuilder_js_1.default.buildInvalidUrlEmbed('URLs with credentials are not allowed.')]
             });
             return false;
         }
     }
     catch (error) {
         await interaction.editReply({
-            embeds: [videoEmbedBuilder_1.default.buildInvalidUrlEmbed('The URL format is invalid.')]
+            embeds: [videoEmbedBuilder_js_1.default.buildInvalidUrlEmbed('The URL format is invalid.')]
         });
         return false;
     }

@@ -4,8 +4,8 @@
  * @module modules/music/repository/GuildMusicCache
  */
 
-import { CACHE_LIMITS } from '../../constants';
-import { MusicTrack } from './QueueCache';
+import { CACHE_LIMITS } from '../../constants.js';
+import { MusicTrack } from './QueueCache.js';
 // Types
 export interface GuildMusicSettings {
     defaultVolume: number;

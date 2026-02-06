@@ -205,10 +205,4 @@ function getErrorMessage(code, _locale = 'en') {
 function isErrorCategory(code, category) {
     return ERROR_CATEGORIES[category]?.includes(code) || false;
 }
-// CommonJS compatibility
-module.exports = {
-    ErrorCodes: exports.ErrorCodes,
-    getErrorMessage,
-    isErrorCategory
-};
 //# sourceMappingURL=ErrorCodes.js.map

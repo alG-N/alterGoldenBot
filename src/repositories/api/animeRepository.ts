@@ -3,7 +3,7 @@
  * Database operations for anime favourites and notifications
  */
 
-import postgres from '../../database/postgres';
+import postgres from '../../database/postgres.js';
 // Interfaces
 interface AnimeFavourite {
     anime_id: number;

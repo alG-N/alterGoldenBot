@@ -8,7 +8,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NHentaiRepository = exports.nhentaiRepository = void 0;
-const postgres_1 = __importDefault(require("../../database/postgres"));
+const postgres_js_1 = __importDefault(require("../../database/postgres.js"));
 // Simple logger fallback
 const logger = {
     info: (tag, msg) => console.log(`[${tag}] ${msg}`),
@@ -26,7 +26,7 @@ class NHentaiRepository {
             return;
         try {
             // Create tables if not exists
-            await postgres_1.default.query(`
+            await postgres_js_1.default.query(`
                 CREATE TABLE IF NOT EXISTS nhentai_favourites (
                     user_id VARCHAR(20) NOT NULL,
                     gallery_id INTEGER NOT NULL,
@@ -38,7 +38,7 @@ class NHentaiRepository {
                 )
             `);
             // Create index for faster lookups
-            await postgres_1.default.query(`
+            await postgres_js_1.default.query(`
                 CREATE INDEX IF NOT EXISTS idx_nhentai_favourites_user 
                 ON nhentai_favourites(user_id)
             `);
@@ -55,7 +55,7 @@ class NHentaiRepository {
     async getUserFavourites(userId, limit = 25, offset = 0) {
         await this._initialize();
         try {
-            const rows = await postgres_1.default.getMany(`SELECT gallery_id, gallery_title, num_pages, tags, created_at 
+            const rows = await postgres_js_1.default.getMany(`SELECT gallery_id, gallery_title, num_pages, tags, created_at 
                  FROM nhentai_favourites 
                  WHERE user_id = $1 
                  ORDER BY created_at DESC
@@ -73,7 +73,7 @@ class NHentaiRepository {
     async getFavouritesCount(userId) {
         await this._initialize();
         try {
-            const row = await postgres_1.default.getOne(`SELECT COUNT(*) as count FROM nhentai_favourites WHERE user_id = $1`, [userId]);
+            const row = await postgres_js_1.default.getOne(`SELECT COUNT(*) as count FROM nhentai_favourites WHERE user_id = $1`, [userId]);
             return parseInt(String(row?.count ?? '0'));
         }
         catch (error) {
@@ -87,7 +87,7 @@ class NHentaiRepository {
     async isFavourited(userId, galleryId) {
         await this._initialize();
         try {
-            const row = await postgres_1.default.getOne(`SELECT 1 FROM nhentai_favourites WHERE user_id = $1 AND gallery_id = $2`, [userId, galleryId]);
+            const row = await postgres_js_1.default.getOne(`SELECT 1 FROM nhentai_favourites WHERE user_id = $1 AND gallery_id = $2`, [userId, galleryId]);
             return !!row;
         }
         catch (error) {
@@ -103,7 +103,7 @@ class NHentaiRepository {
         try {
             const title = gallery.title?.english || gallery.title?.japanese || gallery.title?.pretty || 'Unknown';
             const tags = this._extractTagsString(gallery.tags);
-            const result = await postgres_1.default.query(`INSERT INTO nhentai_favourites (user_id, gallery_id, gallery_title, num_pages, tags) 
+            const result = await postgres_js_1.default.query(`INSERT INTO nhentai_favourites (user_id, gallery_id, gallery_title, num_pages, tags) 
                  VALUES ($1, $2, $3, $4, $5) 
                  ON CONFLICT (user_id, gallery_id) DO NOTHING`, [userId, gallery.id, title, gallery.num_pages || 0, tags]);
             return (result.rowCount ?? 0) > 0;
@@ -119,7 +119,7 @@ class NHentaiRepository {
     async removeFavourite(userId, galleryId) {
         await this._initialize();
         try {
-            const result = await postgres_1.default.query(`DELETE FROM nhentai_favourites WHERE user_id = $1 AND gallery_id = $2`, [userId, galleryId]);
+            const result = await postgres_js_1.default.query(`DELETE FROM nhentai_favourites WHERE user_id = $1 AND gallery_id = $2`, [userId, galleryId]);
             return (result.rowCount ?? 0) > 0;
         }
         catch (error) {
@@ -156,7 +156,7 @@ class NHentaiRepository {
                 .replace(/\\/g, '\\\\') // Escape backslashes first
                 .replace(/%/g, '\\%') // Escape percent
                 .replace(/_/g, '\\_'); // Escape underscore
-            const rows = await postgres_1.default.getMany(`SELECT gallery_id, gallery_title, num_pages, tags, created_at 
+            const rows = await postgres_js_1.default.getMany(`SELECT gallery_id, gallery_title, num_pages, tags, created_at 
                  FROM nhentai_favourites 
                  WHERE user_id = $1 AND (gallery_title ILIKE $2 OR tags ILIKE $2)
                  ORDER BY created_at DESC

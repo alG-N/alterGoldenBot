@@ -10,7 +10,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WikipediaService = exports.wikipediaService = void 0;
 const axios_1 = __importDefault(require("axios"));
-const CircuitBreakerRegistry_1 = require("../../core/CircuitBreakerRegistry");
+const CircuitBreakerRegistry_js_1 = require("../../core/CircuitBreakerRegistry.js");
 const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
 // CONFIGURATION
 const LANGUAGE_ENDPOINTS = {
@@ -49,7 +49,7 @@ class WikipediaService {
         const cached = await CacheService_js_1.default.get(this.CACHE_NS, cacheKey);
         if (cached)
             return { ...cached, fromCache: true };
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('wikipedia', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('wikipedia', async () => {
             try {
                 const response = await axios_1.default.get(endpoints.api, {
                     ...REQUEST_CONFIG,
@@ -90,7 +90,7 @@ class WikipediaService {
         const cached = await CacheService_js_1.default.get(this.CACHE_NS, cacheKey);
         if (cached)
             return { ...cached, fromCache: true };
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('wikipedia', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('wikipedia', async () => {
             try {
                 const encodedTitle = encodeURIComponent(title.replace(/ /g, '_'));
                 const response = await axios_1.default.get(`${endpoints.rest}/page/summary/${encodedTitle}`, REQUEST_CONFIG);
@@ -129,7 +129,7 @@ class WikipediaService {
      */
     async getRandomArticle(language = 'en') {
         const endpoints = this._getEndpoints(language);
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('wikipedia', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('wikipedia', async () => {
             try {
                 const response = await axios_1.default.get(`${endpoints.rest}/page/random/summary`, REQUEST_CONFIG);
                 const data = response.data;
@@ -159,7 +159,7 @@ class WikipediaService {
      */
     async getOnThisDay(month, day, language = 'en') {
         const endpoints = this._getEndpoints(language);
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('wikipedia', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('wikipedia', async () => {
             try {
                 const response = await axios_1.default.get(`${endpoints.rest}/feed/onthisday/events/${month}/${day}`, REQUEST_CONFIG);
                 const events = response.data.events?.slice(0, 5).map((event) => ({
@@ -186,7 +186,7 @@ class WikipediaService {
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('wikipedia', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('wikipedia', async () => {
             try {
                 const response = await axios_1.default.get(`${endpoints.rest}/feed/featured/${year}/${month}/${day}`, REQUEST_CONFIG);
                 const tfa = response.data.tfa;
@@ -225,8 +225,4 @@ exports.WikipediaService = WikipediaService;
 const wikipediaService = new WikipediaService();
 exports.wikipediaService = wikipediaService;
 exports.default = wikipediaService;
-// CommonJS compatibility
-module.exports = wikipediaService;
-module.exports.wikipediaService = wikipediaService;
-module.exports.WikipediaService = WikipediaService;
 //# sourceMappingURL=wikipediaService.js.map

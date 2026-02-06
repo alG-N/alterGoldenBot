@@ -22,13 +22,13 @@ exports.getExpired = getExpired;
 exports.expireOld = expireOld;
 exports.getStats = getStats;
 exports.search = search;
-const postgres_1 = __importDefault(require("../../database/postgres"));
+const postgres_js_1 = __importDefault(require("../../database/postgres.js"));
 // Repository Functions
 /**
  * Get next case ID for a guild
  */
 async function getNextCaseId(guildId) {
-    const result = await postgres_1.default.query(`SELECT COALESCE(MAX(case_id), 0) + 1 as next_id 
+    const result = await postgres_js_1.default.query(`SELECT COALESCE(MAX(case_id), 0) + 1 as next_id 
          FROM mod_infractions 
          WHERE guild_id = $1`, [guildId]);
     return result.rows[0]?.next_id || 1;
@@ -39,7 +39,7 @@ async function getNextCaseId(guildId) {
 async function create(data) {
     const { guildId, userId, moderatorId, type, reason, durationMs, expiresAt, referenceId, metadata } = data;
     const caseId = await getNextCaseId(guildId);
-    const result = await postgres_1.default.query(`INSERT INTO mod_infractions 
+    const result = await postgres_js_1.default.query(`INSERT INTO mod_infractions 
          (case_id, guild_id, user_id, moderator_id, type, reason, duration_ms, expires_at, reference_id, metadata)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING *`, [caseId, guildId, userId, moderatorId, type, reason, durationMs, expiresAt, referenceId, metadata || {}]);
@@ -49,7 +49,7 @@ async function create(data) {
  * Get infraction by case ID
  */
 async function getByCaseId(guildId, caseId) {
-    const result = await postgres_1.default.query(`SELECT * FROM mod_infractions 
+    const result = await postgres_js_1.default.query(`SELECT * FROM mod_infractions 
          WHERE guild_id = $1 AND case_id = $2`, [guildId, caseId]);
     return result.rows[0] || null;
 }
@@ -70,14 +70,14 @@ async function getByUser(guildId, userId, options = {}) {
     }
     sql += ` ORDER BY created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex}`;
     params.push(limit, offset);
-    const result = await postgres_1.default.query(sql, params);
+    const result = await postgres_js_1.default.query(sql, params);
     return result.rows;
 }
 /**
  * Count active warnings for a user
  */
 async function countActiveWarnings(guildId, userId) {
-    const result = await postgres_1.default.query(`SELECT COUNT(*) as count FROM mod_infractions 
+    const result = await postgres_js_1.default.query(`SELECT COUNT(*) as count FROM mod_infractions 
          WHERE guild_id = $1 AND user_id = $2 
            AND type = 'warn' AND active = true
            AND (expires_at IS NULL OR expires_at > NOW())`, [guildId, userId]);
@@ -87,7 +87,7 @@ async function countActiveWarnings(guildId, userId) {
  * Get recent infractions for a guild
  */
 async function getRecent(guildId, limit = 20) {
-    const result = await postgres_1.default.query(`SELECT * FROM mod_infractions 
+    const result = await postgres_js_1.default.query(`SELECT * FROM mod_infractions 
          WHERE guild_id = $1 
          ORDER BY created_at DESC 
          LIMIT $2`, [guildId, limit]);
@@ -97,7 +97,7 @@ async function getRecent(guildId, limit = 20) {
  * Get infractions by moderator
  */
 async function getByModerator(guildId, moderatorId, limit = 50) {
-    const result = await postgres_1.default.query(`SELECT * FROM mod_infractions 
+    const result = await postgres_js_1.default.query(`SELECT * FROM mod_infractions 
          WHERE guild_id = $1 AND moderator_id = $2 
          ORDER BY created_at DESC 
          LIMIT $3`, [guildId, moderatorId, limit]);
@@ -119,7 +119,7 @@ async function update(guildId, caseId, updates) {
     }
     if (setClauses.length === 0)
         return null;
-    const result = await postgres_1.default.query(`UPDATE mod_infractions 
+    const result = await postgres_js_1.default.query(`UPDATE mod_infractions 
          SET ${setClauses.join(', ')}
          WHERE guild_id = $1 AND case_id = $2
          RETURNING *`, params);
@@ -129,7 +129,7 @@ async function update(guildId, caseId, updates) {
  * Deactivate infraction (soft delete)
  */
 async function deactivate(guildId, caseId) {
-    const result = await postgres_1.default.query(`UPDATE mod_infractions 
+    const result = await postgres_js_1.default.query(`UPDATE mod_infractions 
          SET active = false 
          WHERE guild_id = $1 AND case_id = $2`, [guildId, caseId]);
     return (result.rowCount ?? 0) > 0;
@@ -138,7 +138,7 @@ async function deactivate(guildId, caseId) {
  * Deactivate all warnings for a user
  */
 async function clearWarnings(guildId, userId) {
-    const result = await postgres_1.default.query(`UPDATE mod_infractions 
+    const result = await postgres_js_1.default.query(`UPDATE mod_infractions 
          SET active = false 
          WHERE guild_id = $1 AND user_id = $2 AND type = 'warn' AND active = true`, [guildId, userId]);
     return result.rowCount ?? 0;
@@ -147,7 +147,7 @@ async function clearWarnings(guildId, userId) {
  * Get expired warnings to clean up
  */
 async function getExpired() {
-    const result = await postgres_1.default.query(`SELECT * FROM mod_infractions 
+    const result = await postgres_js_1.default.query(`SELECT * FROM mod_infractions 
          WHERE active = true AND expires_at IS NOT NULL AND expires_at < NOW()`);
     return result.rows;
 }
@@ -155,7 +155,7 @@ async function getExpired() {
  * Expire old infractions
  */
 async function expireOld() {
-    const result = await postgres_1.default.query(`UPDATE mod_infractions 
+    const result = await postgres_js_1.default.query(`UPDATE mod_infractions 
          SET active = false 
          WHERE active = true AND expires_at IS NOT NULL AND expires_at < NOW()`);
     return result.rowCount ?? 0;
@@ -164,7 +164,7 @@ async function expireOld() {
  * Get infraction statistics for a guild
  */
 async function getStats(guildId) {
-    const result = await postgres_1.default.query(`SELECT 
+    const result = await postgres_js_1.default.query(`SELECT 
             type,
             COUNT(*) as total,
             COUNT(*) FILTER (WHERE active = true) as active,
@@ -209,7 +209,7 @@ async function search(guildId, criteria) {
     }
     sql += ` ORDER BY created_at DESC LIMIT $${paramIndex}`;
     params.push(limit);
-    const result = await postgres_1.default.query(sql, params);
+    const result = await postgres_js_1.default.query(sql, params);
     return result.rows;
 }
 // Export as module object

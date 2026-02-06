@@ -23,9 +23,9 @@ exports.createSuccessEmbed = createSuccessEmbed;
 exports.createInfoEmbed = createInfoEmbed;
 exports.createCooldownEmbed = createCooldownEmbed;
 const discord_js_1 = require("discord.js");
-const constants_1 = require("../constants");
-const CacheService_1 = __importDefault(require("../cache/CacheService"));
-const urlValidator_1 = require("./urlValidator");
+const constants_js_1 = require("../constants.js");
+const CacheService_js_1 = __importDefault(require("../cache/CacheService.js"));
+const urlValidator_js_1 = require("./urlValidator.js");
 // Access Types
 const AccessType = {
     PUBLIC: 'public', // Anyone can use
@@ -57,7 +57,7 @@ class RateLimiter {
      * Check if user is on cooldown
      */
     async checkCooldown(userId) {
-        const remaining = await CacheService_1.default.getCooldown(this.name, userId);
+        const remaining = await CacheService_js_1.default.getCooldown(this.name, userId);
         if (remaining !== null && remaining > 0) {
             return Math.ceil(remaining / 1000);
         }
@@ -67,13 +67,13 @@ class RateLimiter {
      * Set cooldown for user
      */
     async setCooldown(userId, customMs) {
-        await CacheService_1.default.setCooldown(this.name, userId, customMs || this.cooldownMs);
+        await CacheService_js_1.default.setCooldown(this.name, userId, customMs || this.cooldownMs);
     }
     /**
      * Clear cooldown for user
      */
     async clearCooldown(userId) {
-        await CacheService_1.default.clearCooldown(this.name, userId);
+        await CacheService_js_1.default.clearCooldown(this.name, userId);
     }
     /**
      * Check if concurrent limit reached
@@ -123,7 +123,7 @@ class DistributedRateLimiter {
      */
     async check(userId) {
         const key = `${this.name}:${userId}`;
-        return CacheService_1.default.checkRateLimit(key, this.limit, this.windowSeconds);
+        return CacheService_js_1.default.checkRateLimit(key, this.limit, this.windowSeconds);
     }
     /**
      * Check and consume a rate limit slot
@@ -241,7 +241,7 @@ function validateVideoUrl(url) {
             return { valid: false, error: 'Only HTTP/HTTPS URLs are supported.' };
         }
         // SSRF Protection
-        if ((0, urlValidator_1.isBlockedHost)(parsedUrl.hostname)) {
+        if ((0, urlValidator_js_1.isBlockedHost)(parsedUrl.hostname)) {
             return { valid: false, error: 'This URL is not allowed for security reasons.' };
         }
         // Block URLs with credentials
@@ -273,8 +273,8 @@ function checkNSFW(channel) {
  */
 function createErrorEmbed(title, description) {
     return new discord_js_1.EmbedBuilder()
-        .setColor(constants_1.COLORS.ERROR)
-        .setTitle(`${constants_1.EMOJIS?.ERROR || '❌'} ${title}`)
+        .setColor(constants_js_1.COLORS.ERROR)
+        .setTitle(`${constants_js_1.EMOJIS?.ERROR || '❌'} ${title}`)
         .setDescription(description);
 }
 /**
@@ -282,8 +282,8 @@ function createErrorEmbed(title, description) {
  */
 function createWarningEmbed(title, description) {
     return new discord_js_1.EmbedBuilder()
-        .setColor(constants_1.COLORS.WARNING)
-        .setTitle(`${constants_1.EMOJIS?.WARNING || '⚠️'} ${title}`)
+        .setColor(constants_js_1.COLORS.WARNING)
+        .setTitle(`${constants_js_1.EMOJIS?.WARNING || '⚠️'} ${title}`)
         .setDescription(description);
 }
 /**
@@ -291,8 +291,8 @@ function createWarningEmbed(title, description) {
  */
 function createSuccessEmbed(title, description) {
     return new discord_js_1.EmbedBuilder()
-        .setColor(constants_1.COLORS.SUCCESS)
-        .setTitle(`${constants_1.EMOJIS?.SUCCESS || '✅'} ${title}`)
+        .setColor(constants_js_1.COLORS.SUCCESS)
+        .setTitle(`${constants_js_1.EMOJIS?.SUCCESS || '✅'} ${title}`)
         .setDescription(description);
 }
 /**
@@ -300,8 +300,8 @@ function createSuccessEmbed(title, description) {
  */
 function createInfoEmbed(title, description) {
     return new discord_js_1.EmbedBuilder()
-        .setColor(constants_1.COLORS.INFO || constants_1.COLORS.PRIMARY)
-        .setTitle(`${constants_1.EMOJIS?.INFO || 'ℹ️'} ${title}`)
+        .setColor(constants_js_1.COLORS.INFO || constants_js_1.COLORS.PRIMARY)
+        .setTitle(`${constants_js_1.EMOJIS?.INFO || 'ℹ️'} ${title}`)
         .setDescription(description);
 }
 /**
@@ -309,7 +309,7 @@ function createInfoEmbed(title, description) {
  */
 function createCooldownEmbed(remainingSeconds) {
     return new discord_js_1.EmbedBuilder()
-        .setColor(constants_1.COLORS.WARNING)
+        .setColor(constants_js_1.COLORS.WARNING)
         .setTitle('⏳ Cooldown Active')
         .setDescription(`Please wait **${remainingSeconds} seconds** before using this command again.`)
         .setFooter({ text: 'This helps prevent server overload' });

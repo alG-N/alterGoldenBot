@@ -8,19 +8,19 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ModLogRepository = exports.FilterRepository = exports.AutoModRepository = exports.InfractionRepository = void 0;
 // Import repositories
-const InfractionRepository_1 = __importDefault(require("./InfractionRepository"));
-exports.InfractionRepository = InfractionRepository_1.default;
-const AutoModRepository_1 = __importDefault(require("./AutoModRepository"));
-exports.AutoModRepository = AutoModRepository_1.default;
-const FilterRepository_1 = __importDefault(require("./FilterRepository"));
-exports.FilterRepository = FilterRepository_1.default;
-const ModLogRepository_1 = __importDefault(require("./ModLogRepository"));
-exports.ModLogRepository = ModLogRepository_1.default;
+const InfractionRepository_js_1 = __importDefault(require("./InfractionRepository.js"));
+exports.InfractionRepository = InfractionRepository_js_1.default;
+const AutoModRepository_js_1 = __importDefault(require("./AutoModRepository.js"));
+exports.AutoModRepository = AutoModRepository_js_1.default;
+const FilterRepository_js_1 = __importDefault(require("./FilterRepository.js"));
+exports.FilterRepository = FilterRepository_js_1.default;
+const ModLogRepository_js_1 = __importDefault(require("./ModLogRepository.js"));
+exports.ModLogRepository = ModLogRepository_js_1.default;
 // Default export
 exports.default = {
-    InfractionRepository: InfractionRepository_1.default,
-    AutoModRepository: AutoModRepository_1.default,
-    FilterRepository: FilterRepository_1.default,
-    ModLogRepository: ModLogRepository_1.default
+    InfractionRepository: InfractionRepository_js_1.default,
+    AutoModRepository: AutoModRepository_js_1.default,
+    FilterRepository: FilterRepository_js_1.default,
+    ModLogRepository: ModLogRepository_js_1.default
 };
 //# sourceMappingURL=index.js.map

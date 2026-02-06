@@ -8,6 +8,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const discord_js_1 = require("discord.js");
 const BaseEvent_js_1 = require("./BaseEvent.js");
 const index_js_1 = require("../handlers/moderation/index.js");
+const afk_js_1 = require("../commands/general/afk.js");
 // MESSAGE CREATE EVENT
 class MessageCreateEvent extends BaseEvent_js_1.BaseEvent {
     constructor() {
@@ -47,28 +48,12 @@ class MessageCreateEvent extends BaseEvent_js_1.BaseEvent {
     /**
      * Handle AFK system
      */
-    async _handleAfk(client, message) {
+    async _handleAfk(_client, message) {
         try {
-            // Try presentation layer first - access default export's onMessage
-            const afkModule = await import('../commands/general/afk.js');
-            const afkCommand = afkModule.default;
-            if (afkCommand?.onMessage) {
-                await Promise.resolve(afkCommand.onMessage(message, client));
-                return;
-            }
+            await (0, afk_js_1.onMessage)(message, message.client);
         }
         catch {
-            // Fallback to old location
-            try {
-                const clientWithCommands = client;
-                const afkCommand = clientWithCommands.commands?.get('afk');
-                if (afkCommand?.onMessage) {
-                    await afkCommand.onMessage(message, client);
-                }
-            }
-            catch {
-                // Silent fail for AFK
-            }
+            // Silent fail for AFK
         }
     }
 }

@@ -6,7 +6,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.queueCache = void 0;
-const constants_1 = require("../../constants");
+const constants_js_1 = require("../../constants.js");
 // QueueCache Class
 class QueueCache {
     guildQueues;
@@ -14,8 +14,8 @@ class QueueCache {
     MAX_QUEUE_SIZE;
     constructor() {
         this.guildQueues = new Map();
-        this.MAX_GUILDS = constants_1.CACHE_LIMITS.MAX_GUILDS;
-        this.MAX_QUEUE_SIZE = constants_1.CACHE_LIMITS.MAX_QUEUE_SIZE;
+        this.MAX_GUILDS = constants_js_1.CACHE_LIMITS.MAX_GUILDS;
+        this.MAX_QUEUE_SIZE = constants_js_1.CACHE_LIMITS.MAX_QUEUE_SIZE;
     }
     /**
      * Get or create guild queue

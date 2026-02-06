@@ -3,7 +3,7 @@
  * Voice channel validation for music commands
  */
 
-import trackHandler from '../handlers/music/trackHandler';
+import trackHandler from '../handlers/music/trackHandler.js';
 import { MessageFlags } from 'discord.js';
 import type { 
     GuildMember, 

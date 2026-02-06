@@ -41,7 +41,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.steamService = exports.SteamService = void 0;
 const path = __importStar(require("path"));
 const dotenv = __importStar(require("dotenv"));
-const CircuitBreakerRegistry_1 = require("../../core/CircuitBreakerRegistry");
+const CircuitBreakerRegistry_js_1 = require("../../core/CircuitBreakerRegistry.js");
 dotenv.config({ path: path.join(__dirname, '../.env') });
 // STEAM SERVICE CLASS
 /**
@@ -62,7 +62,7 @@ class SteamService {
      * @returns Array of games on sale
      */
     async fetchSteamSales(maxResults = 300) {
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('steam', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('steam', async () => {
             const allGames = [];
             const resultsPerPage = 100;
             const pages = Math.ceil(maxResults / resultsPerPage);
@@ -263,7 +263,7 @@ class SteamService {
      * @returns Array of featured sale games
      */
     async fetchFeaturedSales() {
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('steam', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('steam', async () => {
             try {
                 // Force US region
                 const response = await fetch('https://store.steampowered.com/api/featuredcategories?cc=us&l=english');
@@ -293,7 +293,7 @@ class SteamService {
      * @returns SteamSpy data or null if unavailable
      */
     async getSteamSpyData(appId) {
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('steam', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('steam', async () => {
             try {
                 const response = await fetch(`https://steamspy.com/api.php?request=appdetails&appid=${appId}`);
                 if (!response.ok)
@@ -357,7 +357,4 @@ exports.SteamService = SteamService;
 const steamService = new SteamService();
 exports.steamService = steamService;
 exports.default = steamService;
-// CommonJS compatibility
-module.exports = steamService;
-module.exports.SteamService = SteamService;
 //# sourceMappingURL=steamService.js.map

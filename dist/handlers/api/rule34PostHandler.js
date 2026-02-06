@@ -23,8 +23,8 @@ const discord_js_1 = require("discord.js");
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const getDefault = (mod) => mod.default || mod;
 const rule34Service = getDefault(require('../../services/api/rule34Service'));
-const rule34Cache_1 = require("../../repositories/api/rule34Cache");
-const embed_1 = require("../../utils/common/embed");
+const rule34Cache_js_1 = require("../../repositories/api/rule34Cache.js");
+const embed_js_1 = require("../../utils/common/embed.js");
 /**
  * Rating colors
  */
@@ -92,7 +92,7 @@ async function createPostEmbed(post, options = {}) {
     let description = '';
     // Rating and basic info
     description += `${ratingEmoji} **Rating:** ${post.rating?.toUpperCase() || 'Unknown'}\n`;
-    description += `⭐ **Score:** ${(0, embed_1.formatNumber)(post.score)}\n`;
+    description += `⭐ **Score:** ${(0, embed_js_1.formatNumber)(post.score)}\n`;
     description += `📐 **Dimensions:** ${post.width} × ${post.height}`;
     if (post.isHighRes)
         description += ' 🔷';
@@ -185,7 +185,7 @@ function createPostButtons(post, options = {}) {
         .setStyle(discord_js_1.ButtonStyle.Link)
         .setURL(post.pageUrl));
     // Favorite button
-    const isFavorited = rule34Cache_1.rule34Cache.isFavorited(userId, post.id);
+    const isFavorited = rule34Cache_js_1.rule34Cache.isFavorited(userId, post.id);
     actionRow.addComponents(new discord_js_1.ButtonBuilder()
         .setCustomId(`rule34_fav_${post.id}_${userId}`)
         .setLabel(isFavorited ? '💔' : '❤️')
@@ -227,7 +227,7 @@ function createVideoEmbed(post, options = {}) {
         .setTitle(`🎬 Video Post #${post.id}`)
         .setURL(post.pageUrl)
         .setDescription(`${ratingEmoji} **Rating:** ${post.rating?.toUpperCase()}\n` +
-        `⭐ **Score:** ${(0, embed_1.formatNumber)(post.score)}\n` +
+        `⭐ **Score:** ${(0, embed_js_1.formatNumber)(post.score)}\n` +
         `📐 **Dimensions:** ${post.width} × ${post.height}\n` +
         `${post.hasSound ? '🔊 Has Sound' : '🔇 No Sound'}\n\n` +
         `📹 **Videos cannot be embedded directly.**\n` +
@@ -393,8 +393,8 @@ function createFavoritesEmbed(userId, favorites, page = 0) {
  * Create settings embed
  */
 function createSettingsEmbed(userId) {
-    const prefs = rule34Cache_1.rule34Cache.getPreferences(userId) || {};
-    const blacklist = rule34Cache_1.rule34Cache.getBlacklist(userId) || [];
+    const prefs = rule34Cache_js_1.rule34Cache.getPreferences(userId) || {};
+    const blacklist = rule34Cache_js_1.rule34Cache.getBlacklist(userId) || [];
     const embed = new discord_js_1.EmbedBuilder()
         .setColor('#5865F2')
         .setTitle('⚙️ Rule34 Settings')
@@ -421,7 +421,7 @@ function createSettingsEmbed(userId) {
  * Create settings select menu
  */
 function createSettingsComponents(userId) {
-    const prefs = rule34Cache_1.rule34Cache.getPreferences(userId) || {};
+    const prefs = rule34Cache_js_1.rule34Cache.getPreferences(userId) || {};
     const rows = [];
     // AI Filter toggle
     const row1 = new discord_js_1.ActionRowBuilder().addComponents(new discord_js_1.StringSelectMenuBuilder()

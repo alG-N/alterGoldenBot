@@ -5,7 +5,7 @@
  */
 
 import { Message } from 'discord.js';
-import { MusicTrack } from './QueueCache';
+import { MusicTrack } from './QueueCache.js';
 // Types
 export interface SkipVoteSession {
     votes: Set<string>;

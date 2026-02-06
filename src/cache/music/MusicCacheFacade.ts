@@ -12,11 +12,11 @@
  */
 
 import { Message } from 'discord.js';
-import queueCache, { MusicTrack, MusicQueue } from './QueueCache';
-import userMusicCache, { UserPreferences, FavoriteTrack, HistoryTrack, AddFavoriteResult, UserMusicStats } from './UserMusicCache';
-import voteCache, { VoteResult, AddVoteResult, VoteSkipStatus } from './VoteCache';
-import guildMusicCache, { GuildMusicSettings, RecentlyPlayedTrack, DJLockState, CachedPlaylist } from './GuildMusicCache';
-import logger from '../../core/Logger';
+import queueCache, { MusicTrack, MusicQueue } from './QueueCache.js';
+import userMusicCache, { UserPreferences, FavoriteTrack, HistoryTrack, AddFavoriteResult, UserMusicStats } from './UserMusicCache.js';
+import voteCache, { VoteResult, AddVoteResult, VoteSkipStatus } from './VoteCache.js';
+import guildMusicCache, { GuildMusicSettings, RecentlyPlayedTrack, DJLockState, CachedPlaylist } from './GuildMusicCache.js';
+import logger from '../../core/Logger.js';
 // Types
 export interface MusicCacheStats {
     queue: ReturnType<typeof queueCache.getStats>;

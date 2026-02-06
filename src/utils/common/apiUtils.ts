@@ -4,7 +4,7 @@
  * @module utils/common/apiUtils
  */
 
-import logger from '../../core/Logger';
+import logger from '../../core/Logger.js';
 // TYPES
 interface RetryOptions {
     name?: string;

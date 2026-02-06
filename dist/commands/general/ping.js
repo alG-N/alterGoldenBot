@@ -9,13 +9,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const discord_js_1 = require("discord.js");
-const BaseCommand_1 = require("../BaseCommand");
-const constants_1 = require("../../constants");
+const BaseCommand_js_1 = require("../BaseCommand.js");
+const constants_js_1 = require("../../constants.js");
 const ShardBridge_js_1 = __importDefault(require("../../services/guild/ShardBridge.js"));
-class PingCommand extends BaseCommand_1.BaseCommand {
+class PingCommand extends BaseCommand_js_1.BaseCommand {
     constructor() {
         super({
-            category: BaseCommand_1.CommandCategory.GENERAL,
+            category: BaseCommand_js_1.CommandCategory.GENERAL,
             cooldown: 3,
             deferReply: false
         });
@@ -48,15 +48,15 @@ class PingCommand extends BaseCommand_1.BaseCommand {
         let statusColor;
         if (latency < 100) {
             status = '🟢 Excellent';
-            statusColor = constants_1.COLORS.SUCCESS;
+            statusColor = constants_js_1.COLORS.SUCCESS;
         }
         else if (latency < 200) {
             status = '🟡 Good';
-            statusColor = constants_1.COLORS.WARNING;
+            statusColor = constants_js_1.COLORS.WARNING;
         }
         else {
             status = '🔴 High';
-            statusColor = constants_1.COLORS.ERROR;
+            statusColor = constants_js_1.COLORS.ERROR;
         }
         // Get cross-shard stats
         const shardInfo = ShardBridge_js_1.default.getShardInfo();
@@ -85,6 +85,4 @@ class PingCommand extends BaseCommand_1.BaseCommand {
 // Export singleton instance
 const pingCommand = new PingCommand();
 exports.default = pingCommand;
-// CommonJS compatibility
-module.exports = pingCommand;
 //# sourceMappingURL=ping.js.map

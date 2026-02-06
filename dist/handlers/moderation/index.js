@@ -7,7 +7,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.formatAction = exports.buildSettingsEmbed = exports.handleAutoModUpdate = exports.handleAutoModMessage = exports.AutoModHandler = exports.TYPE_EMOJIS = exports.TYPE_COLORS = exports.formatDuration = exports.sendConfirmation = exports.buildQuickEmbed = exports.handleMemberLeave = exports.handleMemberJoin = exports.handleMessageUpdateLog = exports.handleMessageDelete = exports.ModLogHandler = void 0;
+exports.formatAction = exports.buildSettingsEmbed = exports.handleAutoModUpdate = exports.handleAutoModMessage = exports.AutoModHandler = exports.TYPE_EMOJIS = exports.TYPE_COLORS = exports.sendConfirmation = exports.buildQuickEmbed = exports.handleMemberLeave = exports.handleMemberJoin = exports.handleMessageUpdateLog = exports.handleMessageDelete = exports.ModLogHandler = void 0;
 // TypeScript handlers
 var ModLogHandler_js_1 = require("./ModLogHandler.js");
 Object.defineProperty(exports, "ModLogHandler", { enumerable: true, get: function () { return __importDefault(ModLogHandler_js_1).default; } });
@@ -18,7 +18,6 @@ Object.defineProperty(exports, "handleMemberJoin", { enumerable: true, get: func
 Object.defineProperty(exports, "handleMemberLeave", { enumerable: true, get: function () { return ModLogHandler_js_2.handleMemberLeave; } });
 Object.defineProperty(exports, "buildQuickEmbed", { enumerable: true, get: function () { return ModLogHandler_js_2.buildQuickEmbed; } });
 Object.defineProperty(exports, "sendConfirmation", { enumerable: true, get: function () { return ModLogHandler_js_2.sendConfirmation; } });
-Object.defineProperty(exports, "formatDuration", { enumerable: true, get: function () { return ModLogHandler_js_2.formatDuration; } });
 Object.defineProperty(exports, "TYPE_COLORS", { enumerable: true, get: function () { return ModLogHandler_js_2.TYPE_COLORS; } });
 Object.defineProperty(exports, "TYPE_EMOJIS", { enumerable: true, get: function () { return ModLogHandler_js_2.TYPE_EMOJIS; } });
 var AutoModHandler_js_1 = require("./AutoModHandler.js");

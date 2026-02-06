@@ -41,25 +41,22 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cacheService = exports.VoteCache = exports.GuildMusicCache = exports.UserMusicCache = exports.QueueCache = exports.MusicCacheFacade = exports.MusicCache = exports.music = exports.DEFAULT_NAMESPACES = exports.CacheService = exports.BaseCache = void 0;
-// Base Cache (legacy — used by music caches, will be migrated to CacheService)
-var BaseCache_1 = require("./BaseCache");
-Object.defineProperty(exports, "BaseCache", { enumerable: true, get: function () { return BaseCache_1.BaseCache; } });
+exports.cacheService = exports.VoteCache = exports.GuildMusicCache = exports.UserMusicCache = exports.QueueCache = exports.MusicCacheFacade = exports.MusicCache = exports.music = exports.DEFAULT_NAMESPACES = exports.CacheService = void 0;
 // Cache Service
-var CacheService_1 = require("./CacheService");
-Object.defineProperty(exports, "CacheService", { enumerable: true, get: function () { return CacheService_1.CacheService; } });
-Object.defineProperty(exports, "DEFAULT_NAMESPACES", { enumerable: true, get: function () { return CacheService_1.DEFAULT_NAMESPACES; } });
+var CacheService_js_1 = require("./CacheService.js");
+Object.defineProperty(exports, "CacheService", { enumerable: true, get: function () { return CacheService_js_1.CacheService; } });
+Object.defineProperty(exports, "DEFAULT_NAMESPACES", { enumerable: true, get: function () { return CacheService_js_1.DEFAULT_NAMESPACES; } });
 // Music Caches (moved from repositories/music)
-exports.music = __importStar(require("./music"));
-var music_1 = require("./music");
-Object.defineProperty(exports, "MusicCache", { enumerable: true, get: function () { return music_1.MusicCache; } });
-Object.defineProperty(exports, "MusicCacheFacade", { enumerable: true, get: function () { return music_1.MusicCacheFacade; } });
-Object.defineProperty(exports, "QueueCache", { enumerable: true, get: function () { return music_1.QueueCache; } });
-Object.defineProperty(exports, "UserMusicCache", { enumerable: true, get: function () { return music_1.UserMusicCache; } });
-Object.defineProperty(exports, "GuildMusicCache", { enumerable: true, get: function () { return music_1.GuildMusicCache; } });
-Object.defineProperty(exports, "VoteCache", { enumerable: true, get: function () { return music_1.VoteCache; } });
+exports.music = __importStar(require("./music/index.js"));
+var index_js_1 = require("./music/index.js");
+Object.defineProperty(exports, "MusicCache", { enumerable: true, get: function () { return index_js_1.MusicCache; } });
+Object.defineProperty(exports, "MusicCacheFacade", { enumerable: true, get: function () { return index_js_1.MusicCacheFacade; } });
+Object.defineProperty(exports, "QueueCache", { enumerable: true, get: function () { return index_js_1.QueueCache; } });
+Object.defineProperty(exports, "UserMusicCache", { enumerable: true, get: function () { return index_js_1.UserMusicCache; } });
+Object.defineProperty(exports, "GuildMusicCache", { enumerable: true, get: function () { return index_js_1.GuildMusicCache; } });
+Object.defineProperty(exports, "VoteCache", { enumerable: true, get: function () { return index_js_1.VoteCache; } });
 // Default export is the unified cache service singleton
-const CacheService_2 = __importDefault(require("./CacheService"));
-exports.cacheService = CacheService_2.default;
-exports.default = CacheService_2.default;
+const CacheService_js_2 = __importDefault(require("./CacheService.js"));
+exports.cacheService = CacheService_js_2.default;
+exports.default = CacheService_js_2.default;
 //# sourceMappingURL=index.js.map

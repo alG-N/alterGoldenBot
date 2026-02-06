@@ -41,7 +41,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Rule34Service = exports.rule34Service = void 0;
 const path = __importStar(require("path"));
 const dotenv = __importStar(require("dotenv"));
-const CircuitBreakerRegistry_1 = require("../../core/CircuitBreakerRegistry");
+const CircuitBreakerRegistry_js_1 = require("../../core/CircuitBreakerRegistry.js");
 dotenv.config({ path: path.join(__dirname, '../.env') });
 // CONSTANTS
 const AI_TAGS = [
@@ -87,7 +87,7 @@ class Rule34Service {
      */
     async search(query, options = {}) {
         const { limit = 50, page = 0, sort = 'score:desc', rating = null, excludeAi = false, minScore = 0, contentType = null, excludeTags = [], requireTags = [], minWidth = 0, minHeight = 0, highQualityOnly = false, excludeLowQuality = false } = options;
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('nsfw', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('nsfw', async () => {
             const searchTags = this._buildSearchQuery(query, {
                 rating,
                 excludeAi,
@@ -147,7 +147,7 @@ class Rule34Service {
      * Get a single post by ID with circuit breaker
      */
     async getPostById(id) {
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('nsfw', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('nsfw', async () => {
             const url = new URL(this.baseUrl);
             url.searchParams.append('page', 'dapi');
             url.searchParams.append('s', 'post');
@@ -217,7 +217,7 @@ class Rule34Service {
     async getAutocompleteSuggestions(query) {
         if (!query || query.length < 2)
             return [];
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('nsfw', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('nsfw', async () => {
             const url = `${this.autocompleteUrl}?q=${encodeURIComponent(query)}`;
             try {
                 const controller = new AbortController();
@@ -248,7 +248,7 @@ class Rule34Service {
      * Get tag information
      */
     async getTagInfo(tagName) {
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('nsfw', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('nsfw', async () => {
             const url = new URL(this.baseUrl);
             url.searchParams.append('page', 'dapi');
             url.searchParams.append('s', 'tag');
@@ -271,7 +271,7 @@ class Rule34Service {
      * Get comments for a post
      */
     async getComments(postId) {
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('nsfw', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('nsfw', async () => {
             const url = new URL(this.baseUrl);
             url.searchParams.append('page', 'dapi');
             url.searchParams.append('s', 'comment');
@@ -574,8 +574,4 @@ exports.Rule34Service = Rule34Service;
 const rule34Service = new Rule34Service();
 exports.rule34Service = rule34Service;
 exports.default = rule34Service;
-// CommonJS compatibility
-module.exports = rule34Service;
-module.exports.rule34Service = rule34Service;
-module.exports.Rule34Service = Rule34Service;
 //# sourceMappingURL=rule34Service.js.map

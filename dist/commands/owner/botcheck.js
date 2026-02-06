@@ -125,7 +125,8 @@ class BotCheckCommand extends BaseCommand_js_1.BaseCommand {
         try {
             const cacheModule = await import('../../cache/CacheService.js');
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const cacheServiceInstance = (cacheModule.default || cacheModule);
+            const mod = (cacheModule.default || cacheModule);
+            const cacheServiceInstance = (mod && typeof mod === 'object' && 'default' in mod) ? mod.default : mod;
             const redisClient = cacheServiceInstance.getRedis?.();
             if (redisClient) {
                 // Actually ping Redis to verify connection
@@ -257,7 +258,8 @@ class BotCheckCommand extends BaseCommand_js_1.BaseCommand {
         try {
             const cacheModule = await import('../../cache/CacheService.js');
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const cacheServiceInstance = (cacheModule.default || cacheModule);
+            const mod2 = (cacheModule.default || cacheModule);
+            const cacheServiceInstance = (mod2 && typeof mod2 === 'object' && 'default' in mod2) ? mod2.default : mod2;
             const redisClient = cacheServiceInstance.getRedis?.();
             if (redisClient) {
                 try {

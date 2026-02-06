@@ -3,7 +3,7 @@
  * SSRF protection and URL validation
  */
 
-import videoEmbedBuilder from '../utils/video/videoEmbedBuilder';
+import videoEmbedBuilder from '../utils/video/videoEmbedBuilder.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 // Constants
 /**

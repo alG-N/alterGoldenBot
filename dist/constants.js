@@ -45,7 +45,7 @@ exports.COLORS = {
  */
 exports.CACHE_LIMITS = {
     // Guild-related
-    MAX_GUILDS: 10000,
+    MAX_GUILDS: 2500,
     MAX_QUEUE_SIZE: 500,
     MAX_QUEUE_TRACK_DURATION: 3 * 60 * 60 * 1000, // 3 hours
     // User-related
@@ -214,17 +214,5 @@ exports.LIMITS = {
     QUEUE_SIZE: 500,
     FAVORITES_SIZE: 200,
     HISTORY_SIZE: 100,
-};
-// CommonJS COMPATIBILITY
-module.exports = {
-    COLORS: exports.COLORS,
-    CACHE_LIMITS: exports.CACHE_LIMITS,
-    TIMEOUTS: exports.TIMEOUTS,
-    PAGINATION: exports.PAGINATION,
-    RATE_LIMITS: exports.RATE_LIMITS,
-    COOLDOWNS: exports.COOLDOWNS,
-    EMOJIS: exports.EMOJIS,
-    PATTERNS: exports.PATTERNS,
-    LIMITS: exports.LIMITS,
 };
 //# sourceMappingURL=constants.js.map

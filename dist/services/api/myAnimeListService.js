@@ -9,7 +9,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MyAnimeListService = exports.myAnimeListService = void 0;
-const CircuitBreakerRegistry_1 = require("../../core/CircuitBreakerRegistry");
+const CircuitBreakerRegistry_js_1 = require("../../core/CircuitBreakerRegistry.js");
 const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
 // TYPES & INTERFACES
 // Jikan API v4 (unofficial MAL API)
@@ -96,7 +96,7 @@ class MyAnimeListService {
         const cached = await CacheService_js_1.default.get(this.CACHE_NS, cacheKey);
         if (cached)
             return cached;
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('anime', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('anime', async () => {
             try {
                 let url = `${JIKAN_BASE}/${config.endpoint}?q=${encodeURIComponent(query)}&limit=1`;
                 if (config.typeFilter) {
@@ -133,7 +133,7 @@ class MyAnimeListService {
      */
     async searchMediaAutocomplete(query, mediaType = 'anime', limit = 10) {
         const config = MEDIA_TYPE_CONFIG[mediaType] || MEDIA_TYPE_CONFIG.anime;
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('anime', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('anime', async () => {
             try {
                 let url = `${JIKAN_BASE}/${config.endpoint}?q=${encodeURIComponent(query)}&limit=${limit}&sfw=true`;
                 if (config.typeFilter) {
@@ -181,7 +181,7 @@ class MyAnimeListService {
         const cached = await CacheService_js_1.default.get(this.CACHE_NS, cacheKey);
         if (cached)
             return cached;
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('anime', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('anime', async () => {
             try {
                 const response = await this._rateLimitedFetch(`${JIKAN_BASE}/anime/${malId}/full`);
                 if (!response.ok)
@@ -357,8 +357,4 @@ exports.MyAnimeListService = MyAnimeListService;
 const myAnimeListService = new MyAnimeListService();
 exports.myAnimeListService = myAnimeListService;
 exports.default = myAnimeListService;
-// CommonJS compatibility
-module.exports = myAnimeListService;
-module.exports.myAnimeListService = myAnimeListService;
-module.exports.MyAnimeListService = MyAnimeListService;
 //# sourceMappingURL=myAnimeListService.js.map

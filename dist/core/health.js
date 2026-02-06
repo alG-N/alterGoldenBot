@@ -49,8 +49,8 @@ exports.setStatus = setStatus;
 exports.startHealthServer = startHealthServer;
 exports.registerDefaultChecks = registerDefaultChecks;
 const http = __importStar(require("http"));
-const Logger_1 = __importDefault(require("./Logger"));
-const metrics_1 = require("./metrics");
+const Logger_js_1 = __importDefault(require("./Logger.js"));
+const metrics_js_1 = require("./metrics.js");
 const healthState = {
     status: 'starting',
     startTime: Date.now(),
@@ -66,7 +66,7 @@ const healthChecks = new Map();
  */
 function registerHealthCheck(name, checkFn) {
     healthChecks.set(name, checkFn);
-    Logger_1.default.debug('Health', `Registered health check: ${name}`);
+    Logger_js_1.default.debug('Health', `Registered health check: ${name}`);
 }
 /**
  * Run all health checks
@@ -163,8 +163,8 @@ function startHealthServer(port = 3000) {
         else if (req.url === '/metrics') {
             // Prometheus metrics endpoint
             try {
-                const metrics = await (0, metrics_1.getMetrics)();
-                res.setHeader('Content-Type', (0, metrics_1.getContentType)());
+                const metrics = await (0, metrics_js_1.getMetrics)();
+                res.setHeader('Content-Type', (0, metrics_js_1.getContentType)());
                 res.writeHead(200);
                 res.end(metrics);
             }
@@ -179,10 +179,10 @@ function startHealthServer(port = 3000) {
         }
     });
     server.listen(port, () => {
-        Logger_1.default.info('Health', `Health check server listening on port ${port}`);
+        Logger_js_1.default.info('Health', `Health check server listening on port ${port}`);
     });
     server.on('error', (error) => {
-        Logger_1.default.error('Health', `Health server error: ${error.message}`);
+        Logger_js_1.default.error('Health', `Health server error: ${error.message}`);
     });
     return server;
 }

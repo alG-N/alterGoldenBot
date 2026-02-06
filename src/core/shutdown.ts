@@ -4,8 +4,8 @@
  * @module core/shutdown
  */
 
-import logger from './Logger';
-import container from '../container';
+import logger from './Logger.js';
+import container from '../container.js';
 // TYPES
 interface ShutdownHandler {
     name: string;

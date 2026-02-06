@@ -17,7 +17,7 @@
  */
 
 // New architecture (Phase 2)
-export { default as musicFacade, musicFacade as MusicFacade } from './MusicFacade';
+export { default as musicFacade, musicFacade as MusicFacade } from './MusicFacade.js';
 export { queueService, QueueService } from './queue/index.js';
 export { playbackService, PlaybackService } from './playback/index.js';
 export { voiceConnectionService, VoiceConnectionService } from './voice/index.js';
@@ -30,7 +30,7 @@ export { musicEventBus, MusicEventBus, MusicEvents, playbackEventHandler, Playba
 export { default as lavalinkService, LavalinkService } from './LavalinkService.js';
 
 // Re-export MusicFacade as MusicService for backward compatibility
-export { musicFacade as MusicService } from './MusicFacade';
+export { musicFacade as MusicService } from './MusicFacade.js';
 
 // Type exports
 export type { MusicQueue, QueueState } from './queue/index.js';

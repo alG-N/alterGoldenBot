@@ -217,7 +217,8 @@ class AlterGoldenBot {
         let lavalinkService: { getNodeStatus?: () => { ready?: boolean; nodes?: unknown[]; activeConnections?: number } } | undefined;
         if (music.enabled) {
             const lavalinkModule = await import('./services/music/LavalinkService.js');
-            lavalinkService = lavalinkModule.default as unknown as typeof lavalinkService;
+            const mod = lavalinkModule.default as Record<string, unknown>;
+            lavalinkService = ((mod && typeof mod === 'object' && 'default' in mod) ? mod.default : mod) as typeof lavalinkService;
         }
         
         health.registerDefaultChecks({
@@ -354,7 +355,8 @@ class AlterGoldenBot {
     private async initializeLavalink(): Promise<void> {
         try {
             const lavalinkModule = await import('./services/music/LavalinkService.js');
-            const lavalinkService = lavalinkModule.default as unknown as { preInitialize: (client: unknown) => void; finalize: () => void };
+            const mod = lavalinkModule.default as Record<string, unknown>;
+            const lavalinkService = ((mod && typeof mod === 'object' && 'default' in mod) ? mod.default : mod) as { preInitialize: (client: unknown) => void; finalize: () => void };
             lavalinkService.preInitialize(this.client);
             lavalinkService.finalize();
             logger.info('Lavalink', 'Music service pre-initialized');

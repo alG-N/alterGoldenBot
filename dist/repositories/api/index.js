@@ -36,33 +36,29 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Rule34Cache = exports.RedditCache = exports.PixivCache = exports.NHentaiRepository = exports.CacheManager = exports.AnimeRepository = exports.rule34Cache = exports.redditCache = exports.pixivCache = exports.nhentaiRepository = exports.cacheManager = exports.animeRepository = void 0;
+exports.Rule34Cache = exports.RedditCache = exports.PixivCache = exports.NHentaiRepository = exports.AnimeRepository = exports.rule34Cache = exports.redditCache = exports.pixivCache = exports.nhentaiRepository = exports.animeRepository = void 0;
 // Import all repositories
-const animeRepository_1 = __importStar(require("./animeRepository"));
-exports.animeRepository = animeRepository_1.default;
-Object.defineProperty(exports, "AnimeRepository", { enumerable: true, get: function () { return animeRepository_1.AnimeRepository; } });
-const cacheManager_1 = __importStar(require("./cacheManager"));
-exports.cacheManager = cacheManager_1.default;
-Object.defineProperty(exports, "CacheManager", { enumerable: true, get: function () { return cacheManager_1.CacheManager; } });
-const nhentaiRepository_1 = __importStar(require("./nhentaiRepository"));
-exports.nhentaiRepository = nhentaiRepository_1.default;
-Object.defineProperty(exports, "NHentaiRepository", { enumerable: true, get: function () { return nhentaiRepository_1.NHentaiRepository; } });
-const pixivCache_1 = __importStar(require("./pixivCache"));
-exports.pixivCache = pixivCache_1.default;
-Object.defineProperty(exports, "PixivCache", { enumerable: true, get: function () { return pixivCache_1.PixivCache; } });
-const redditCache_1 = __importStar(require("./redditCache"));
-exports.redditCache = redditCache_1.default;
-Object.defineProperty(exports, "RedditCache", { enumerable: true, get: function () { return redditCache_1.RedditCache; } });
-const rule34Cache_1 = __importStar(require("./rule34Cache"));
-exports.rule34Cache = rule34Cache_1.default;
-Object.defineProperty(exports, "Rule34Cache", { enumerable: true, get: function () { return rule34Cache_1.Rule34Cache; } });
+const animeRepository_js_1 = __importStar(require("./animeRepository.js"));
+exports.animeRepository = animeRepository_js_1.default;
+Object.defineProperty(exports, "AnimeRepository", { enumerable: true, get: function () { return animeRepository_js_1.AnimeRepository; } });
+const nhentaiRepository_js_1 = __importStar(require("./nhentaiRepository.js"));
+exports.nhentaiRepository = nhentaiRepository_js_1.default;
+Object.defineProperty(exports, "NHentaiRepository", { enumerable: true, get: function () { return nhentaiRepository_js_1.NHentaiRepository; } });
+const pixivCache_js_1 = __importStar(require("./pixivCache.js"));
+exports.pixivCache = pixivCache_js_1.default;
+Object.defineProperty(exports, "PixivCache", { enumerable: true, get: function () { return pixivCache_js_1.PixivCache; } });
+const redditCache_js_1 = __importStar(require("./redditCache.js"));
+exports.redditCache = redditCache_js_1.default;
+Object.defineProperty(exports, "RedditCache", { enumerable: true, get: function () { return redditCache_js_1.RedditCache; } });
+const rule34Cache_js_1 = __importStar(require("./rule34Cache.js"));
+exports.rule34Cache = rule34Cache_js_1.default;
+Object.defineProperty(exports, "Rule34Cache", { enumerable: true, get: function () { return rule34Cache_js_1.Rule34Cache; } });
 // Default export for CommonJS compatibility
 exports.default = {
-    animeRepository: animeRepository_1.default,
-    cacheManager: cacheManager_1.default,
-    nhentaiRepository: nhentaiRepository_1.default,
-    pixivCache: pixivCache_1.default,
-    redditCache: redditCache_1.default,
-    rule34Cache: rule34Cache_1.default
+    animeRepository: animeRepository_js_1.default,
+    nhentaiRepository: nhentaiRepository_js_1.default,
+    pixivCache: pixivCache_js_1.default,
+    redditCache: redditCache_js_1.default,
+    rule34Cache: rule34Cache_js_1.default
 };
 //# sourceMappingURL=index.js.map

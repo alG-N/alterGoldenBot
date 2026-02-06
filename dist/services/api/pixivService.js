@@ -44,9 +44,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PixivService = exports.pixivService = void 0;
 const path = __importStar(require("path"));
 const dotenv = __importStar(require("dotenv"));
-const Logger_1 = __importDefault(require("../../core/Logger"));
-const CircuitBreakerRegistry_1 = require("../../core/CircuitBreakerRegistry");
-const CacheService_1 = __importDefault(require("../../cache/CacheService"));
+const Logger_js_1 = __importDefault(require("../../core/Logger.js"));
+const CircuitBreakerRegistry_js_1 = require("../../core/CircuitBreakerRegistry.js");
+const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
 dotenv.config({ path: path.join(__dirname, '../.env') });
 // CONSTANTS
 const SERIES_MAP = {
@@ -129,7 +129,7 @@ class PixivService {
         }
         // 2. Check Redis for a token another shard may have refreshed
         try {
-            const cached = await CacheService_1.default.get(PixivService.AUTH_CACHE_NS, PixivService.AUTH_CACHE_KEY);
+            const cached = await CacheService_js_1.default.get(PixivService.AUTH_CACHE_NS, PixivService.AUTH_CACHE_KEY);
             if (cached && Date.now() < cached.expiresAt) {
                 this.auth.accessToken = cached.accessToken;
                 this.auth.refreshToken = cached.refreshToken;
@@ -141,7 +141,7 @@ class PixivService {
             // Redis unavailable — fall through to refresh
         }
         // 3. Refresh token from Pixiv API (circuit-breaker protected)
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('pixiv', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('pixiv', async () => {
             try {
                 const response = await fetch('https://oauth.secure.pixiv.net/auth/token', {
                     method: 'POST',
@@ -167,7 +167,7 @@ class PixivService {
                 // 4. Store in Redis for other shards (TTL = token lifetime)
                 try {
                     const ttlSeconds = Math.max(Math.floor((this.auth.expiresAt - Date.now()) / 1000), 60);
-                    await CacheService_1.default.set(PixivService.AUTH_CACHE_NS, PixivService.AUTH_CACHE_KEY, {
+                    await CacheService_js_1.default.set(PixivService.AUTH_CACHE_NS, PixivService.AUTH_CACHE_KEY, {
                         accessToken: this.auth.accessToken,
                         refreshToken: this.auth.refreshToken,
                         expiresAt: this.auth.expiresAt
@@ -179,7 +179,7 @@ class PixivService {
                 return data.access_token;
             }
             catch (error) {
-                Logger_1.default.error('Pixiv', `Auth error: ${error.message}`);
+                Logger_js_1.default.error('Pixiv', `Auth error: ${error.message}`);
                 throw error;
             }
         });
@@ -189,7 +189,7 @@ class PixivService {
      */
     async search(query, options = {}) {
         const { offset = 0, contentType = 'illust', showNsfw = false, r18Only = false, aiFilter = false, qualityFilter = false, minBookmarks = 0, sort = 'popular_desc', fetchMultiple = true } = options;
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('pixiv', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('pixiv', async () => {
             const token = await this.authenticate();
             const isNovel = contentType === 'novel';
             const pagesToFetch = (showNsfw && fetchMultiple) ? 3 : 1;
@@ -327,7 +327,7 @@ class PixivService {
      */
     async getRanking(options = {}) {
         const { mode = 'day', contentType = 'illust', showNsfw = false, r18Only = false, aiFilter = false, offset = 0, qualityFilter = false, minBookmarks = 0 } = options;
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('pixiv', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('pixiv', async () => {
             const token = await this.authenticate();
             let rankingMode = mode;
             if (showNsfw) {
@@ -424,7 +424,7 @@ class PixivService {
      * Get autocomplete suggestions with circuit breaker
      */
     async getAutocompleteSuggestions(query) {
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('pixiv', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('pixiv', async () => {
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 2500);
             const url = `https://www.pixiv.net/rpc/cps.php?keyword=${encodeURIComponent(query)}&lang=en`;
@@ -551,7 +551,7 @@ class PixivService {
      */
     async translateToJapanese(text) {
         const cacheKey = `translate:en_ja_${text}`;
-        const cached = await CacheService_1.default.get('api', cacheKey);
+        const cached = await CacheService_js_1.default.get('api', cacheKey);
         if (cached) {
             return cached;
         }
@@ -563,7 +563,7 @@ class PixivService {
             const data = await response.json();
             const result = data?.[0]?.[0]?.[0];
             if (result) {
-                await CacheService_1.default.set('api', cacheKey, result, 3600); // 1 hour TTL
+                await CacheService_js_1.default.set('api', cacheKey, result, 3600); // 1 hour TTL
                 return result;
             }
             return text;
@@ -577,7 +577,7 @@ class PixivService {
      */
     async translateToEnglish(text) {
         const cacheKey = `translate:ja_en_${text}`;
-        const cached = await CacheService_1.default.get('api', cacheKey);
+        const cached = await CacheService_js_1.default.get('api', cacheKey);
         if (cached) {
             return cached;
         }
@@ -589,7 +589,7 @@ class PixivService {
             const data = await response.json();
             const result = data?.[0]?.[0]?.[0];
             if (result) {
-                await CacheService_1.default.set('api', cacheKey, result, 3600); // 1 hour TTL
+                await CacheService_js_1.default.set('api', cacheKey, result, 3600); // 1 hour TTL
                 return result;
             }
             return null;
@@ -645,11 +645,11 @@ class PixivService {
      * Get artwork by ID with circuit breaker
      */
     async getArtworkById(artworkId) {
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('pixiv', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('pixiv', async () => {
             const token = await this.authenticate();
             const url = new URL('https://app-api.pixiv.net/v1/illust/detail');
             url.searchParams.append('illust_id', String(artworkId));
-            Logger_1.default.debug('Pixiv', `Fetching artwork ID: ${artworkId}`);
+            Logger_js_1.default.debug('Pixiv', `Fetching artwork ID: ${artworkId}`);
             const response = await fetch(url.toString(), {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -658,7 +658,7 @@ class PixivService {
             });
             if (!response.ok) {
                 const errorText = await response.text();
-                Logger_1.default.error('Pixiv', `API Error ${response.status}: ${errorText}`);
+                Logger_js_1.default.error('Pixiv', `API Error ${response.status}: ${errorText}`);
                 throw new Error(`Artwork not found or API error: ${response.status}`);
             }
             const data = await response.json();
@@ -666,7 +666,7 @@ class PixivService {
                 throw new Error('Artwork not found');
             }
             const illust = data.illust;
-            Logger_1.default.debug('Pixiv', `Found artwork: "${illust.title}" | R18: ${illust.x_restrict > 0} | AI: ${illust.illust_ai_type === 2}`);
+            Logger_js_1.default.debug('Pixiv', `Found artwork: "${illust.title}" | R18: ${illust.x_restrict > 0} | AI: ${illust.illust_ai_type === 2}`);
             return illust;
         });
     }
@@ -676,8 +676,4 @@ exports.PixivService = PixivService;
 const pixivService = new PixivService();
 exports.pixivService = pixivService;
 exports.default = pixivService;
-// CommonJS compatibility
-module.exports = pixivService;
-module.exports.pixivService = pixivService;
-module.exports.PixivService = PixivService;
 //# sourceMappingURL=pixivService.js.map

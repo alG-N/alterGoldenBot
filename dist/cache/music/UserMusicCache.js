@@ -10,7 +10,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.userMusicCache = void 0;
-const postgres_1 = __importDefault(require("../../database/postgres"));
+const postgres_js_1 = __importDefault(require("../../database/postgres.js"));
 const CacheService_js_1 = __importDefault(require("../CacheService.js"));
 // UserMusicCache Class — PostgreSQL-backed, CacheService-cached
 class UserMusicCache {
@@ -53,7 +53,7 @@ class UserMusicCache {
             return cached;
         // Load from DB
         try {
-            const result = await postgres_1.default.query('SELECT * FROM user_music_preferences WHERE user_id = $1', [userId]);
+            const result = await postgres_js_1.default.query('SELECT * FROM user_music_preferences WHERE user_id = $1', [userId]);
             if (result.rows.length > 0) {
                 const row = result.rows[0];
                 const prefs = {
@@ -92,7 +92,7 @@ class UserMusicCache {
             lastAccessed: Date.now()
         };
         try {
-            await postgres_1.default.query(`INSERT INTO user_music_preferences (
+            await postgres_js_1.default.query(`INSERT INTO user_music_preferences (
                     user_id, default_volume, auto_play, announce_track, compact_mode,
                     dj_mode, max_track_duration, max_queue_size, preferred_source,
                     show_thumbnails, auto_leave_empty, vote_skip_enabled
@@ -127,7 +127,7 @@ class UserMusicCache {
      */
     async resetPreferences(userId) {
         try {
-            await postgres_1.default.query('DELETE FROM user_music_preferences WHERE user_id = $1', [userId]);
+            await postgres_js_1.default.query('DELETE FROM user_music_preferences WHERE user_id = $1', [userId]);
         }
         catch (error) {
             console.error('[UserMusicCache] Failed to delete preferences from DB:', error.message);
@@ -144,7 +144,7 @@ class UserMusicCache {
         if (cached)
             return cached;
         try {
-            const result = await postgres_1.default.query('SELECT url, title, author, duration, thumbnail, added_at FROM user_music_favorites WHERE user_id = $1 ORDER BY added_at DESC LIMIT $2', [userId, this.FAVORITES_MAX_SIZE]);
+            const result = await postgres_js_1.default.query('SELECT url, title, author, duration, thumbnail, added_at FROM user_music_favorites WHERE user_id = $1 ORDER BY added_at DESC LIMIT $2', [userId, this.FAVORITES_MAX_SIZE]);
             const tracks = result.rows.map((row) => ({
                 url: row.url,
                 title: row.title,
@@ -167,17 +167,17 @@ class UserMusicCache {
     async addFavorite(userId, track) {
         try {
             // Check count first
-            const countResult = await postgres_1.default.query('SELECT COUNT(*) as cnt FROM user_music_favorites WHERE user_id = $1', [userId]);
+            const countResult = await postgres_js_1.default.query('SELECT COUNT(*) as cnt FROM user_music_favorites WHERE user_id = $1', [userId]);
             const currentCount = parseInt(countResult.rows[0].cnt, 10);
             if (currentCount >= this.FAVORITES_MAX_SIZE) {
                 // Remove oldest to make room
-                await postgres_1.default.query(`DELETE FROM user_music_favorites WHERE id IN (
+                await postgres_js_1.default.query(`DELETE FROM user_music_favorites WHERE id IN (
                         SELECT id FROM user_music_favorites WHERE user_id = $1
                         ORDER BY added_at ASC LIMIT 1
                     )`, [userId]);
             }
             // Insert (UPSERT — ignore if already exists)
-            const result = await postgres_1.default.query(`INSERT INTO user_music_favorites (user_id, url, title, author, duration, thumbnail)
+            const result = await postgres_js_1.default.query(`INSERT INTO user_music_favorites (user_id, url, title, author, duration, thumbnail)
                  VALUES ($1, $2, $3, $4, $5, $6)
                  ON CONFLICT (user_id, url) DO NOTHING
                  RETURNING id`, [userId, track.url, track.title, track.author || null, track.lengthSeconds || track.duration || null, track.thumbnail || null]);
@@ -198,7 +198,7 @@ class UserMusicCache {
      */
     async removeFavorite(userId, trackUrl) {
         try {
-            await postgres_1.default.query('DELETE FROM user_music_favorites WHERE user_id = $1 AND url = $2', [userId, trackUrl]);
+            await postgres_js_1.default.query('DELETE FROM user_music_favorites WHERE user_id = $1 AND url = $2', [userId, trackUrl]);
         }
         catch (error) {
             console.error('[UserMusicCache] Failed to remove favorite:', error.message);
@@ -220,9 +220,9 @@ class UserMusicCache {
     async addToHistory(userId, track) {
         try {
             // Remove existing entry for same URL (move to top)
-            await postgres_1.default.query('DELETE FROM user_music_history WHERE user_id = $1 AND url = $2', [userId, track.url]);
+            await postgres_js_1.default.query('DELETE FROM user_music_history WHERE user_id = $1 AND url = $2', [userId, track.url]);
             // Insert new entry
-            await postgres_1.default.query(`INSERT INTO user_music_history (user_id, url, title, author, duration, thumbnail)
+            await postgres_js_1.default.query(`INSERT INTO user_music_history (user_id, url, title, author, duration, thumbnail)
                  VALUES ($1, $2, $3, $4, $5, $6)`, [userId, track.url, track.title, track.author || null, track.lengthSeconds || track.duration || null, track.thumbnail || null]);
             // Trim trigger handles size limit in DB
         }
@@ -245,7 +245,7 @@ class UserMusicCache {
                 return cached.slice(0, limit);
         }
         try {
-            const result = await postgres_1.default.query('SELECT url, title, author, duration, thumbnail, played_at FROM user_music_history WHERE user_id = $1 ORDER BY played_at DESC LIMIT $2', [userId, Math.min(limit, this.HISTORY_MAX_SIZE)]);
+            const result = await postgres_js_1.default.query('SELECT url, title, author, duration, thumbnail, played_at FROM user_music_history WHERE user_id = $1 ORDER BY played_at DESC LIMIT $2', [userId, Math.min(limit, this.HISTORY_MAX_SIZE)]);
             const tracks = result.rows.map((row) => ({
                 url: row.url,
                 title: row.title,
@@ -268,7 +268,7 @@ class UserMusicCache {
      */
     async clearHistory(userId) {
         try {
-            await postgres_1.default.query('DELETE FROM user_music_history WHERE user_id = $1', [userId]);
+            await postgres_js_1.default.query('DELETE FROM user_music_history WHERE user_id = $1', [userId]);
         }
         catch (error) {
             console.error('[UserMusicCache] Failed to clear history:', error.message);
@@ -287,9 +287,9 @@ class UserMusicCache {
     async getStats() {
         try {
             const [prefsResult, favsResult, histResult] = await Promise.all([
-                postgres_1.default.query('SELECT COUNT(*) as cnt FROM user_music_preferences'),
-                postgres_1.default.query('SELECT COUNT(DISTINCT user_id) as cnt FROM user_music_favorites'),
-                postgres_1.default.query('SELECT COUNT(DISTINCT user_id) as cnt FROM user_music_history')
+                postgres_js_1.default.query('SELECT COUNT(*) as cnt FROM user_music_preferences'),
+                postgres_js_1.default.query('SELECT COUNT(DISTINCT user_id) as cnt FROM user_music_favorites'),
+                postgres_js_1.default.query('SELECT COUNT(DISTINCT user_id) as cnt FROM user_music_history')
             ]);
             return {
                 preferences: parseInt(prefsResult.rows[0].cnt, 10),
@@ -311,8 +311,4 @@ class UserMusicCache {
 }
 exports.userMusicCache = new UserMusicCache();
 exports.default = exports.userMusicCache;
-// CommonJS compatibility
-module.exports = exports.userMusicCache;
-module.exports.userMusicCache = exports.userMusicCache;
-module.exports.UserMusicCache = UserMusicCache;
 //# sourceMappingURL=UserMusicCache.js.map

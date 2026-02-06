@@ -22,9 +22,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MusicService = exports.LavalinkService = exports.lavalinkService = exports.PlaybackEventHandler = exports.playbackEventHandler = exports.MusicEvents = exports.MusicEventBus = exports.musicEventBus = exports.AutoPlayService = exports.autoPlayService = exports.VoiceConnectionService = exports.voiceConnectionService = exports.PlaybackService = exports.playbackService = exports.QueueService = exports.queueService = exports.MusicFacade = exports.musicFacade = void 0;
 // New architecture (Phase 2)
-var MusicFacade_1 = require("./MusicFacade");
-Object.defineProperty(exports, "musicFacade", { enumerable: true, get: function () { return __importDefault(MusicFacade_1).default; } });
-Object.defineProperty(exports, "MusicFacade", { enumerable: true, get: function () { return MusicFacade_1.musicFacade; } });
+var MusicFacade_js_1 = require("./MusicFacade.js");
+Object.defineProperty(exports, "musicFacade", { enumerable: true, get: function () { return __importDefault(MusicFacade_js_1).default; } });
+Object.defineProperty(exports, "MusicFacade", { enumerable: true, get: function () { return MusicFacade_js_1.musicFacade; } });
 var index_js_1 = require("./queue/index.js");
 Object.defineProperty(exports, "queueService", { enumerable: true, get: function () { return index_js_1.queueService; } });
 Object.defineProperty(exports, "QueueService", { enumerable: true, get: function () { return index_js_1.QueueService; } });
@@ -49,6 +49,6 @@ var LavalinkService_js_1 = require("./LavalinkService.js");
 Object.defineProperty(exports, "lavalinkService", { enumerable: true, get: function () { return __importDefault(LavalinkService_js_1).default; } });
 Object.defineProperty(exports, "LavalinkService", { enumerable: true, get: function () { return LavalinkService_js_1.LavalinkService; } });
 // Re-export MusicFacade as MusicService for backward compatibility
-var MusicFacade_2 = require("./MusicFacade");
-Object.defineProperty(exports, "MusicService", { enumerable: true, get: function () { return MusicFacade_2.musicFacade; } });
+var MusicFacade_js_2 = require("./MusicFacade.js");
+Object.defineProperty(exports, "MusicService", { enumerable: true, get: function () { return MusicFacade_js_2.musicFacade; } });
 //# sourceMappingURL=index.js.map

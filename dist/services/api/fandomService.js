@@ -10,7 +10,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.POPULAR_WIKIS = exports.FandomService = exports.fandomService = void 0;
 const axios_1 = __importDefault(require("axios"));
-const CircuitBreakerRegistry_1 = require("../../core/CircuitBreakerRegistry");
+const CircuitBreakerRegistry_js_1 = require("../../core/CircuitBreakerRegistry.js");
 const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
 // CONSTANTS
 const REQUEST_CONFIG = {
@@ -94,7 +94,7 @@ class FandomService {
         const cached = await CacheService_js_1.default.get(this.CACHE_NS, cacheKey);
         if (cached)
             return { ...cached, fromCache: true };
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('fandom', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('fandom', async () => {
             try {
                 const response = await axios_1.default.get(`https://${subdomain}.fandom.com/api.php`, {
                     ...REQUEST_CONFIG,
@@ -149,7 +149,7 @@ class FandomService {
         const cached = await CacheService_js_1.default.get(this.CACHE_NS, cacheKey);
         if (cached)
             return { ...cached, fromCache: true };
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('fandom', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('fandom', async () => {
             try {
                 const response = await axios_1.default.get(`https://${subdomain}.fandom.com/api.php`, {
                     ...REQUEST_CONFIG,
@@ -210,7 +210,7 @@ class FandomService {
      */
     async getRandomArticle(wiki) {
         const subdomain = this.getWikiSubdomain(wiki);
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('fandom', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('fandom', async () => {
             try {
                 const response = await axios_1.default.get(`https://${subdomain}.fandom.com/api.php`, {
                     ...REQUEST_CONFIG,
@@ -248,7 +248,7 @@ class FandomService {
         const cached = await CacheService_js_1.default.get(this.CACHE_NS, cacheKey);
         if (cached)
             return { ...cached, fromCache: true };
-        return CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('fandom', async () => {
+        return CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('fandom', async () => {
             try {
                 const response = await axios_1.default.get(`https://${subdomain}.fandom.com/api.php`, {
                     ...REQUEST_CONFIG,
@@ -379,9 +379,4 @@ exports.FandomService = FandomService;
 const fandomService = new FandomService();
 exports.fandomService = fandomService;
 exports.default = fandomService;
-// CommonJS compatibility
-module.exports = fandomService;
-module.exports.fandomService = fandomService;
-module.exports.FandomService = FandomService;
-module.exports.POPULAR_WIKIS = POPULAR_WIKIS;
 //# sourceMappingURL=fandomService.js.map

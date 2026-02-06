@@ -5,15 +5,15 @@
  */
 // GENERAL API SERVICES
 // Google Service
-export { googleService, GoogleService } from './googleService';
+export { googleService, GoogleService } from './googleService.js';
 export type { 
     SearchResultItem, 
     SearchResponse, 
     SearchOptions as GoogleSearchOptions 
-} from './googleService';
+} from './googleService.js';
 
 // Wikipedia Service
-export { wikipediaService, WikipediaService } from './wikipediaService';
+export { wikipediaService, WikipediaService } from './wikipediaService.js';
 export type {
     WikiSearchResult,
     WikiSearchResponse,
@@ -23,10 +23,10 @@ export type {
     OnThisDayResponse,
     OnThisDayPage,
     SearchOptions as WikiSearchOptions
-} from './wikipediaService';
+} from './wikipediaService.js';
 
 // Fandom Wiki Service
-export { fandomService, FandomService, POPULAR_WIKIS } from './fandomService';
+export { fandomService, FandomService, POPULAR_WIKIS } from './fandomService.js';
 export type {
     SearchResult as FandomSearchResult,
     SearchResponse as FandomSearchResponse,
@@ -36,10 +36,10 @@ export type {
     WikiInfoResponse,
     PopularWiki,
     WikiSuggestion
-} from './fandomService';
+} from './fandomService.js';
 // ANIME/MANGA SERVICES
 // AniList Service
-export { anilistService, AnilistService } from './anilistService';
+export { anilistService, AnilistService } from './anilistService.js';
 export type {
     AnimeMedia,
     AnimeTitle,
@@ -50,10 +50,10 @@ export type {
     RelationEdge,
     Trailer,
     AutocompleteMedia
-} from './anilistService';
+} from './anilistService.js';
 
 // MyAnimeList Service
-export { myAnimeListService, MyAnimeListService } from './myAnimeListService';
+export { myAnimeListService, MyAnimeListService } from './myAnimeListService.js';
 export type {
     MALAnimeData,
     MALMangaData,
@@ -61,10 +61,10 @@ export type {
     MALDate,
     MALAuthor,
     MALAutocompleteItem
-} from './myAnimeListService';
+} from './myAnimeListService.js';
 // GAMING SERVICES
 // Steam Service
-export { steamService, SteamService } from './steamService';
+export { steamService, SteamService } from './steamService.js';
 export type {
     SteamGame,
     SteamSaleResponse,
@@ -72,18 +72,18 @@ export type {
     SteamAppDetailsResponse,
     SteamFeaturedGame,
     SteamSpyData
-} from './steamService';
+} from './steamService.js';
 // SOCIAL MEDIA SERVICES
 // Reddit Service
-export { redditService, RedditService } from './redditService';
+export { redditService, RedditService } from './redditService.js';
 export type {
     SubredditInfo,
     RedditPost,
     RedditPostsResult
-} from './redditService';
+} from './redditService.js';
 
 // Pixiv Service
-export { pixivService, PixivService } from './pixivService';
+export { pixivService, PixivService } from './pixivService.js';
 export type {
     PixivIllust,
     PixivNovel,
@@ -93,10 +93,10 @@ export type {
     SearchOptions as PixivSearchOptions,
     SearchResult as PixivSearchResult,
     RankingOptions
-} from './pixivService';
+} from './pixivService.js';
 // NSFW SERVICES
 // NHentai Service
-export { nhentaiService, NHentaiService } from './nhentaiService';
+export { nhentaiService, NHentaiService } from './nhentaiService.js';
 export type {
     NHentaiGallery,
     NHentaiTag,
@@ -107,14 +107,14 @@ export type {
     SearchData as NHentaiSearchData,
     PageUrl,
     ParsedTags
-} from './nhentaiService';
+} from './nhentaiService.js';
 
 // Rule34 Service
-export { rule34Service, Rule34Service } from './rule34Service';
+export { rule34Service, Rule34Service } from './rule34Service.js';
 export type {
     Rule34Post,
     Rule34RawPost,
     SearchResult as Rule34SearchResult,
     AutocompleteSuggestion as Rule34Suggestion,
     RelatedTag
-} from './rule34Service';
+} from './rule34Service.js';

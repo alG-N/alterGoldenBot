@@ -5,9 +5,13 @@
  * Ensures the bot continues functioning with reduced capability
  * @module core/GracefulDegradation
  */
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.gracefulDegradation = exports.GracefulDegradation = exports.ServiceState = exports.DegradationLevel = void 0;
 const events_1 = require("events");
+const Logger_js_1 = __importDefault(require("./Logger.js"));
 // Helper to get default export from require()
 const getDefault = (mod) => mod.default || mod;
 // Lazy-load cacheService to avoid circular dependency
@@ -111,7 +115,7 @@ class GracefulDegradation extends events_1.EventEmitter {
         this.registerService('lavalink', { critical: false });
         this.registerService('discord', { critical: true });
         this.initialized = true;
-        console.log('[GracefulDegradation] Initialized');
+        Logger_js_1.default.info('GracefulDegradation', 'Initialized');
     }
     /**
      * Register a service for monitoring
@@ -167,7 +171,7 @@ class GracefulDegradation extends events_1.EventEmitter {
                 newState: state,
                 reason
             });
-            console.log(`[GracefulDegradation] ${serviceName}: ${previousState} → ${state}${reason ? ` (${reason})` : ''}`);
+            Logger_js_1.default.info('GracefulDegradation', `${serviceName}: ${previousState} → ${state}${reason ? ` (${reason})` : ''}`);
         }
     }
     /**
@@ -232,7 +236,7 @@ class GracefulDegradation extends events_1.EventEmitter {
                 previousLevel,
                 newLevel: this.level
             });
-            console.log(`[GracefulDegradation] System level: ${previousLevel} → ${this.level}`);
+            Logger_js_1.default.info('GracefulDegradation', `System level: ${previousLevel} → ${this.level}`);
         }
     }
     /**
@@ -336,7 +340,7 @@ class GracefulDegradation extends events_1.EventEmitter {
             if (dropped) {
                 await this._removeFromRedisQueue(dropped);
             }
-            console.warn('[GracefulDegradation] Write queue full, dropping oldest entry');
+            Logger_js_1.default.warn('GracefulDegradation', 'Write queue full, dropping oldest entry');
         }
         const entry = {
             serviceName,
@@ -367,7 +371,7 @@ class GracefulDegradation extends events_1.EventEmitter {
             }
         }
         catch (error) {
-            console.error('[GracefulDegradation] Failed to persist write to Redis:', error.message);
+            Logger_js_1.default.error('GracefulDegradation', `Failed to persist write to Redis: ${error.message}`);
         }
     }
     /**
@@ -384,7 +388,7 @@ class GracefulDegradation extends events_1.EventEmitter {
             }
         }
         catch (error) {
-            console.error('[GracefulDegradation] Failed to remove write from Redis:', error.message);
+            Logger_js_1.default.error('GracefulDegradation', `Failed to remove write from Redis: ${error.message}`);
         }
     }
     /**
@@ -397,7 +401,7 @@ class GracefulDegradation extends events_1.EventEmitter {
             // Use provided Redis client or fall back to getCacheService()
             const redis = redisClient ?? getCacheService()?.getRedis();
             if (!redis) {
-                console.log('[GracefulDegradation] Redis not available, skipping queue recovery');
+                Logger_js_1.default.info('GracefulDegradation', 'Redis not available, skipping queue recovery');
                 return 0;
             }
             const pending = await redis.lrange(WRITE_QUEUE_KEY, 0, -1);
@@ -420,11 +424,11 @@ class GracefulDegradation extends events_1.EventEmitter {
                     // Skip malformed entries
                 }
             }
-            console.log(`[GracefulDegradation] Recovered ${recovered} queued writes from Redis`);
+            Logger_js_1.default.info('GracefulDegradation', `Recovered ${recovered} queued writes from Redis`);
             return recovered;
         }
         catch (error) {
-            console.error('[GracefulDegradation] Failed to recover write queue:', error.message);
+            Logger_js_1.default.error('GracefulDegradation', `Failed to recover write queue: ${error.message}`);
             return 0;
         }
     }
@@ -436,7 +440,7 @@ class GracefulDegradation extends events_1.EventEmitter {
         const pending = this.writeQueue.filter(w => w.serviceName === serviceName);
         if (pending.length === 0)
             return;
-        console.log(`[GracefulDegradation] Processing ${pending.length} queued writes for ${serviceName}`);
+        Logger_js_1.default.info('GracefulDegradation', `Processing ${pending.length} queued writes for ${serviceName}`);
         for (const item of pending) {
             try {
                 // Emit event for handler to process
@@ -456,7 +460,7 @@ class GracefulDegradation extends events_1.EventEmitter {
                     if (idx > -1)
                         this.writeQueue.splice(idx, 1);
                     await this._removeFromRedisQueue(item);
-                    console.error(`[GracefulDegradation] Failed to process queued write after 3 retries:`, error.message);
+                    Logger_js_1.default.error('GracefulDegradation', `Failed to process queued write after 3 retries: ${error.message}`);
                 }
             }
         }
@@ -568,7 +572,7 @@ class GracefulDegradation extends events_1.EventEmitter {
         // Note: writeQueue in Redis is preserved for recovery on restart
         this.writeQueue = [];
         this.initialized = false;
-        console.log('[GracefulDegradation] Shutdown complete (Redis queue preserved)');
+        Logger_js_1.default.info('GracefulDegradation', 'Shutdown complete (Redis queue preserved)');
     }
     /**
      * Force clear the Redis write queue (use with caution)
@@ -579,11 +583,11 @@ class GracefulDegradation extends events_1.EventEmitter {
             const redis = cacheService?.getRedis();
             if (redis) {
                 await redis.del(WRITE_QUEUE_KEY);
-                console.log('[GracefulDegradation] Redis write queue cleared');
+                Logger_js_1.default.info('GracefulDegradation', 'Redis write queue cleared');
             }
         }
         catch (error) {
-            console.error('[GracefulDegradation] Failed to clear Redis queue:', error.message);
+            Logger_js_1.default.error('GracefulDegradation', `Failed to clear Redis queue: ${error.message}`);
         }
     }
 }

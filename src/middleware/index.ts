@@ -4,9 +4,9 @@
  */
 
 // Import modules
-import * as access from './access';
-import * as voiceChannelCheck from './voiceChannelCheck';
-import * as urlValidator from './urlValidator';
+import * as access from './access.js';
+import * as voiceChannelCheck from './voiceChannelCheck.js';
+import * as urlValidator from './urlValidator.js';
 
 // Re-export access control
 export {
@@ -28,7 +28,7 @@ export {
     canModerate,
     botCanModerate,
     validateVideoUrl
-} from './access';
+} from './access.js';
 
 // Re-export voice channel checks
 export {
@@ -37,14 +37,14 @@ export {
     checkVoicePermissions,
     checkVoiceChannelSync,
     checkVoicePermissionsSync
-} from './voiceChannelCheck';
+} from './voiceChannelCheck.js';
 
 // Re-export URL validation
 export {
     validateUrl,
     isBlockedHost,
     BLOCKED_HOST_PATTERNS
-} from './urlValidator';
+} from './urlValidator.js';
 
 // Re-export types
 export type {
@@ -57,12 +57,12 @@ export type {
     MaintenanceCheckResult,
     AccessTypeValue,
     AnyInteraction
-} from './access';
+} from './access.js';
 
 export type {
     VoiceCheckResult,
     MusicInteraction
-} from './voiceChannelCheck';
+} from './voiceChannelCheck.js';
 
 // Default export with all modules
 export default {

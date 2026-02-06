@@ -1005,9 +1005,4 @@ exports.CacheService = CacheService;
 const cacheService = new CacheService();
 // Default export
 exports.default = cacheService;
-// CommonJS COMPATIBILITY
-module.exports = cacheService;
-module.exports.CacheService = CacheService;
-module.exports.DEFAULT_NAMESPACES = exports.DEFAULT_NAMESPACES;
-module.exports.default = cacheService;
 //# sourceMappingURL=CacheService.js.map

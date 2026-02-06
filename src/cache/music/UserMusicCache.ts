@@ -5,7 +5,7 @@
  * @module modules/music/repository/UserMusicCache
  */
 
-import postgres from '../../database/postgres';
+import postgres from '../../database/postgres.js';
 import cacheService from '../CacheService.js';
 // Types
 export interface UserPreferences {

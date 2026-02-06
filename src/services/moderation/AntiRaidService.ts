@@ -48,6 +48,19 @@ interface RaidModeState {
     activatedAt: number;
     activatedBy: Snowflake;
     reason: string;
+    stats?: {
+        kickedCount: number;
+        bannedCount: number;
+    };
+}
+
+interface DeactivateResult {
+    duration: number;
+    flaggedAccounts: number;
+    stats?: {
+        kickedCount?: number;
+        bannedCount?: number;
+    };
 }
 
 interface JoinAnalysis {
@@ -272,10 +285,21 @@ class AntiRaidService {
     /**
      * Deactivate raid mode
      */
-    async deactivateRaidMode(guildId: Snowflake): Promise<void> {
+    async deactivateRaidMode(guildId: Snowflake): Promise<DeactivateResult> {
+        const state = await this.getRaidModeState(guildId);
+        const flagged = await this.getFlaggedAccounts(guildId);
+
+        const result: DeactivateResult = {
+            duration: state ? Date.now() - state.activatedAt : 0,
+            flaggedAccounts: flagged.length,
+            stats: state?.stats
+        };
+
         await cacheService.delete(CACHE_NAMESPACE, this._raidModeKey(guildId));
         await cacheService.delete(CACHE_NAMESPACE, this._flaggedKey(guildId));
         console.log(`[AntiRaidService] Raid mode deactivated for guild ${guildId}`);
+
+        return result;
     }
 
     /**
@@ -305,6 +329,26 @@ class AntiRaidService {
      */
     async clearFlaggedAccounts(guildId: Snowflake): Promise<void> {
         await cacheService.delete(CACHE_NAMESPACE, this._flaggedKey(guildId));
+    }
+
+    /**
+     * Update raid mode stats (kick/ban counts)
+     */
+    async updateStats(guildId: Snowflake, action: 'kick' | 'ban'): Promise<void> {
+        const state = await this.getRaidModeState(guildId);
+        if (!state) return;
+
+        if (!state.stats) {
+            state.stats = { kickedCount: 0, bannedCount: 0 };
+        }
+
+        if (action === 'kick') {
+            state.stats.kickedCount++;
+        } else {
+            state.stats.bannedCount++;
+        }
+
+        await cacheService.set(CACHE_NAMESPACE, this._raidModeKey(guildId), state, RAID_MODE_TTL);
     }
 
     /**

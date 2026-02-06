@@ -47,7 +47,10 @@ class CommandRegistry {
             try {
                 const commands = await import(`../../commands/${category}/index.js`);
 
-                for (const [_name, command] of Object.entries(commands)) {
+                // CJS dynamic import wraps module.exports as 'default'
+                const commandExports = (commands.default || commands) as Record<string, unknown>;
+
+                for (const [_name, command] of Object.entries(commandExports)) {
                     const cmd = (command as { default?: Command }).default || command as Command;
                     if (cmd?.data?.name) {
                         this.commands.set(cmd.data.name, cmd);

@@ -53,7 +53,7 @@ exports.startTransaction = startTransaction;
 exports.flush = flush;
 exports.close = close;
 const Sentry = __importStar(require("@sentry/node"));
-const Logger_1 = __importDefault(require("./Logger"));
+const Logger_js_1 = __importDefault(require("./Logger.js"));
 // STATE
 let isInitialized = false;
 let initializationFailed = false;
@@ -66,8 +66,8 @@ let initializationFailed = false;
 function initialize(options = {}) {
     const dsn = process.env.SENTRY_DSN;
     if (!dsn) {
-        Logger_1.default.warn('Sentry', '⚠️ SENTRY_DSN not set - ERROR TRACKING DISABLED');
-        Logger_1.default.warn('Sentry', 'Production errors will NOT be tracked remotely!');
+        Logger_js_1.default.warn('Sentry', '⚠️ SENTRY_DSN not set - ERROR TRACKING DISABLED');
+        Logger_js_1.default.warn('Sentry', 'Production errors will NOT be tracked remotely!');
         console.warn('\n⚠️  WARNING: Sentry error tracking is DISABLED (no SENTRY_DSN)\n');
         return false;
     }
@@ -103,13 +103,13 @@ function initialize(options = {}) {
             ...options
         });
         isInitialized = true;
-        Logger_1.default.info('Sentry', '✅ Error tracking initialized');
+        Logger_js_1.default.info('Sentry', '✅ Error tracking initialized');
         return true;
     }
     catch (error) {
         initializationFailed = true;
-        Logger_1.default.error('Sentry', `❌ CRITICAL: Failed to initialize error tracking: ${error.message}`);
-        Logger_1.default.error('Sentry', 'Production errors will NOT be tracked remotely!');
+        Logger_js_1.default.error('Sentry', `❌ CRITICAL: Failed to initialize error tracking: ${error.message}`);
+        Logger_js_1.default.error('Sentry', 'Production errors will NOT be tracked remotely!');
         console.error('\n❌ CRITICAL: Sentry initialization failed!\n');
         console.error('   Error:', error.message);
         console.error('   Production errors will go untracked.\n');
@@ -269,10 +269,10 @@ async function flush(timeout = 2000) {
         return;
     try {
         await Sentry.flush(timeout);
-        Logger_1.default.debug('Sentry', 'Flushed pending events');
+        Logger_js_1.default.debug('Sentry', 'Flushed pending events');
     }
     catch (error) {
-        Logger_1.default.error('Sentry', `Flush failed: ${error.message}`);
+        Logger_js_1.default.error('Sentry', `Flush failed: ${error.message}`);
     }
 }
 /**
@@ -284,10 +284,10 @@ async function close() {
     try {
         await Sentry.close(2000);
         isInitialized = false;
-        Logger_1.default.info('Sentry', 'Closed');
+        Logger_js_1.default.info('Sentry', 'Closed');
     }
     catch (error) {
-        Logger_1.default.error('Sentry', `Close failed: ${error.message}`);
+        Logger_js_1.default.error('Sentry', `Close failed: ${error.message}`);
     }
 }
 //# sourceMappingURL=sentry.js.map

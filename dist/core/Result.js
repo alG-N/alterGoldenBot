@@ -111,7 +111,4 @@ class Result {
     }
 }
 exports.Result = Result;
-// CommonJS compatibility
-module.exports = { Result };
-module.exports.Result = Result;
 //# sourceMappingURL=Result.js.map

@@ -10,7 +10,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NHentaiHandler = void 0;
 const discord_js_1 = require("discord.js");
-const nhentaiRepository_1 = __importDefault(require("../../repositories/api/nhentaiRepository"));
+const nhentaiRepository_js_1 = __importDefault(require("../../repositories/api/nhentaiRepository.js"));
 const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const getDefault = (mod) => mod.default || mod;
@@ -112,7 +112,7 @@ class NHentaiHandler {
         // Check if user has favourited this gallery
         let isFavourited = false;
         try {
-            isFavourited = await nhentaiRepository_1.default.isFavourited(userId, galleryId);
+            isFavourited = await nhentaiRepository_js_1.default.isFavourited(userId, galleryId);
         }
         catch {
             // ignore
@@ -150,7 +150,7 @@ class NHentaiHandler {
      */
     async handleFavouriteToggle(userId, galleryId, gallery) {
         try {
-            const result = await nhentaiRepository_1.default.toggleFavourite(userId, gallery);
+            const result = await nhentaiRepository_js_1.default.toggleFavourite(userId, gallery);
             return result;
         }
         catch (error) {
@@ -163,8 +163,8 @@ class NHentaiHandler {
      */
     async createFavouritesEmbed(userId, page = 1, perPage = 10) {
         const offset = (page - 1) * perPage;
-        const favourites = await nhentaiRepository_1.default.getUserFavourites(userId, perPage, offset);
-        const totalCount = await nhentaiRepository_1.default.getFavouritesCount(userId);
+        const favourites = await nhentaiRepository_js_1.default.getUserFavourites(userId, perPage, offset);
+        const totalCount = await nhentaiRepository_js_1.default.getFavouritesCount(userId);
         const totalPages = Math.ceil(totalCount / perPage) || 1;
         const embed = new discord_js_1.EmbedBuilder()
             .setColor(COLORS.FAVOURITE)
@@ -568,9 +568,9 @@ class NHentaiHandler {
                         }
                         gallery = result.data;
                     }
-                    const isFav = await nhentaiRepository_1.default.isFavourited(userId, parseInt(galleryId));
+                    const isFav = await nhentaiRepository_js_1.default.isFavourited(userId, parseInt(galleryId));
                     if (isFav) {
-                        await nhentaiRepository_1.default.removeFavourite(userId, parseInt(galleryId));
+                        await nhentaiRepository_js_1.default.removeFavourite(userId, parseInt(galleryId));
                         await interaction.followUp({ content: '💔 Removed from favourites', ephemeral: true });
                     }
                     else {
@@ -578,7 +578,7 @@ class NHentaiHandler {
                             await interaction.followUp({ content: '❌ Cannot add to favourites - gallery data unavailable', ephemeral: true });
                             return;
                         }
-                        await nhentaiRepository_1.default.addFavourite(userId, gallery);
+                        await nhentaiRepository_js_1.default.addFavourite(userId, gallery);
                         await interaction.followUp({ content: '❤️ Added to favourites!', ephemeral: true });
                     }
                     break;
@@ -622,7 +622,7 @@ class NHentaiHandler {
                         await interaction.followUp({ content: '❌ No more pages', ephemeral: true });
                         return;
                     }
-                    const favourites = await nhentaiRepository_1.default.getUserFavourites(userId, 10, (newPage - 1) * 10);
+                    const favourites = await nhentaiRepository_js_1.default.getUserFavourites(userId, 10, (newPage - 1) * 10);
                     const rows = this.createFavouritesButtons(userId, newPage, totalPages, favourites);
                     await this.setSearchSession(userId, { ...searchSession, favPage: newPage });
                     await interaction.editReply({ embeds: [embed], components: rows });
@@ -664,7 +664,7 @@ class NHentaiHandler {
                         await interaction.editReply({ embeds: [embed], components: [] });
                         return;
                     }
-                    const favourites = await nhentaiRepository_1.default.getUserFavourites(userId, 10, 0);
+                    const favourites = await nhentaiRepository_js_1.default.getUserFavourites(userId, 10, 0);
                     const rows = this.createFavouritesButtons(userId, 1, totalPages, favourites);
                     await this.setSearchSession(userId, { favPage: 1, expiresAt: Date.now() + this.SESSION_TTL * 1000 });
                     await interaction.editReply({ embeds: [embed], components: rows });
@@ -692,7 +692,7 @@ class NHentaiHandler {
                     break;
                 }
                 case 'randfav': {
-                    const favourites = await nhentaiRepository_1.default.getUserFavourites(userId, 100, 0);
+                    const favourites = await nhentaiRepository_js_1.default.getUserFavourites(userId, 100, 0);
                     if (favourites.length === 0) {
                         await interaction.followUp({ content: '❌ You have no favourites yet!', ephemeral: true });
                         return;

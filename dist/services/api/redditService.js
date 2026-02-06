@@ -6,11 +6,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.redditService = exports.RedditService = void 0;
 const axios_1 = __importDefault(require("axios"));
 const buffer_1 = require("buffer");
-const services_1 = __importDefault(require("../../config/services"));
-const apiUtils_1 = require("../../utils/common/apiUtils");
-const Logger_1 = __importDefault(require("../../core/Logger"));
-const CircuitBreakerRegistry_1 = require("../../core/CircuitBreakerRegistry");
-const CacheService_1 = __importDefault(require("../../cache/CacheService"));
+const services_js_1 = __importDefault(require("../../config/services.js"));
+const apiUtils_js_1 = require("../../utils/common/apiUtils.js");
+const Logger_js_1 = __importDefault(require("../../core/Logger.js"));
+const CircuitBreakerRegistry_js_1 = require("../../core/CircuitBreakerRegistry.js");
+const CacheService_js_1 = __importDefault(require("../../cache/CacheService.js"));
 // REDDIT SERVICE CLASS
 /**
  * Service for interacting with Reddit API
@@ -30,14 +30,14 @@ class RedditService {
     static AUTH_CACHE_NS = 'reddit_auth';
     static AUTH_CACHE_KEY = 'oauth_token';
     constructor() {
-        this.clientId = services_1.default.reddit.clientId;
-        this.secret = services_1.default.reddit.secretKey;
+        this.clientId = services_js_1.default.reddit.clientId;
+        this.secret = services_js_1.default.reddit.secretKey;
         // Configurable timeouts from config
-        this.timeout = services_1.default.reddit.timeout || 10000;
-        this.authTimeout = services_1.default.reddit.authTimeout || 5000;
-        this.searchTimeout = services_1.default.reddit.searchTimeout || 2000;
-        this.maxRetries = services_1.default.reddit.maxRetries || 2;
-        this.userAgent = services_1.default.reddit.userAgent || 'DiscordBot/1.0';
+        this.timeout = services_js_1.default.reddit.timeout || 10000;
+        this.authTimeout = services_js_1.default.reddit.authTimeout || 5000;
+        this.searchTimeout = services_js_1.default.reddit.searchTimeout || 2000;
+        this.maxRetries = services_js_1.default.reddit.maxRetries || 2;
+        this.userAgent = services_js_1.default.reddit.userAgent || 'DiscordBot/1.0';
     }
     /**
      * Get or refresh OAuth access token
@@ -50,7 +50,7 @@ class RedditService {
         }
         // 2. Check Redis for a token another shard may have refreshed
         try {
-            const cached = await CacheService_1.default.get(RedditService.AUTH_CACHE_NS, RedditService.AUTH_CACHE_KEY);
+            const cached = await CacheService_js_1.default.get(RedditService.AUTH_CACHE_NS, RedditService.AUTH_CACHE_KEY);
             if (cached && Date.now() < cached.tokenExpiry) {
                 this.accessToken = cached.accessToken;
                 this.tokenExpiry = cached.tokenExpiry;
@@ -63,8 +63,8 @@ class RedditService {
         // 3. Refresh token from Reddit API
         const auth = buffer_1.Buffer.from(`${this.clientId}:${this.secret}`).toString('base64');
         // Use retry logic for authentication
-        return (0, apiUtils_1.withRetry)(async () => {
-            const response = await CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('externalApi', async () => axios_1.default.post('https://www.reddit.com/api/v1/access_token', 'grant_type=client_credentials', {
+        return (0, apiUtils_js_1.withRetry)(async () => {
+            const response = await CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('externalApi', async () => axios_1.default.post('https://www.reddit.com/api/v1/access_token', 'grant_type=client_credentials', {
                 headers: {
                     'Authorization': `Basic ${auth}`,
                     'Content-Type': 'application/x-www-form-urlencoded',
@@ -76,7 +76,7 @@ class RedditService {
             // 4. Store in Redis for other shards
             try {
                 const ttlSeconds = Math.max(Math.floor((this.tokenExpiry - Date.now()) / 1000), 60);
-                await CacheService_1.default.set(RedditService.AUTH_CACHE_NS, RedditService.AUTH_CACHE_KEY, {
+                await CacheService_js_1.default.set(RedditService.AUTH_CACHE_NS, RedditService.AUTH_CACHE_KEY, {
                     accessToken: this.accessToken,
                     tokenExpiry: this.tokenExpiry
                 }, ttlSeconds);
@@ -90,7 +90,7 @@ class RedditService {
             maxRetries: this.maxRetries,
             retryDelay: 500
         }).catch((error) => {
-            Logger_1.default.error('Reddit', `Authentication failed: ${error.response?.data || error.message}`);
+            Logger_js_1.default.error('Reddit', `Authentication failed: ${error.response?.data || error.message}`);
             throw new Error('Failed to authenticate with Reddit');
         });
     }
@@ -101,7 +101,7 @@ class RedditService {
      */
     async searchSubreddits(query, limit = 10) {
         try {
-            const res = await CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('externalApi', async () => axios_1.default.get(`https://www.reddit.com/subreddits/search.json?q=${encodeURIComponent(query)}&limit=${limit}`, {
+            const res = await CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('externalApi', async () => axios_1.default.get(`https://www.reddit.com/subreddits/search.json?q=${encodeURIComponent(query)}&limit=${limit}`, {
                 headers: { 'User-Agent': this.userAgent },
                 timeout: this.searchTimeout
             }));
@@ -112,7 +112,7 @@ class RedditService {
             }));
         }
         catch (error) {
-            Logger_1.default.debug('Reddit', `Subreddit search timeout/error: ${error.message}`);
+            Logger_js_1.default.debug('Reddit', `Subreddit search timeout/error: ${error.message}`);
             return [];
         }
     }
@@ -125,9 +125,9 @@ class RedditService {
     async fetchSubredditPosts(subreddit, sortBy = 'top', limit = 5) {
         const token = await this.getAccessToken();
         // Use retry logic for fetching posts
-        return (0, apiUtils_1.withRetry)(async () => {
+        return (0, apiUtils_js_1.withRetry)(async () => {
             // First verify subreddit exists
-            const aboutResponse = await CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('externalApi', async () => axios_1.default.get(`https://oauth.reddit.com/r/${subreddit}/about`, {
+            const aboutResponse = await CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('externalApi', async () => axios_1.default.get(`https://oauth.reddit.com/r/${subreddit}/about`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'User-Agent': this.userAgent
@@ -147,7 +147,7 @@ class RedditService {
             if (sortBy === 'top') {
                 params.t = 'day';
             }
-            const response = await CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('externalApi', async () => axios_1.default.get(`https://oauth.reddit.com/r/${subreddit}/${sortBy}`, {
+            const response = await CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('externalApi', async () => axios_1.default.get(`https://oauth.reddit.com/r/${subreddit}/${sortBy}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'User-Agent': this.userAgent
@@ -169,7 +169,7 @@ class RedditService {
             if (error.response?.status === 404) {
                 return { error: 'not_found' };
             }
-            Logger_1.default.error('Reddit', `Error fetching from /r/${subreddit}: ${error.message}`);
+            Logger_js_1.default.error('Reddit', `Error fetching from /r/${subreddit}: ${error.message}`);
             return { error: 'fetch_failed' };
         });
     }
@@ -180,7 +180,7 @@ class RedditService {
     async searchSimilarSubreddits(subreddit) {
         const token = await this.getAccessToken();
         try {
-            const response = await CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('externalApi', async () => axios_1.default.get('https://oauth.reddit.com/subreddits/search', {
+            const response = await CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('externalApi', async () => axios_1.default.get('https://oauth.reddit.com/subreddits/search', {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'User-Agent': 'DiscordBot/1.0'
@@ -210,7 +210,7 @@ class RedditService {
             const endpoint = region === 'global'
                 ? 'https://oauth.reddit.com/r/popular/hot'
                 : `https://oauth.reddit.com/r/popular/hot?geo_filter=${region.toUpperCase()}`;
-            const response = await CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('externalApi', async () => axios_1.default.get(endpoint, {
+            const response = await CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('externalApi', async () => axios_1.default.get(endpoint, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'User-Agent': 'DiscordBot/1.0'
@@ -225,7 +225,7 @@ class RedditService {
             };
         }
         catch (error) {
-            Logger_1.default.error('Reddit', `Error fetching trending posts: ${error.message}`);
+            Logger_js_1.default.error('Reddit', `Error fetching trending posts: ${error.message}`);
             return { error: 'fetch_failed' };
         }
     }
@@ -237,7 +237,7 @@ class RedditService {
     async fetchAllPosts(sortBy = 'hot', limit = 10) {
         const token = await this.getAccessToken();
         try {
-            const response = await CircuitBreakerRegistry_1.circuitBreakerRegistry.execute('externalApi', async () => axios_1.default.get(`https://oauth.reddit.com/r/all/${sortBy}`, {
+            const response = await CircuitBreakerRegistry_js_1.circuitBreakerRegistry.execute('externalApi', async () => axios_1.default.get(`https://oauth.reddit.com/r/all/${sortBy}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'User-Agent': 'DiscordBot/1.0'
@@ -252,7 +252,7 @@ class RedditService {
             };
         }
         catch (error) {
-            Logger_1.default.error('Reddit', `Error fetching r/all posts: ${error.message}`);
+            Logger_js_1.default.error('Reddit', `Error fetching r/all posts: ${error.message}`);
             return { error: 'fetch_failed' };
         }
     }
@@ -312,8 +312,4 @@ exports.RedditService = RedditService;
 const redditService = new RedditService();
 exports.redditService = redditService;
 exports.default = redditService;
-// CommonJS compatibility
-module.exports = redditService;
-module.exports.redditService = redditService;
-module.exports.RedditService = RedditService;
 //# sourceMappingURL=redditService.js.map

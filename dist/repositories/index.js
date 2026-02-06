@@ -37,32 +37,31 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AfkRepository = exports.afkRepository = exports.ModLogRepository = exports.FilterRepository = exports.AutoModRepository = exports.InfractionRepository = exports.rule34Cache = exports.redditCache = exports.pixivCache = exports.nhentaiRepository = exports.cacheManager = exports.animeRepository = exports.general = exports.moderation = exports.api = void 0;
+exports.AfkRepository = exports.afkRepository = exports.ModLogRepository = exports.FilterRepository = exports.AutoModRepository = exports.InfractionRepository = exports.rule34Cache = exports.redditCache = exports.pixivCache = exports.nhentaiRepository = exports.animeRepository = exports.general = exports.moderation = exports.api = void 0;
 // Import all repository modules
-const api = __importStar(require("./api"));
+const api = __importStar(require("./api/index.js"));
 exports.api = api;
-const moderation = __importStar(require("./moderation"));
+const moderation = __importStar(require("./moderation/index.js"));
 exports.moderation = moderation;
-const general = __importStar(require("./general"));
+const general = __importStar(require("./general/index.js"));
 exports.general = general;
 // Re-export individual repositories for convenience
-var api_1 = require("./api");
-Object.defineProperty(exports, "animeRepository", { enumerable: true, get: function () { return api_1.animeRepository; } });
-Object.defineProperty(exports, "cacheManager", { enumerable: true, get: function () { return api_1.cacheManager; } });
-Object.defineProperty(exports, "nhentaiRepository", { enumerable: true, get: function () { return api_1.nhentaiRepository; } });
-Object.defineProperty(exports, "pixivCache", { enumerable: true, get: function () { return api_1.pixivCache; } });
-Object.defineProperty(exports, "redditCache", { enumerable: true, get: function () { return api_1.redditCache; } });
-Object.defineProperty(exports, "rule34Cache", { enumerable: true, get: function () { return api_1.rule34Cache; } });
+var index_js_1 = require("./api/index.js");
+Object.defineProperty(exports, "animeRepository", { enumerable: true, get: function () { return index_js_1.animeRepository; } });
+Object.defineProperty(exports, "nhentaiRepository", { enumerable: true, get: function () { return index_js_1.nhentaiRepository; } });
+Object.defineProperty(exports, "pixivCache", { enumerable: true, get: function () { return index_js_1.pixivCache; } });
+Object.defineProperty(exports, "redditCache", { enumerable: true, get: function () { return index_js_1.redditCache; } });
+Object.defineProperty(exports, "rule34Cache", { enumerable: true, get: function () { return index_js_1.rule34Cache; } });
 // Music caches are now in src/cache/music/
-// Import from there: import { MusicCache } from '../../cache/music';
-var moderation_1 = require("./moderation");
-Object.defineProperty(exports, "InfractionRepository", { enumerable: true, get: function () { return moderation_1.InfractionRepository; } });
-Object.defineProperty(exports, "AutoModRepository", { enumerable: true, get: function () { return moderation_1.AutoModRepository; } });
-Object.defineProperty(exports, "FilterRepository", { enumerable: true, get: function () { return moderation_1.FilterRepository; } });
-Object.defineProperty(exports, "ModLogRepository", { enumerable: true, get: function () { return moderation_1.ModLogRepository; } });
-var general_1 = require("./general");
-Object.defineProperty(exports, "afkRepository", { enumerable: true, get: function () { return general_1.afkRepository; } });
-Object.defineProperty(exports, "AfkRepository", { enumerable: true, get: function () { return general_1.AfkRepository; } });
+// Import from there: import { MusicCache } from '../../cache/music.js';
+var index_js_2 = require("./moderation/index.js");
+Object.defineProperty(exports, "InfractionRepository", { enumerable: true, get: function () { return index_js_2.InfractionRepository; } });
+Object.defineProperty(exports, "AutoModRepository", { enumerable: true, get: function () { return index_js_2.AutoModRepository; } });
+Object.defineProperty(exports, "FilterRepository", { enumerable: true, get: function () { return index_js_2.FilterRepository; } });
+Object.defineProperty(exports, "ModLogRepository", { enumerable: true, get: function () { return index_js_2.ModLogRepository; } });
+var index_js_3 = require("./general/index.js");
+Object.defineProperty(exports, "afkRepository", { enumerable: true, get: function () { return index_js_3.afkRepository; } });
+Object.defineProperty(exports, "AfkRepository", { enumerable: true, get: function () { return index_js_3.AfkRepository; } });
 // Default export
 exports.default = {
     api,

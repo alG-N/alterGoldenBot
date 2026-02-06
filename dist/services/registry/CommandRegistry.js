@@ -16,24 +16,25 @@ class CommandRegistry {
     /**
      * Load commands from all sources
      */
-    loadCommands() {
+    async loadCommands() {
         console.log('[CommandRegistry] Loading commands...');
         // Load all commands from commands/ folder
-        this._loadPresentationCommands();
+        await this._loadPresentationCommands();
         console.log(`[CommandRegistry] Loaded ${this.commands.size} commands`);
         return this.commands;
     }
     /**
      * Load commands from commands directory
      */
-    _loadPresentationCommands() {
+    async _loadPresentationCommands() {
         const categories = ['general', 'admin', 'owner', 'api', 'fun', 'music', 'video'];
         for (const category of categories) {
             try {
-                // eslint-disable-next-line @typescript-eslint/no-require-imports
-                const commands = require(`../../commands/${category}`);
-                for (const [_name, command] of Object.entries(commands)) {
-                    const cmd = command;
+                const commands = await import(`../../commands/${category}/index.js`);
+                // CJS dynamic import wraps module.exports as 'default'
+                const commandExports = (commands.default || commands);
+                for (const [_name, command] of Object.entries(commandExports)) {
+                    const cmd = command.default || command;
                     if (cmd?.data?.name) {
                         this.commands.set(cmd.data.name, cmd);
                         console.log(`[CommandRegistry] Loaded: ${cmd.data.name} (${category})`);

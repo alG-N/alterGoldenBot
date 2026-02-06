@@ -5,9 +5,9 @@
  */
 
 import { GraphQLClient, gql } from 'graphql-request';
-import { circuitBreakerRegistry } from '../../core/CircuitBreakerRegistry';
-import cacheService from '../../cache/CacheService';
-import gracefulDegradation from '../../core/GracefulDegradation';
+import { circuitBreakerRegistry } from '../../core/CircuitBreakerRegistry.js';
+import cacheService from '../../cache/CacheService.js';
+import gracefulDegradation from '../../core/GracefulDegradation.js';
 // TYPES & INTERFACES
 export interface AnimeTitle {
     romaji: string | null;
